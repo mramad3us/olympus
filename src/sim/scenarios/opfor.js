@@ -29,6 +29,11 @@
 // (seenBy, struck and casualty men.js's and the house's; shots his rounds, the last SHOTS_KEPT; heardMs the news read so far,
 // burstsHeard the count of H.bursts read; would the ledger of every strike's would-have, combat/would.js, v0.0.20).
 // Nothing of it is written with no role-players: the turner lane stays v0.0.18's to the tick (tests/house-pin.test.mjs).
+// Where a man stands and which stands are role-players is read through one seam (its build sheet §0 item 16, §2 step 4):
+// spotOf(state, T), his spot (OPFOR_SPOTS[T.stand] on the set), and rpStandsOf(state), the lane's role-player stands (RP_STANDS on
+// the set), so a drawn house's posts (the chunks' frames, v0.0.22 G5) are one branch of each. parseOpfor and opforCode take no
+// state and keep RP_STANDS as the URL's grammar (room 2's card, then room 3's); no other function names OPFOR_SPOTS[ or RP_STANDS
+// (tests/syntax.test.mjs).
 //
 // Each lived tick (opforTick, from the house's actors layer after the #2's twoTick and before the instructor's walk; decisions
 // act the next tick), for each role-player:
@@ -50,7 +55,7 @@
 //      worse, read on §7.11's table with the security doctrine (RP_DOCTRINE): suppressed, pass fight, a miss cover, bad or
 //      disaster freeze; pinned, pass cover, a miss or bad freeze, disaster surrender with a marine's weapon within SURRENDER_M 5 m
 //      (else freeze). Calm or under fire he fights, no roll. A choice holds; surrender is final.
-//   5. His stoppage: a round that did not go or a stoppage behind it, and he clears it by his own drill (house-two.js's rule: a
+//   5. His stoppage: a round that did not go or a stoppage behind it, and he clears it by his own drill (combat/two.js's rule: a
 //      double feed REMEDIAL ACTION, the bolt locked or dry a speed reload, else IMMEDIATE ACTION) at its time, drills.js subsOf
 //      summed over firearms.js actionMs at his Weapon handling, each sub-step then done with a forced pass (doAction's force: the
 //      cadre's role-players never fumble; my call), on the stream 'house-rp'.
@@ -79,12 +84,14 @@
 // 'frag' a practice frag's read, 'setup' a leg cleared by a setup): he sits on and acts no more. Every roll is on a named stream
 // (stream(seed, 'house:rp', …), supp.js's, react.js's, shot.js's shotStream), never Math.random. opforNow(state, ms) is the hud's,
 // the bots' and the tests' view; opforLook(state, ms) the stage's (the figure's frame, his rifle in his hands, across his knees
-// or on the floor). Pure but fillOpfor, opforTick, opforHit and ruleOut, which write the session.
+// or on the floor). A wound that bleeds him down later (would.js wouldTick) sits him down at that tick (opforBled). Pure but fillOpfor,
+// opforTick, opforHit, opforBled and ruleOut, which write the session.
 import { TICK_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { stream, weighted } from '../../core/rng.js';
 import { nextId, playerActor, playerId } from '../../core/ids.js';
 import { OPFOR_SPOTS, RP_STANDS, RP_CARD_WEIGHTS, RP_QUALITY, RP_DOCTRINE, RP_CLASS, RP_INOC } from '../../data/places/house-opfor.js';
+import { houseSpecOf, postsOf } from '../scenes/assemble.js';
 import { openingState } from '../places/model.js';
 import { placeGaits } from '../body/motion.js';
 import { moverStart, locoStep } from '../body/loco.js';
@@ -182,9 +189,40 @@ export function opforCode(spec) {
   if (!S || S.error) return null;
   return S.cards ? `live:${RP_STANDS.map(s => S.cards[s] ?? '*').join(',')}` : 'live';
 }
-/** Each role-player's card from the seed alone (stream(seed, 'house:rp', stand)), a forced one kept: { '2a': card, '3a': card }. */
-export function drawCards(seed, forced = null) {
-  return Object.fromEntries(RP_STANDS.map(stand => [stand, forced?.[stand] ?? weighted(stream(seed, 'house:rp', stand), RP_CARD_WEIGHTS[stand])]));
+/**
+ * Each role-player's card from the seed alone (stream(seed, 'house:rp', stand)), a forced one kept: { '2a': card, '3a': card }. stands:
+ * the lane's (rpStandsOf), the set's by default. v0.0.22 (its build sheet §0 items 16 and 18, G5): the weights by his lane room
+ * (RP_CARD_WEIGHTS[stand[0]]), and a forced card found by his stand, else by his lane room: parseOpfor keys the URL's cards by the set's
+ * stands ('2a' room 2's, '3a' room 3's: a key's first character its lane room), so on a drawn house whose post in room 3 is '3c' the
+ * forced card still reaches him (before,
+ * read by the stand alone, `&opfor=live:fight,hide` on a drawn lane would have drawn both cards).
+ */
+export function drawCards(seed, forced = null, stands = rpStandsOf(null)) {
+  const byRoom = (stand) => forced?.[stand] ?? Object.entries(forced ?? {}).find(([k]) => k[0] === String(stand)[0])?.[1];
+  return Object.fromEntries(stands.map(stand => [stand, byRoom(stand) ?? weighted(stream(seed, 'house:rp', stand), RP_CARD_WEIGHTS[String(stand)[0]])]));
+}
+
+// ---- the seam: where a role-player stands, and which stands are role-players (the build sheet §0 item 16) ----
+
+// (a drawn house's posts (G5: scenes/assemble.js postsOf, the chunks' posts placed with their rooms, memoised by the spec and
+// never saved), null on the set or with no state)
+function drawnPosts(state) {
+  if (!state || rangeOf(state)?.house?.draw?.mode !== 'drawn') return null;
+  return postsOf(houseSpecOf(state));
+}
+/**
+ * A role-player's spot by his stand ({ post, name, door, start, face, hide, dash, aimAt, why? }), reading T.stand only: the set's,
+ * OPFOR_SPOTS[T.stand]; on a drawn house (G5) the post of his stand as assemble.js postsOf places it in the house drawn, its
+ * `post` the billet of his lane room's man (the same two men of Base Melas wherever their rooms fall).
+ */
+export function spotOf(state, T) {
+  const P = drawnPosts(state);
+  return P ? P[T.stand] : OPFOR_SPOTS[T.stand];
+}
+/** The lane's role-player stands, room 2's then room 3's: the set's RP_STANDS ['2a', '3a']; on a drawn house the stands of the posts of lane rooms 2 and 3 (G5); state may be null (the set). */
+export function rpStandsOf(state) {
+  const P = drawnPosts(state);
+  return P ? Object.keys(P).sort() : RP_STANDS;
 }
 /**
  * A role-player's sheet at quality q (COMBAT §7.9's mapping; see the header): Marksmanship and Weapon handling round(4 + 14q), Fieldcraft
@@ -203,7 +241,7 @@ export function opforSheet(qk = RP_Q) {
 
 /**
  * The role-players put in the house (w; see the header), the last items of the fill: H the house's record, opts a parseOpfor spec or
- * its words. For each of RP_STANDS: his person drawn (staff.js), his sheet, his issue ('opfor-fof', Condition 1 at low ready), his
+ * its words. For each of the lane's role-player stands (rpStandsOf): his person drawn (staff.js), his sheet, his issue ('opfor-fof', Condition 1 at low ready), his
  * post and his actor at his start, his stand's turner record replaced by his own (trigger 'go', turned at GO when GO has been given),
  * and R.house.live. A man whose leg a setup has already cleared is ruled out ('setup'). Returns { cards, pids } or null (no
  * role-players: nothing written).
@@ -212,11 +250,11 @@ export function fillOpfor(state, H = rangeOf(state)?.house ?? null, opts = null)
   const spec = parseOpfor(opts);
   const R = rangeOf(state);
   if (!H || !R || !spec || spec.error || spec.mode !== 'live') return null;
-  const seed = state.meta.seed, now = state.clock.ms, cards = drawCards(seed, spec.cards), pids = {};
+  const seed = state.meta.seed, now = state.clock.ms, cards = drawCards(seed, spec.cards, rpStandsOf(state)), pids = {};
   const area = R.area ?? state.places?.live?.area;
   state.actors ??= { list: [] };
-  for (const stand of RP_STANDS) {
-    const S = OPFOR_SPOTS[stand], i = R.turners.findIndex(T => T.stand === stand);
+  for (const stand of rpStandsOf(state)) {
+    const S = spotOf(state, { stand }), i = R.turners.findIndex(T => T.stand === stand);
     if (i < 0) continue;
     const pid = drawStaff(state, S.post), p = state.people[pid];
     p.skills = opforSheet(RP_Q);
@@ -361,7 +399,7 @@ function hear(state, bus, H, T, a, now, news) {
     if (here && Math.hypot(s.x - a.x, s.z - a.z) <= CUE_SHOT_M) cue(state, T, a, { x: s.x, z: s.z, atMs: s.atMs, why: 'shot' }, now);
   }
   for (const b of news.bursts) if (Math.hypot(b.x - a.x, b.z - a.z) <= CUE_BURST_M) cue(state, T, a, { x: b.x, z: b.z, atMs: b.atMs, why: 'burst' }, now);
-  const S = OPFOR_SPOTS[T.stand];
+  const S = spotOf(state, T);
   if (S && L.doorAtMs === undefined && openingState(state, S.door) !== 'closed') { L.doorAtMs = now; cue(state, T, a, { x: S.aimAt[0], z: S.aimAt[1], atMs: now, why: 'door' }, now); }
 }
 // (the lane's issue is marking: the #2's rounds carry no load on their record)
@@ -372,7 +410,7 @@ function cue(state, T, a, c, now) {
   const L = T.live;
   L.cue = { x: q(c.x, 0.001), z: q(c.z, 0.001), atMs: c.atMs, why: c.why };
   if (L.st !== 'wait' || L.give) return;
-  if (L.card === 'hide' && !L.dashed) { startDash(state, T, a, OPFOR_SPOTS[T.stand]?.hide, 'hide', now); return; }
+  if (L.card === 'hide' && !L.dashed) { startDash(state, T, a, spotOf(state, T)?.hide, 'hide', now); return; }
   const to = bearing(a, c.x, c.z);
   L.turn = { fromRad: q(a.headRad ?? headOf(a.face), 1e-6), toRad: q(to, 1e-6), fromMs: now, untilMs: now + TURN_MS };
   L.st = 'turn'; L.fromMs = now;
@@ -396,7 +434,7 @@ function turnTick(state, T, a, now) {
 }
 // (his rifle onto his door's threshold: posture 'aimed' at his aim time from where he holds it)
 function startAim(state, T, a, now) {
-  const L = T.live, S = OPFOR_SPOTS[T.stand], gunId = gunOn(state, L.who);
+  const L = T.live, S = spotOf(state, T), gunId = gunOn(state, L.who);
   L.st = 'aim'; L.fromMs = now;
   if (!S || !gunId) return;
   const [x, z] = S.aimAt, dM = Math.hypot(x - a.x, z - a.z);
@@ -507,7 +545,7 @@ function fireTick(state, bus, R, H, Lv, T, a, now) {
 
 // ---- his stoppage (step 5) ----
 
-/** The drill a role-player's rifle needs, by what it shows (house-two.js twoDrillOf's rule): 'remedial', 'reload:speed' or 'ia'. */
+/** The drill a role-player's rifle needs, by what it shows (combat/two.js twoDrillOf's rule): 'remedial', 'reload:speed' or 'ia'. */
 export function rpDrillOf(state, gun) {
   if (!gun) return null;
   if (gunField(gun, 'jam')) return 'remedial';
@@ -539,7 +577,7 @@ function clearStoppage(state, bus, T) {
 // ---- the dash (step 6) ----
 
 function startDash(state, T, a, to, why, now) {
-  const L = T.live, pid = L.who, S = OPFOR_SPOTS[T.stand];
+  const L = T.live, pid = L.who, S = spotOf(state, T);
   if (!to) return;
   const atStart = S && Math.hypot(a.x - S.start[0], a.z - S.start[1]) < 0.05 && to === S.hide;
   const path = atStart ? S.dash.map(p => [p[0], p[1]]) : [[a.x, a.z], [to[0], to[1]]];
@@ -599,7 +637,7 @@ function choiceTick(state, bus, H, T, a, now) {
   k.carry.finger = 'off';
   if (what === 'freeze') { if (!L.move) { L.st = 'freeze'; L.fromMs = now; a.stance = 'kneel'; k.carry.posture = 'lowReady'; } return; }
   // (cover: the one dash to his hide, or down where he is when he has dashed already or stands there)
-  const S = OPFOR_SPOTS[T.stand];
+  const S = spotOf(state, T);
   if (!L.dashed && S && Math.hypot(a.x - S.hide[0], a.z - S.hide[1]) > 0.1) startDash(state, T, a, S.hide, 'cover', now);
   else if (!L.move) { L.st = 'cover'; L.fromMs = now; a.stance = 'kneel'; k.carry.posture = 'lowReady'; }
 }
@@ -641,7 +679,7 @@ function startGive(state, T, now) {
   forgetMan(state, T);
 }
 function giveUp(state, bus, T, a, now) {
-  const L = T.live, pid = L.who, gunId = gunOn(state, pid), S = OPFOR_SPOTS[T.stand];
+  const L = T.live, pid = L.who, gunId = gunOn(state, pid), S = spotOf(state, T);
   if (gunId) {
     const to = S ? bearing(a, S.aimAt[0], S.aimAt[1]) : a.headRad ?? 0, area = rangeOf(state)?.area ?? state.places?.live?.area;
     state.items[gunId].mode = 'safe';
@@ -708,6 +746,11 @@ export function opforHit(state, bus, T, shot, now = state.clock.ms) {
   const would = h ? wouldHave(state, strikeOf(state, shot, { on: L.who, by: h.by ?? null, part: h.part, zone: h.zone })) : null;
   if (h && fatalOf(state, L.who) && L.st !== 'down' && L.st !== 'out') goDown(state, bus, T, shot.atMs ?? now);
   return { torso, head, down: L.st === 'down', would };
+}
+/** A role-player a wound put down later (would.js wouldTick; w): down where he stands at atMs, as at a fatal round; a man down or out already stays so. */
+export function opforBled(state, bus, T, atMs = state.clock.ms) {
+  const L = T?.live;
+  if (L && L.st !== 'down' && L.st !== 'out') goDown(state, bus, T, atMs);
 }
 function goDown(state, bus, T, atMs) {
   const L = T.live, a = actorOf(state, L.who);

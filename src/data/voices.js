@@ -113,8 +113,8 @@ const TABLE = `
 a: AX | about: AX B AW1 T | accounted: AX K AW1 N T IH D | across: AX K R AO1 S | again: AX G EH1 N | all: AO L | alone: AX L OW1 N | along: AX L AO1 NG
 always: AO1 L W EY Z | an: AE N | and: AE N D | angle: AE1 NG G AX L | anywhere: EH1 N IY W EH R | are: AA R | arm: AA R M | armed: AA R M D | as: AE Z
 assume: AX S UW1 M | at: AE T | away: AX W EY1 | back: B AE K | bang: B AE NG | be: B IY | before: B IH F AO1 R | behind: B IH HH AY1 N D | between: B IH T W IY1 N
-blast: B L AA S T | board: B AO R D | book: B UH K | booth: B UW TH | brass: B R AA S | breach: B R IY CH | breacher: B R IY1 CH ER | brief: B R IY F
-burst: B ER S T | by: B AY | call: K AO L | casualty: K AE1 ZH UW AX L T IY | cease: S IY S | charge: CH AA R JH | clean: K L IY N | clear: K L IH R
+blast: B L AA S T | bled: B L EH D | bleeding: B L IY1 D IH NG | blood: B L AH D | board: B AO R D | book: B UH K | booth: B UW TH | brass: B R AA S | breach: B R IY CH | breacher: B R IY1 CH ER | brief: B R IY F
+burst: B ER S T | by: B AY | call: K AO L | can: K AE N | casualty: K AE1 ZH UW AX L T IY | cease: S IY S | charge: CH AA R JH | clean: K L IY N | clear: K L IH R
 click: K L IH K | close: K L OW S | closed: K L OW Z D | coach: K OW CH | combat: K AA1 M B AE T | come: K AH M | commence: K AX M EH1 N S
 concussion: K AX N K AH1 SH AX N | contact: K AA1 N T AE K T | cook: K UH K | corner: K AO1 R N ER | correction: K ER EH1 K SH AX N | cost: K AO S T
 could: K UH D | count: K AW N T | cover: K AH1 V ER | cross: K R AO S | cut: K AH T | dead: D EH D | deck: D EH K | declaration: D EH K L ER EY1 SH AX N
@@ -125,21 +125,21 @@ fast: F AA S T | faster: F AA1 S T ER | feet: F IY T | fight: F AY T | find: F A
 first: F ER S T | five: F AY V | flash: F L AE SH | floor: F L AO R | for: F AO R | forty: F AO1 R T IY | four: F AO R | frag: F R AE G
 frangible: F R AE1 N JH AX B AX L | from: F R AH M | front: F R AH N T | full: F UH L | gave: G EY V | get: G EH T | give: G IH V | go: G OW
 going: G OW1 IH NG | gone: G AO N | good: G UH D | got: G AA T | grenade: G R AX N EY1 D | gun: G AH N | had: HH AE D | hall: HH AO L | hand: HH AE N D
-hands: HH AE N D Z | have: HH AE V | he: HH IY | he's: HH IY Z | head: HH EH D | held: HH EH L D | here: HH IH R | high: HH AY | him: HH IH M
+hands: HH AE N D Z | has: HH AE Z | have: HH AE V | he: HH IY | he's: HH IY Z | head: HH EH D | held: HH EH L D | here: HH IH R | high: HH AY | him: HH IH M
 hinge: HH IH N JH | his: HH IH Z | hit: HH IH T | hold: HH OW L D | hostage: HH AA1 S T IH JH | hostile: HH AA1 S T AY L | hot: HH AA T | house: HH AW S
 hung: HH AH NG | hurt: HH ER T | i: AY | i'll: AY L | i'm: AY M | identify: AY D EH1 N T IH F AY | in: IH N | inner: IH1 N ER
 intelligence: IH N T EH1 L IH JH AX N S | into: IH1 N T UW | is: IH Z | it: IH T | its: IH T S | jamb: JH AE M | keep: K IY P | kit: K IH T | kneel: N IY L
 lane: L EY N | last: L AA S T | latch: L AE CH | leave: L IY V | left: L EH F T | leg: L EH G | let: L EH T | lever: L IY1 V ER | light: L AY T
-line: L AY N | live: L AY V | load: L OW D | lock: L AA K | long: L AO NG | look: L UH K | low: L OW | magazine: M AE G AX Z IY1 N | make: M EY K
+line: L AY N | live: L AY V | load: L OW D | lock: L AA K | long: L AO NG | look: L UH K | lost: L AO S T | low: L OW | magazine: M AE G AX Z IY1 N | make: M EY K
 man: M AE N | mark: M AA R K | mask: M AA S K | me: M IY | mean: M IY N | means: M IY N Z | men: M EH N | met: M EH T | metre: M IY1 T ER | mid: M IH D
-minute: M IH1 N IH T | minutes: M IH1 N IH T S | miss: M IH S | move: M UW V | muzzle: M AH1 Z AX L | my: M AY | near: N IH R | never: N EH1 V ER
+minute: M IH1 N IH T | minutes: M IH1 N IH T S | miss: M IH S | move: M UW V | muzzle: M AH1 Z AX L | much: M AH CH | my: M AY | near: N IH R | never: N EH1 V ER
 next: N EH K S T | no: N OW | nobody: N OW1 B AX D IY | not: N AA T | nothing: N AH1 TH IH NG | now: N AW | number: N AH1 M B ER | of: AX V | off: AO F
 on: AA N | one: W AH N | only: OW1 N L IY | open: OW1 P AX N | optic: AA1 P T IH K | or: AO R | other: AH1 DH ER | out: AW T | outside: AW1 T S AY D
 over: OW1 V ER | paint: P EY N T | pair: P EH R | par: P AA R | pause: P AO Z | pistol: P IH1 S T AX L | place: P L EY S | point: P OY N T | police: P AX L IY1 S
 position: P AX Z IH1 SH AX N | power: P AW1 ER | practice: P R AE1 K T IH S | press: P R EH S | prone: P R OW N | pull: P UH L | put: P UH T
-quick: K W IH K | quicker: K W IH1 K ER | rack: R AE K | read: R IY D | ready: R EH1 D IY | real: R IY L | reload: R IY L OW1 D | rifle: R AY1 F AX L
+quick: K W IH K | quicker: K W IH1 K ER | rack: R AE K | ran: R AE N | read: R IY D | ready: R EH1 D IY | real: R IY L | reload: R IY L OW1 D | rifle: R AY1 F AX L
 right: R AY T | room: R UW M | round: R AW N D | run: R AH N | safe: S EY F | same: S EY M | sat: S AE T | say: S EY | says: S EH Z | score: S K AO R
-second: S EH1 K AX N D | sector: S EH1 K T ER | see: S IY | set: S EH T | shoot: SH UW T | short: SH AO R T | shot: SH AA T | should: SH UH D
+second: S EH1 K AX N D | sector: S EH1 K T ER | see: S IY | set: S EH T | shock: SH AA K | shoot: SH UW T | short: SH AO R T | shot: SH AA T | should: SH UH D
 show: SH OW | side: S AY D | sight: S AY T | sit: S IH T | slow: S L OW | so: S OW | someone: S AH1 M W AH N | spin: S P IH N | stack: S T AE K
 stand: S T AE N D | standby: S T AE1 N D B AY | stay: S T EY | still: S T IH L | stood: S T UH D | stop: S T AA P | stoppage: S T AA1 P IH JH
 stun: S T AH N | take: T EY K | tap: T AE P | target: T AA1 R G IH T | tell: T EH L | that: DH AE T | that's: DH AE T S | the: DH AX | their: DH EH R
@@ -147,13 +147,14 @@ them: DH EH M | then: DH EH N | there: DH EH R | they: DH EY | thing: TH IH NG |
 through: TH R UW | throw: TH R OW | thrown: TH R OW N | time: T AY M | timer: T AY1 M ER | to: T UW | today: T AX D EY1 | told: T OW L D | too: T UW
 took: T UH K | top: T AA P | touch: T AH CH | trigger: T R IH1 G ER | two: T UW | unload: AH N L OW1 D | until: AH N T IH1 L | up: AH P | visit: V IH1 Z IH T
 wait: W EY T | walk: W AO K | wall: W AO L | was: W AA Z | wash: W AA SH | watch: W AA CH | way: W EY | weapon: W EH1 P AX N | weigh: W EY | weight: W EY T
-went: W EH N T | were: W ER | what: W AA T | wheel: W IY L | when: W EH N | where: W EH R | which: W IH CH | who: HH UW | whole: HH OW L | will: W IH L
+went: W EH N T | were: W ER | what: W AA T | wheel: W IY L | when: W EH N | where: W EH R | which: W IH CH | while: W AY L | who: HH UW | whole: HH OW L | will: W IH L
 win: W IH N | with: W IH DH | without: W IH DH AW1 T | word: W ER D | work: W ER K | would: W UH D | wound: W UW N D | x: EH1 K S | yet: Y EH T | you: Y UW
 you'd: Y UW D | you're: Y AO R | your: Y AO R | yourself: Y AO R S EH1 L F
 accounted: AX K AW1 N T IH D | untouched: AH N T AH1 CH T | unlooked: AH N L UH1 K T | verdict: V ER1 D IH K T | chemlight: K EH1 M L AY T
 assault: AX S AO1 L T | know: N OW | late: L EY T | own: OW N | planted: P L AE1 N T IH D | row: R OW | saw: S AO | sooner: S UW1 N ER
 taken: T EY1 K AX N | wrong: R AO NG
 i've: AY V | panel: P AE1 N AX L
+heel: HH IY L | together: T AX G EH1 DH ER | either: IY1 DH ER | kill: K IH L | pick: P IH K
 zero: Z IH1 R OW | three: TH R IY | six: S IH K S | seven: S EH1 V AX N | eight: EY T | nine: N AY N | ten: T EH N | eleven: IH L EH1 V AX N
 twelve: T W EH L V | thirteen: TH ER T IY1 N | fourteen: F AO R T IY1 N | fifteen: F IH F T IY1 N | sixteen: S IH K S T IY1 N | seventeen: S EH V AX N T IY1 N
 eighteen: EY T IY1 N | nineteen: N AY N T IY1 N | twenty: T W EH1 N T IY | thirty: TH ER1 T IY | fifty: F IH1 F T IY | sixty: S IH1 K S T IY

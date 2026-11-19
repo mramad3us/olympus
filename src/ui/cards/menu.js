@@ -12,6 +12,11 @@
 // the last one through setMenuExtras ("To score", the waiting samples tried live: cards/topick.js; its rows hold the corner aid's
 // setting too), so the menu's ten lines stay ten in a scene and boot.js's list is left as it is.
 
+/** The lines a card's digits reach (boot.js digit: 1 to 9, and 0 the tenth), and a line's key as its label shows it: the tenth's is 0,
+ * the key that picks it (the hunt of v0.0.20, P2: "10" and "11" were labelled, a player typed 1 for the 10 and line 1 fired). */
+export const CARD_KEYS = 10;
+export const keyLabel = (n) => (n === CARD_KEYS ? '0' : String(n));
+
 // (the lines main.js adds before the menu's last ("To score", the build sheet v0.0.20 item 10), asked each time the menu opens)
 let extraActs = null;
 /** The acts main.js adds to the menu, before its last line: fn() → [[text, fn, keyName]…] ("To score"). */
@@ -20,7 +25,7 @@ export function setMenuExtras(fn) { extraActs = typeof fn === 'function' ? fn : 
 /** The menu's body and its numbered lines: { body, lines }. acts: [[text, fn, keyName]…]; sound: { volume, muted, onVolume(v), onMute(on) }. */
 export function menuCard({ acts: acts0, sound = null, note = '' }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(document.createElement(tag), props); n.append(...kids.filter(k => k !== null && k !== undefined)); return n; };
-  const line = (n, text, onclick, keyName = null) => el('button', { className: 'item', type: 'button', onclick }, el('kbd', { textContent: String(n) }), text, keyName ? el('small', { textContent: keyName }) : null);
+  const line = (n, text, onclick, keyName = null) => el('button', { className: 'item', type: 'button', onclick }, el('kbd', { textContent: keyLabel(n) }), text, keyName ? el('small', { textContent: keyName }) : null);
   let more = [];
   try { more = extraActs?.() ?? []; } catch { more = []; }
   const acts = more.length && acts0.length ? [...acts0.slice(0, -1), ...more, acts0.at(-1)] : acts0;

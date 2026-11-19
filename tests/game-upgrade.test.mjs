@@ -89,6 +89,14 @@
 // domain's 'arms:house-pars'): the cases above compare a save less those keys (lessPars) and print what was written. The par
 // case: the v0.0.19 corporal mid-room 3 loaded, its pars those a fresh fill of the same sheet, seed and setup writes, and not one
 // room's par planned after the load (PAR_PLANS) over 100 ticks of reads (the timer, houseNow, the paper, the verdict) by the bot.
+// v0.0.22 (its build sheet §2 step 7, a heavy case: game-upgrade is at its QUICK_SLOW ceiling): two saves made by v0.0.21's own
+// code (a scratch worktree of the snapshot of its integrated tree; the maker .run/v022/lead-figures/scripts/make-saves.mjs), stamped
+// 0.0.21: the private by the keys on 48213 at the first pause after your "Clear." at UNLOAD, SHOW CLEAR, your #2 still in his
+// 'clear' macro (v0.0.22's FL22-1 loads over it: the instructor's look and the skip begin on load), and the sergeant by T on the live
+// lane (live:fight,hide) on 48213 on the tick after the role-player's first strike on you, his second to come (FL22-2 loads over it:
+// the strike said once, never twice). Each loads with nothing written, saves again byte for byte with every id valid, carries on
+// byte for byte from a save made 300 ticks on, and reaches its card on the tick its lane from the fill does (house-pin's
+// keys/private/48213 and house-live-pin's quick cell), the lane's end its own; v0.0.22's C adds the new rules' assertions here.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -112,8 +120,13 @@ import { conditionOf, gunField } from '../src/sim/arms/firearms.js';
 import { marsClock } from '../src/core/calendar.js';
 import { SITES } from '../src/data/setting/calendar.js';
 import { houseBot } from './bots/house.mjs';
+import { PIN } from './house-pin.test.mjs';
+import { LIVE_PIN } from './house-live-pin.test.mjs';
 import { resetCaches as resetHouses } from '../src/sim/scenes/assemble.js';
 import { areaOf, resetCaches as resetRegistry } from '../src/sim/places/model.js';
+import { HOUSE_CHIEF } from '../src/data/courses.js';
+// (v0.0.22's C: the two v0.0.21 saves' end ticks under v0.0.22's rules (see their case), recorded on C's tree)
+const SAVE_TICKS = Object.freeze({ showclear: 4562, paint: 3362 });
 
 const LON = SITES.melas.lonEDeg, MIN_TICKS = 20 * 60;
 // (v0.0.21, the build sheet §1 item 25, §0 item 17: a house save from before v0.0.20's pars gains them on load, the stands' books,
@@ -584,6 +597,42 @@ export default [
       const carried = h.save() === end;
       console.log(`      ${H0.draw.code} (${area}): the ${H0.tier} at a contact's pause on ${S0.pick}, ${json.length} bytes; the registry empty before the load ${empty}, the area found after ${found}; saved again at once ${saved === json ? 'byte for byte' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; 600 ticks, ${g.errors.length} errors; a save at 300 carried on ${carried ? 'byte for byte' : 'DIFFERENTLY'}; the lane ${s.armoury.range.house.end?.why ?? 'running'}`);
       assert(empty && found && saved === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried, JSON.stringify({ empty, found, same: saved === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 2), carried }));
+    },
+  },
+  {
+    name: 'v0.0.22 (its build sheet §2 step 7): two saves made by v0.0.21\'s own code load and carry on byte for byte, and each reaches its card under v0.0.22\'s rules: the private by the keys at the first pause after your "Clear." at SHOW CLEAR, your #2 mid-macro, looked at by the instructor\'s eye before his "Number two, clear." (R.house.show begun on the load); and the sergeant by T on the live lane the tick after the role-player\'s first strike on you, his second to come, the paint said at most once (heavy: game-upgrade is at its QUICK_SLOW ceiling)',
+    heavy: true,
+    timeoutMs: 300_000,
+    fn() {
+      // (each by the bot that made it, whose memory is saved on the actor. Stage 0 held each to its lane's tick from the fill (house-pin's
+      // and house-live-pin's, v0.0.21's rules then); v0.0.22's C moves both lanes after Stop (FL22-1's walk, look and skip; FL22-2's
+      // paint, FL22-3's words), and a save made by v0.0.21 carries its own past into them, so each end tick is its own, recorded on C's
+      // tree (the pins' were 4522 and 3362): `tick`)
+      const CASES = {
+        'v0.0.21-house-showclear': { bot: () => houseKeysBot(), end: 'clear', pin: PIN['keys/private/48213/standard'], tick: SAVE_TICKS.showclear },
+        'v0.0.21-house-paint': { bot: () => houseBot({ mode: 'T' }), end: 'casualty', pin: LIVE_PIN['T/sgt/48213/live:fight,hide'], tick: SAVE_TICKS.paint },
+      };
+      for (const [name, c] of Object.entries(CASES)) {
+        const json = read(name), old = JSON.parse(json), R0 = old.armoury.range, H0 = R0.house, S0 = old.stop, W0 = H0.two;
+        assert(old.meta.version === '0.0.21' && old.meta.scenario === 'test-shoothouse' && old.meta.seed === 48213, `${name}: ${old.meta.version} ${old.meta.scenario} ${old.meta.seed}`);
+        if (name.endsWith('showclear')) assert(R0.cmd?.id === 'clear' && R0.shown && S0?.phase === 'choose' && W0.doing?.cmd === 'clear', JSON.stringify({ cmd: R0.cmd?.id, shown: R0.shown, phase: S0?.phase, his: W0.doing?.cmd ?? null }));
+        else assert(H0.live?.struck?.length === 1 && !H0.live.casualty && H0.live.cards?.['2a'] === 'fight' && H0.live.cards?.['3a'] === 'hide', JSON.stringify({ struck: H0.live?.struck?.length, casualty: !!H0.live?.casualty, cards: H0.live?.cards }));
+        const g = createGame({ scenario: old.meta.scenario, seed: 48213 }), s = g.load(json), saved = g.save(), ids = checkIds(JSON.parse(saved), g.sim.domains), b = c.bot();
+        g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
+        const h = createGame({ scenario: old.meta.scenario, seed: 48213 }); h.load(mid); h.step(300, c.bot());
+        const carried = h.save() === end;
+        // (v0.0.22's rules after the load: the instructor's words watched to the card)
+        const words = [];
+        const r = runHouse(g, b, { maxMs: 30 * 60_000, each: (game) => { for (const [type, e] of game.bus.events) if (type === 'say' && e.who === game.state.armoury.range.house.chiefPid) words.push(String(e.text)); } }), H = s.armoury.range.house;
+        const twoLine = words.filter(t => HOUSE_CHIEF.twoClear.includes(t)).length, paint = words.filter(t => /Keep working\.$/.test(t)).length;
+        const where = name.endsWith('showclear') ? `the ${H0.tier} at SHOW CLEAR, his macro at ${W0.doing.list[W0.doing.i]}` : `the ${H0.tier} on the live lane, struck ${H0.live.struck.length} (${H0.live.struck[0].part ?? '-'})`;
+        console.log(`      ${name}: ${where}, tick ${old.clock.tick}, ${json.length} bytes; saved again at once ${saved === json ? 'byte for byte' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; a save at 300 carried on ${carried ? 'byte for byte' : 'DIFFERENTLY'}; to the card ${r.done} (${H.end?.why}) at tick ${s.clock.tick}, its lane from the fill ${c.pin[0]}`);
+        assert(saved === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried, JSON.stringify({ same: saved === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 2), carried }));
+        console.log(`        under v0.0.22's rules: the look ${JSON.stringify(H.show?.done ? Object.keys(H.show.done).length : 0)} of 2 done, "Number two, clear." ${twoLine}, paint called after the load ${paint}; the wash "${words.find(t => /^(The lane is clear|Weapons clear|Guns are clear)/.test(t)) ?? '-'}"`);
+        assert(r.done && H.end?.why === c.end && s.clock.tick === c.tick, JSON.stringify({ done: r.done, end: H.end?.why, tick: s.clock.tick, want: c.tick }));
+        if (name.endsWith('showclear')) assert(H.show?.done?.[s.player.id] !== undefined && H.show?.done?.[H.twoPid] !== undefined && twoLine === 1, JSON.stringify({ show: H.show, twoLine }));
+        else assert(paint === 0 && words.some(t => HOUSE_CHIEF.one['casualty:click'].includes(t) || /Weapons clear|Guns are clear/.test(t)), JSON.stringify({ paint, words: words.slice(-6) }));
+      }
     },
   },
 ];

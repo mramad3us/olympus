@@ -6,6 +6,24 @@ Shots and drivers stay in the scratch folders named below, outside the repo; wha
 
 ---
 
+## v0.0.22, 2026-11-18: eight rooms, a lane that ends when it is done, walls between you and your own grenade; a play review, a code review and a fixer
+
+**What was played.** The integrated tree before the release, by the reviewers' probes (`.run/v022/review-play/probes/lane.mjs`) and shots (the picker at 1280 × 720 and 1920 × 1080, House B, all eight rooms, the ghost's card and scrub, the held G-11 and its throw, the Tests menu, the gallery of held devices and house light): 690 lanes (240 keys and T over four sheets, on the set house, B, C and the eight rooms, live and not, and 450 kit-bot lanes over five sheets and six loadouts) to the card, 0 errors, the longest lane 351.1 s from GO, the longest still spell 100.3 s; 641 clear, 49 casualty. No by-hand browser smoke at the integration: the page's paths ran through the browser files on 8239 and the pool's ports.
+
+**Bots at speed.** F1 to F69 and F72 held on the set; house-pin's 24 set cells re-recorded with their causes, no run sheet moved (every last tick 20 ticks sooner by the instructor's eye at SHOW CLEAR, every save). New and met: F74, F75, F77 (32 cases, 0 off; 400 lanes, 0 rests), F78 (576 grenades, none over 20 kPa), F79, F81 printed, F82 (96 lanes, 0 tails over or with a pause), F83, F84; F60 the busiest tick 1.56 ms over 25 lanes. Open and said: F76 (the small room's pars), F80 (the drawn live lane, 3 of 7 and 6 of 7), F70, F71 (the private's 7.52 real minutes), F73, `house-drawn` and `house-drawn8`'s gates, `house-swings`, `house-pace` (+2.14%, chance), `audio-browser`'s bake deadline.
+
+**Play review.**
+- **High**: the picker's House B played lane A (every choice but the par, the loadout, the draw and the qualification dropped on the way to the lane).
+- **Medium**: a named lane called "LANE B" and "a new layout", and the tower said "a lane you have not seen" on Again; your #2's "Clear!" twice in a room (12 of 690 lanes) and out of order (22 of 709 rooms); the casualty lesson "a click means the pistol" below rung 2, where the DI says "Tap, rack"; FIRED FIRST ON YOU naming the wrong room; "Again with a new seed" dropping the eight rooms and the plans.
+- **Low**: Back 95 px below the fold at 1280 × 720 with a session's bests; "Good frag. 1a and 1b down."; "Yours: Move to your point."; the burst's cease fire not first in the verdict; C and the eight rooms not on the picker (as built, on purpose).
+- **Seen and left**: the live lane kills 18 of 18 boot recruit and private lanes on the chest's second strike (balance, FL22-7); "past him, into the berm" in the house (shared with the bay's starred goldens); T alone passing every room (the walk in is by the keys below the corporal).
+
+**Code review.** F25 red on the kit's mixed loadout (3.30 s); two rules for the casualty's wash; the hunt's live lines not baked up front; a named or drawn house dropped without a word on the live lane; comments pointing at the deleted `house-two.js`; the round's numbers not in the docs.
+
+**What was done.** Everything above is fixed except what is named left, each pinned by `fixer-v022` (13) and `ui-fixer-v022` (1, a browser), 14 of 14 failing without their fix; the fixer's detail is `.run/v022/fix.md`. **Left for the user**: the ghost clock's sign, the live lane's balance (FL22-7), the shoot house's miss words, layout C, the eight rooms and the drawn live lane (URL only until F76, F80 and C's eight funnel faults close), kit2's F25 met by your cue ending his stack-up (a call to overrule), and the sheet's fifteen questions (DESIGN.md's log of 2026-11-18).
+
+---
+
 ## v0.0.21, 2026-11-16: a house you have not seen, never a dead end, and what done means; a play review, a code review and a fixer
 
 **What was played.** The integrated tree before the release: the integrator's browser smoke on :8239 (the system Chrome, headless, on the GPU; 0 page errors, 0 console errors, 0 failed requests): the drawn house on 48213 (`Kn240lc.Es195pc.Cn160lc|ftnnant|p303101`, "A new layout at 1 G"), the corner room last (`Es280pc.Cn250pc.Kn160pc|fnatttn|p313001`), an unfair hand-typed code (the toast "House '…': no no-shoot. Its rooms as given, its targets drawn from the seed." and the seed's cast played), the set private, `&houselight=c` (`$houseLight` HL-c) and the live lane. The play review's evidence is in `.run/v021/review-play/` (the picker at 1280 x 720 and 1920 x 1080, the end card, the brief's pages, the lane at its stops on drawn seeds 17, 36, 48213 and 101 to 124); the code review's is its list below. The two sample sets were reshot on :8230 (held-devices 15 views, house-light 15, 0 pixels from the review's shots on held-devices, a few on house-light's fog settling).

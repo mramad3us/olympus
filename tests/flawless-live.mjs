@@ -73,7 +73,9 @@ export const FORCED = Object.freeze(['live:fight,hide', 'live:give,give', 'live:
 const r3 = (v) => Math.round(v * 1000) / 1000;
 
 /** One live lane (see the header): flawlessLane's record with the live men's numbers (rec.live). */
-export function liveLane({ tier, seed, opfor = 'live', bot = null, maxMs = 15 * 60_000 }) {
+// (v0.0.22 G5: the house's options, draw, house, rooms and layout, passed to the fill only when given (flawlessLane's `fill`), so a live
+// lane of the set is v0.0.21's; a drawn one (`{ draw: 'drawn' }`, `{ rooms: 'all' }`) is tests/flawless-end.mjs's F80 slice)
+export function liveLane({ tier, seed, opfor = 'live', bot = null, maxMs = 15 * 60_000, draw = null, house = null, rooms = null, layout = null }) {
   const keys = (RUNG_OF_TIER[tier] ?? 0) < 2, L = { win: 0, winBad: [], twoKnown: 0, twoBad: [], openMax: 0, openAt: null, seenToKnown: [], late: [], startBeat: 0, strikeLate: 0, drawnLate: 0, drawnN: 0,
     bodies: { wall: 0, worstM: 0, gap: 0, minGapM: Infinity, arc: 0 }, tween: 0, rifle: 0, rifleWhat: [], pop: 0, popWhat: [], clears: [], paint: 0, casualty: null, endMs: null, cards: null,
     rule: { strikes: 0, bad: [], ledger: null, card: null } };
@@ -226,7 +228,7 @@ export function liveLane({ tier, seed, opfor = 'live', bot = null, maxMs = 15 * 
     }
     prev.ms = now;
   };
-  const rec = flawlessLane({ tier, seed, bot: bot ?? (keys ? 'keys' : 'honest'), fill: { opfor }, more });
+  const rec = flawlessLane({ tier, seed, bot: bot ?? (keys ? 'keys' : 'honest'), fill: { opfor, ...(draw ? { draw } : {}), ...(house ? { house } : {}), ...(rooms ? { rooms } : {}), ...(layout ? { layout } : {}) }, more });
   rec.opfor = opfor;
   rec.live = L;
   // (F45: the card names the fatal strike's man and its why: "CASUALTY · FATAL: THE CHEST, …" or "… FATAL ON YOUR #2: …")

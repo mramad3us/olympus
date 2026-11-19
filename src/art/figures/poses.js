@@ -81,8 +81,16 @@
 // on the floor), so they sit at the end of the arms band, whose shelf has room for them: the base sheet keeps its 512 × 752 at
 // 16 px/m (1128 at 24), and handsFrame(stance) names the one to draw. A man down is drawn sitting where he is with his rifle low
 // (the seated band's sitLow: the actor's stance 'sit', rifleFrame's), not a new frame.
+// v0.0.22 (its build sheet §1 item 17; the residuals lens's R3; VIEWS §3.10): a device in the hands. The held band (BANDS.stanceHeld,
+// HELD_BAND) is the stance pool's last, painted only in a stance sheet of the slung-in-front carry ('front', the hands-full rule's
+// rifle), beside the shots on their shelf, so the stance sheet keeps its 512 × 432 at 16 px/m: the G-11 held at the chest and its pin,
+// the throw's two frames, the halligan carried and the pry's two, the ram carried and its swing's two, the strip carried and placed
+// (templates.js HELD_POSES: the arms by the rig's IK where the defaults of samples/held-devices hold them, over the stack's legs). Its
+// frames carry no device: the device is a card over the figure (atlas.js heldStrip). heldFrameOf(held, beat) names the frame a body
+// standing with a device draws (look.js heldLook and beatOf's device beats); walking, it draws its walk, the card at its fist.
 // Pure: no DOM, no three.js.
 import { cyclePose, beatPose, bandSpec, cycleAt, cycleOfLook, RUN_FPS } from './walk.js';
+import { HELD_POSES } from './templates.js';
 
 export const DIRS = Object.freeze(['down', 'up', 'right', 'left']);
 export const FPS = 8;
@@ -112,11 +120,29 @@ export const BANDS = Object.freeze({
   stanceWalk: Object.freeze([...range('glide', 8), ...range('assault', 8)]),
   stanceBeats: Object.freeze(['flight0', 'flight1', 'sideR0', 'sideR1', 'sideL0', 'sideL1', 'start', 'plant', 'kneelGoing', 'stack', 'stackB', 'stackTap', 'doorHand', 'kick0', 'kick1', 'kick2']),
   stanceShots: Object.freeze(['fireMove0', 'fireMove1', 'draw', 'pistolAim']),
+  // (a device in the hands, in the slung-in-front carry's stance sheet only: see the header)
+  stanceHeld: Object.freeze(Object.keys(HELD_POSES)),
 });
 /** The bands painted in the rifle's pool of the atlas (atlas.js sheetLayout's pools): only a look that handles a rifle needs them. */
 export const RIFLE_BANDS = Object.freeze(['rifle', 'rifleKneel', 'rifleProne']);
 /** The stance pool's bands (R8: a sheet a carry, for an armed mover in a stance, in a base slot of its own: atlas.js, src/render/figures.js). */
-export const STANCE_BANDS = Object.freeze(['stanceWalk', 'stanceBeats', 'stanceShots']);
+export const STANCE_BANDS = Object.freeze(['stanceWalk', 'stanceBeats', 'stanceShots', 'stanceHeld']);
+/** The held band: painted only in the slung-in-front carry's stance sheet (HELD_CARRY), the others' stance sheets leave it out. */
+export const HELD_BAND = 'stanceHeld', HELD_CARRY = 'front';
+/** The frame a body standing with a device draws: held look.js heldLook's { shape }, beat beatOf's device beat ({ kind, k, model }) or null. */
+export function heldFrameOf(held, beat = null) {
+  if (!held) return null;
+  const sh = held.shape, k = beat?.k ?? 0;
+  if (sh === 'can' || sh === 'egg') {
+    if (beat?.kind === 'throw') return k < 0.5 ? 'heldThrow0' : 'heldThrow1';
+    if (beat?.kind === 'arm') return k >= 0.75 ? 'heldPin' : 'heldCan';
+    return 'heldCan';
+  }
+  if (sh === 'bar') return beat?.kind === 'force' ? (Math.floor(k * 6) % 2 ? 'heldForce1' : 'heldForce0') : 'heldBar';
+  if (sh === 'ram') return beat?.kind === 'force' ? (k < 0.5 ? 'heldSwing0' : 'heldSwing1') : 'heldRam';
+  if (sh === 'strip') return beat?.kind === 'place' ? 'heldPlace' : 'heldStrip';
+  return null;
+}
 /** The carries a stance sheet is painted in (a slung or front-slung rifle walks on the base sheet's Relaxed frames). */
 export const STANCE_CARRIES = Object.freeze(['low', 'high', 'aim']);
 /** Which pool of the atlas each band is painted in: 'base' (every look's sheet), 'rifle' or 'stance'. */
@@ -260,6 +286,9 @@ function basePose(frame, { weapon = null, carry = null, cycle = null } = {}) {
   const cy = cycleOfLook({ cycle });
   const beat = beatPose(frame, { weapon: weapon ?? 'rifle', carry: stanceCarry(carry), cycle: cy });
   if (beat) return { stance: 'stand', lean: 0, bob: 0, lift: 0, roll: 0, arms: HANG, ...beat };
+  // (the held band, over the stack's legs, the rifle slung in front, the hands put where the device is held)
+  const H = HELD_POSES[frame];
+  if (H) { const st = beatPose('stack', { weapon: 'rifle', carry: 'low', cycle: cy }); return { stance: 'stand', lean: 0, bob: 0, lift: 0, roll: 0, arms: HANG, ...st, lean: H.lean ?? st.lean, rig: { mode: 'front', gun: 'rifle' }, reach: { r: H.reach.r ?? null, l: H.reach.l ?? null } }; }
   let p;
   switch (name) {
     case 'idle': p = { legs: STAND, arms: HANG, bob: k === 1 ? 1 : 0, rig: gaitRig }; break;

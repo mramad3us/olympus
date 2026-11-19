@@ -34,4 +34,24 @@ export default [
       assert(out.every(o => o.done && !o.errors), JSON.stringify(out.filter(o => !o.done || o.errors)));
     },
   },
+  // (v0.0.22 G5: the drawn slice, all eight rooms drawn from, the same fuzz)
+  {
+    name: 'v0.0.22: the fuzz bot on 40 drawn seeds of the live lane (all eight rooms drawn from), every card pair in turn and every sheet: every lane to its card with no error',
+    heavy: true,
+    timeoutMs: 900_000,
+    fn() {
+      const out = [];
+      for (let i = 0; i < 40; i++) {
+        const opfor = PAIRS[i % PAIRS.length], tier = TIERS[i % TIERS.length], seed = 6000 + 37 * i;
+        const g = createGame({ scenario: 'test-shoothouse', seed, tier, setup: 'go', opfor, rooms: 'all' });
+        let err = null, r = null;
+        try { r = runHouse(g, houseFuzzBot({ seed: i + 1 }), { maxMs: 15 * 60_000 }); } catch (e) { err = String(e?.message ?? e).slice(0, 200); }
+        const H = g.state.armoury.range.house;
+        out.push({ i, seed, tier, opfor, code: H.draw?.code ?? 'the set', done: !!r?.done && !err, err, end: H.end?.why ?? null, laneS: H.goAtMs !== null ? Math.round(((H.end?.atMs ?? g.state.clock.ms) - H.goAtMs) / 100) / 10 : null, errors: g.errors.length, men: g.state.armoury.range.turners.filter(T => T.live).length });
+      }
+      for (const o of out) console.log(`      ${String(o.i).padStart(2)} ${o.tier.padEnd(8)} ${o.seed} ${o.opfor.padEnd(16)} ${o.code.split('|')[0]} ${o.men} men ${o.done ? 'card' : 'NOT DONE'} ${o.end} ${o.laneS} s${o.err ? `; ${o.err}` : ''}`);
+      console.log(`      ends ${top(tally(out.map(o => o.end ?? 'none')))}`);
+      assert(out.every(o => o.done && !o.errors && o.men === 2 && o.code !== 'the set'), JSON.stringify(out.filter(o => !o.done || o.errors || o.men !== 2)));
+    },
+  },
 ];

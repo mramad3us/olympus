@@ -82,14 +82,16 @@
 // The faces are those the house already plays (threat, no-shoot, armoured, hostage): the lens's tables also named an 'unknown'
 // face and an empty stand, which no rule of the house yet scores (THREAT_FACES, the pars, the paper; STANDS' seven ids), so they
 // wait (my call). Pure but for the runtime caches and the registry.
-import { HOUSE1, WHEEL_S4, HOUSE1_RECT } from '../../data/places/wheel.js';
+import { HOUSE1, WHEEL_S4, HOUSE1_RECT, LAYOUT_A } from '../../data/places/wheel.js';
 import { X4_PLANS } from '../../data/places/x4-plans.js';
 import { X4_CHUNKS, X4_LANE_CHUNKS, KICK_DC, LEAF, PLACES_PER_ROOM } from '../../data/chunks/x4.js';
+import { OPFOR_SPOTS } from '../../data/places/house-opfor.js';
+import { derivePlan, geoOf } from '../combat/derive.js';
 import { COURSES } from '../../data/courses.js';
 import { opOf } from '../combat/op.js';
 import { registerArea, dropArea, areaOf, openingOf, useGenerated, GEN_MARK } from '../places/model.js';
 import { routed, lineClear, ROUTE_CLS } from '../combat/route.js';
-import { openNavOf, clearLine as navClear } from '../places/nav.js';
+import { openNavOf, clearLine as navClear, CLASSES } from '../places/nav.js';
 import { standOk } from '../places/collide.js';
 import { arcOf, stackPointsOf } from '../places/swing.js';
 import { sightGridOf, STAND } from '../places/sight.js';
@@ -115,10 +117,34 @@ export const HALL_GATE_OFF_M = 0.15, STACK_CLEAR_M = 0.52, PATH_TOL_M = 0.15;
 export const BODY_C0_M = 0.27;
 /** The fair lane's rules (house lens H6): redraws, a stand's clearance off the paths, points and arcs, the stands' gap, a hostage's range from #1's point (m). */
 export const DRAW_TRIES = 8, STAND_PATH_CLEAR_M = 0.57, STAND_GAP_M = 1.0, HOSTAGE_RANGE_M = Object.freeze([2.5, 5.0]);
+/**
+ * The cast's redraws on a layout holding any of X4's other five rooms (my call): a try is fair about one time in six there
+ * (each room's places and the live post's rule compound over three rooms), so 8 tries left a quarter of eight-room lanes on the set
+ * cast; 32 leave under 1%. A rejection sampler stays uniform over the fair casts; a layout of layout A's three rooms keeps DRAW_TRIES 8,
+ * v0.0.21's draw to the code.
+ */
+export const DRAW_TRIES8 = 32;
 /** Mirrored rooms (stage 2, house lens H11): off; a code with 'm' is refused while it is. */
 export const MIRROR_ROOMS = false;
 /** The drawn houses kept assembled and registered at once: the current and the one before (§0 item 49, my call). */
 export const HOUSE_REG_KEEP = 2;
+/**
+ * The rooms a house is drawn from (the build sheet item 14; house lens G3): 'a' layout A's three (v0.0.21's catalogue,
+ * SHAPES, its draw to the code), 'all' X4's eight (the lazy draw). R.house.draw.rooms is written 'all' only (absent means 'a').
+ */
+export const ROOM_SETS = Object.freeze({ a: Object.freeze(['C', 'K', 'E']), all: Object.freeze(['C', 'K', 'E', 'W', 'D', 'O', 'T', 'Q']) });
+/** The lazy draw's candidates a seed, before layout A's shape is taken (never a throw; house lens §0 item 3: never past 5 in 10,000 seeds). */
+export const SHAPE_TRIES = 8;
+/**
+ * The named houses (the build sheet item 14; PLACES §4.12's three panel settings; my calls, pinned): A the set itself (the
+ * literal 'A'), B the long room, the offset room and the room with its back room, C the small room, the narrow room and the L, each at
+ * A's rhythm of doors (house lens §0 item 4), every door closed; their casts drawn from the seed as a drawn house's.
+ */
+export const HOUSE_LAYOUTS = Object.freeze({ A: 'A', B: 'Wn280pc.Os195lc.Tn165pc', C: 'Qn290pc.Ds205lc.En175pc' });
+/** The live lane's rooms that hold a role-player, by lane room (house lens G5: room 1 keeps its turners; my call). */
+export const LIVE_ROOMS = Object.freeze([2, 3]);
+/** A post and the room's other stand stand this far apart at least, metres (tests/opfor-world.mjs spotCheck's BODY_GAP_M 0.5 + C0). */
+export const POST_GAP_M = 0.5 + CLASSES.C0;
 /** The faces a drawn cast writes, by their code letters. */
 export const FACE_LETTERS = Object.freeze({ t: 'threat', n: 'noshoot', a: 'armoured', h: 'hostage' });
 const LETTER_OF_FACE = Object.freeze(Object.fromEntries(Object.entries(FACE_LETTERS).map(([k, v]) => [v, k])));
@@ -149,10 +175,36 @@ export function houseSpecOf(state) {
   return (d && assembleHouse(d.code)?.spec) || HOUSE1;
 }
 
-/** The lane's authored layout (see the header): X4_PLANS[layout] as set, null for a layout there is none of. */
+/**
+ * The lane's authored layout (see the header): X4_PLANS[layout] as set, null for a layout there is none of. On a lane whose
+ * record says R.house.plans 'derived' (the lead's switch, &plans=derived), the same layout with every door's plan derived from its
+ * geometry (derivedSetOf); absent, the authored as before.
+ */
 export function planSetOf(state, layout = opOf(state)?.lane ?? HOUSE_CODE_SET) {
-  const d = drawOf(state);
-  return (d && assembleHouse(d.code)?.plans) || (X4_PLANS[layout] ?? null);
+  // (the operation record read once: the seam is read many times a tick)
+  const op = opOf(state), d = op?.draw?.mode === 'drawn' ? op.draw : null, L = (d && assembleHouse(d.code)?.plans) || (X4_PLANS[layout] ?? null);
+  return L && op?.plans === 'derived' ? derivedSetOf(L) : L;
+}
+// (a layout's derived twin, memoised by the layout record (frozen data, so a pure function of it); every door plan derived in the
+// area's frame (combat/derive.js), its ids the lane room's ('r<k>:c0'), the hall's leg the layout's own (assemble.js hallPlan or
+// X4_PLANS.A's: the corner rule's passage, not a room the deriver makes); the declared no-stop doorways its funnels)
+const DERIVED_SETS = new WeakMap();
+/** A layout with its door plans derived (see planSetOf): { lane, area, order, plans, noStop?, source: 'derived' }. */
+export function derivedSetOf(L) {
+  let out = DERIVED_SETS.get(L);
+  if (out) return out;
+  const funnels = (L.noStop ?? []).filter(Z => Z.kind === 'funnel').map(Z => Z.opening), laneDoors = L.order.filter(k => L.plans[k]?.door).map(k => L.plans[k].door);
+  const plans = {};
+  L.order.forEach((k, i) => {
+    const A = L.plans[k];
+    if (!A.door) { plans[k] = A; return; }
+    const P = derivePlan(geoOf(L.area, A.door, A.parts), { funnels, open: laneDoors });
+    const id = (h) => `r${i + 1}:${h}`;
+    plans[k] = { ...P, hot: P.hot.map(h => ({ ...h, id: id(h.id) })), sectors: P.sectors, ...(P.far ? { far: { ...P.far, hot: id(P.far.hot) } } : {}), corners: P.corners };
+  });
+  out = deepFreeze({ ...L, plans, source: 'derived' });
+  DERIVED_SETS.set(L, out);
+  return out;
 }
 
 /** Every authored layout of an area (see the header): X4_PLANS' for the set's area, a drawn area's own plans. */
@@ -163,7 +215,7 @@ export function plansOfArea(areaId) {
 
 // ---- the code ----
 
-const ROOM_RE = /^([CKE])([ns])(m?)(\d{2,3})([pl])([cok])$/;
+const ROOM_RE = /^([CKEWDOTQ])([ns])(m?)(\d{2,3})([pl])([cok])$/;
 /**
  * A house's code read (see the header): { layout, rooms: [{ letter, chunk, side, mirror, doorX, how, state }] (east to west),
  * faces: [6] | null, places: [6] | null }, or null for a code that is not one ('A', the set, is not a drawn code).
@@ -314,15 +366,48 @@ export const shapeName = (S) => S.rooms.map(x => `${x.letter}${x.side}${x.mirror
  * A drawn house's layout part from the seed alone (see the header): the shape, the doors' places, each door's swing and state.
  * doors 'fixed': the chunks' authored swings, every door closed (&doors=fixed). Never reads the loadout or the sheet.
  */
-export function drawHouse(seed, { doors = 'drawn', mirror = MIRROR_ROOMS } = {}) {
-  const S = shapesOf().filter(x => mirror || !x.rooms.some(r => r.mirror)), shape = S[int(stream(seed, 'house:shape'), S.length)];
-  const rooms = search(shape.rooms, stream(seed, 'house:at'));
+export function drawHouse(seed, { doors = 'drawn', mirror = MIRROR_ROOMS, rooms: set = 'a' } = {}) {
+  let rooms;
+  if (set === 'all') rooms = lazyOf(seed).rooms;
+  else {
+    const S = shapesOf().filter(x => mirror || !x.rooms.some(r => r.mirror)), shape = S[int(stream(seed, 'house:shape'), S.length)];
+    rooms = search(shape.rooms, stream(seed, 'house:at'));
+  }
   return layoutCodeOf(rooms.map((R, k) => {
     if (doors === 'fixed') return { ...R, how: X4_CHUNKS[R.chunk].sockets[0].swing.into === 'out' ? 'pull' : 'push', state: 'closed' };
     const how = weighted(stream(seed, 'house:swing', k), Object.entries(SWING_W));
     const state = weighted(stream(seed, 'house:state', k), Object.entries(DOOR_STATE_W).filter(([s]) => !(how === 'pull' && s === 'locked')));
     return { ...R, how, state };
   }));
+}
+
+/**
+ * The lazy draw over a room set (the build sheet item 14; house lens G3, §0 item 3: enumerating the eight rooms' 2,377
+ * fitting shapes takes 548 ms): a candidate drawn uniformly from every order of three distinct rooms of the set and a side for each
+ * (stream(seed, 'house:shape8')), its doors fitted by v0.0.21's seeded depth-first search (stream(seed, 'house:at8', try)); a
+ * candidate with no fit is redrawn on the same stream, at most SHAPE_TRIES 8 times, then layout A's shape is taken (never a throw).
+ * Uniform over the shapes that fit, as the catalogue's draw is. { rooms (east to west, closed push doors: drawHouse draws the
+ * swings and states after), tries, fell }.
+ */
+export function lazyOf(seed, set = 'all') {
+  const L = ROOM_SETS[set] ?? ROOM_SETS.all, r = stream(seed, 'house:shape8');
+  for (let t = 1; t <= SHAPE_TRIES; t++) {
+    const pool = [...L], shape = [];
+    for (let i = 0; i < 3; i++) { const letter = pool.splice(int(r, pool.length), 1)[0]; shape.push({ letter, chunk: X4_LANE_CHUNKS[letter], side: int(r, 2) ? 's' : 'n', mirror: false }); }
+    const rooms = search(shape, stream(seed, 'house:at8', t));
+    if (rooms) return { rooms, tries: t, fell: false };
+  }
+  const A = [['C', 'n'], ['K', 's'], ['E', 'n']].map(([letter, side]) => ({ letter, chunk: X4_LANE_CHUNKS[letter], side, mirror: false }));
+  return { rooms: search(A, stream(seed, 'house:at8', 0)), tries: SHAPE_TRIES, fell: true };
+}
+/** A drawn house's layout part over a room set (see lazyOf): 'a' v0.0.21's draw to the code, 'all' the lazy draw; doors as drawHouse's. */
+export const drawLazy = (seed, set = 'all', opts = {}) => drawHouse(seed, { ...opts, rooms: set });
+/** A code's lane word (the card's "LANE B"): 'A' the set, 'B' or 'C' a named layout's (its layout part, whatever its cast), else 'drawn'. */
+export function laneWordOf(code) {
+  if (!code || code === HOUSE_CODE_SET) return 'A';
+  const L = layoutPartOf(code);
+  for (const [k, v] of Object.entries(HOUSE_LAYOUTS)) if (k !== 'A' && v === L) return k;
+  return 'drawn';
 }
 
 // ---- the room cases and the fair lane ----
@@ -334,7 +419,7 @@ function caseOf(letter, side, how) {
   const key = `${letter}${side}${how}`;
   let K = CASES.get(key);
   if (K) return K;
-  const S = shapesOf().find(x => x.rooms.some(r => r.letter === letter && r.side === side && !r.mirror));
+  const S = refShapeOf(letter, side);
   const at = S.rooms.findIndex(r => r.letter === letter && r.side === side);
   const fit = search(S.rooms, null), rooms = fit.map((R, i) => ({ ...R, how: i === at ? how : 'push', state: 'closed' }));
   const code = layoutCodeOf(rooms), areaId = areaIdOf(code), held = LANES.get(areaId) ?? null;
@@ -352,27 +437,53 @@ function caseOf(letter, side, how) {
     const [x, z] = Q.P([pl.x, pl.z]), slot = sectorOf(P, x, z) ?? 1, own = P.points[slot - 1];
     const clear = Math.min(...ways.map(w => segD(x, z, w)), ...P.points.map(p => Math.hypot(p[0] - x, p[1] - z)), ...arcs.map(A => arcDist(A, x, z)));
     const dead = P.dead.some(([dx, dz, rM]) => Math.hypot(x - dx, z - dz) <= rM);
-    const seen = sees(own, [x, z]) || (dead && !!farEnd && sees(farEnd, [x, z]));
+    // (a stand in dead space seen only from the far walk's end must be #1's, the man who walks it: the twin's back room
+    // seen through its doorway from neither point, a threat there in the #2's sector was left up, "You left one up" (seed 6 by the
+    // honest tier one and sergeant); the ell's far-leg places are seen from the #2's point where he owns them, so no case of the three
+    // rooms moves)
+    const seen = sees(own, [x, z]) || (dead && !!farEnd && slot === 1 && sees(farEnd, [x, z]));
     const from = slot === 1 ? (dead && farEnd ? farEnd : P.points[0]) : null, range = from ? Math.hypot(from[0] - x, from[1] - z) : null;
     const offered = !(pl.why === 'behind the door' && how === 'pull');
     return Object.freeze({ i, dx: r2(x - R.doorX), z, slot, clear: r2(clear), dead, seen, range: range === null ? null : r2(range), offered,
       ok: offered && clear >= STAND_PATH_CLEAR_M - 1e-9 && seen, hostageOk: slot === 1 && range !== null && range >= HOSTAGE_RANGE_M[0] - 1e-9 && range <= HOSTAGE_RANGE_M[1] + 1e-9 });
   });
-  K = Object.freeze({ key, code, places: Object.freeze(places) });
+  // (the room's live post placed (G5), for the fair lane's rule with his stand read as a threat (castFair): his start's and
+  // his hide's offsets from the door, and the slot whose sector holds his start)
+  const P0 = C.posts?.[0] ?? null, post = P0 ? (() => {
+    const st = Q.P(P0.start), hd = Q.P(P0.hide);
+    return Object.freeze({ letter: P0.stand, start: Object.freeze({ dx: r2(st[0] - R.doorX), z: st[1] }), hide: Object.freeze({ dx: r2(hd[0] - R.doorX), z: hd[1] }), slot: sectorOf(P, st[0], st[1]) ?? 1 });
+  })() : null;
+  K = Object.freeze({ key, code, places: Object.freeze(places), post });
   CASES.set(key, K);
   // (the reference lane is the case's measure only: dropped again unless it is a lane held (its memos by area id with it))
   if (!held) { dropArea(areaId); resetZones(); resetLight(); resetGraph(); }
   return K;
 }
-/** A room case's table (the tests print it): { key, code (its reference lane), places: [{ i, dx, z, slot, clear, dead, seen, range, offered, ok, hostageOk }] }. */
+// (a room case's reference shape: v0.0.21's catalogue's first holding it for the three rooms of 'a' (so their cases are v0.0.21's to
+// the code); for the other five the first of the eight rooms' orders (letters in ROOM_SETS.all's order, sides n before s) that fits)
+function refShapeOf(letter, side) {
+  if (ROOM_SETS.a.includes(letter)) return shapesOf().find(x => x.rooms.some(r => r.letter === letter && r.side === side && !r.mirror));
+  const L = ROOM_SETS.all;
+  for (const a of L) for (const b of L) for (const c of L) {
+    if (new Set([a, b, c]).size !== 3 || ![a, b, c].includes(letter)) continue;
+    for (let s = 0; s < 8; s++) {
+      const shape = [a, b, c].map((l, i) => ({ letter: l, chunk: X4_LANE_CHUNKS[l], side: (s >> i) & 1 ? 's' : 'n', mirror: false }));
+      if (!shape.some(r => r.letter === letter && r.side === side)) continue;
+      if (search(shape, null)) return { rooms: shape };
+    }
+  }
+  return null;
+}
+/** A room case's table (the tests print it): { key, code (its reference lane), places: [{ i, dx, z, slot, clear, dead, seen, range, offered, ok, hostageOk }], post ({ letter, start, hide, slot }) }. */
 export const roomCaseOf = (letter, side, how) => caseOf(letter, side, how);
 
 const ROLE_ORDER = (rooms) => rooms.flatMap(R => X4_CHUNKS[R.chunk].stands.map(s => ({ R, s })));
 /**
  * Whether a cast is fair on a layout (see the header): { ok, why }, faces and places a stand in role order. The geometry is each
- * room case's (caseOf), so the check costs a table's reads.
+ * room case's (caseOf), so the check costs a table's reads. posts false: v0.0.21's rules alone, without the live posts' (postFair: the
+ * tests' only, to name the casts the post rule redraws).
  */
-export function castFair(rooms, faces, places) {
+export function castFair(rooms, faces, places, { posts = true } = {}) {
   const n = (f) => faces.filter(x => x === f).length;
   if (n('hostage') > 1) return { ok: false, why: 'two hostages' };
   if (n('armoured') > 1) return { ok: false, why: 'two armoured' };
@@ -387,6 +498,46 @@ export function castFair(rooms, faces, places) {
     if (A.slot === 2 && B.slot === 2) return { ok: false, why: `two in the #2's sector in room ${k + 1}` };
     for (const [f, P] of [[faces[2 * k], A], [faces[2 * k + 1], B]]) if (f === 'hostage' && !P.hostageOk) return { ok: false, why: `the hostage out of #1's sector or range in room ${k + 1}` };
   }
+  return posts ? postFair(rooms, faces, places) : { ok: true, why: null };
+}
+/**
+ * A room's two drawn places with its live post kept clear (item 15; my call): in a room of LIVE_ROOMS whose other stand was
+ * drawn within POST_GAP_M of the post (each chunk's post stands on or by its place 0, the set's 2a and 3a), the two stands swap places,
+ * so the role-player's stand takes the place by his post and the other stand the post stand's; no die is cast for it, so a cast the
+ * rule would pass is drawn as v0.0.21 drew it. [a, b] in the chunk's stand order.
+ */
+function postSwap(R, n, K, pair) {
+  if (!LIVE_ROOMS.includes(n) || !K.post) return pair;
+  const C = X4_CHUNKS[R.chunk], si = C.stands.findIndex(x => x.letter === K.post.letter), oi = 1 - si;
+  if (si < 0) return pair;
+  const near = (i) => { const P = K.places[i]; return Math.min(Math.hypot(P.dx - K.post.start.dx, P.z - K.post.start.z), Math.hypot(P.dx - K.post.hide.dx, P.z - K.post.hide.z)) < POST_GAP_M - 1e-9; };
+  if (!near(pair[oi]) || near(pair[si])) return pair;
+  const out = [...pair];
+  [out[si], out[oi]] = [pair[oi], pair[si]];
+  return out;
+}
+/**
+ * The fair lane with the role-players in (the build sheet item 15, §0 item 38; house lens G5; my call): on every drawn lane,
+ * live or not, each post's stand of LIVE_ROOMS read as a threat (the role-player in his place, at his post's start) must leave the lane
+ * fair as its drawn face does: a no-shoot left in the lane, the room's other stand POST_GAP_M or more from his start and his hide, and
+ * not both in the #2's sector. So a seed gives one cast with role-players and without, and both are fair.
+ */
+function postFair(rooms, faces, places) {
+  const live = faces.slice();
+  for (const n of LIVE_ROOMS) {
+    const k = n - 1, R = rooms[k], C = X4_CHUNKS[R.chunk], K = caseOf(R.letter, R.side, R.how), post = K.post;
+    if (!post) continue;
+    const si = C.stands.findIndex(x => x.letter === post.letter), oi = 1 - si;
+    if (si < 0) continue;
+    live[2 * k + si] = 'threat';
+    const B = K.places[places[2 * k + oi]];
+    const gap = Math.min(Math.hypot(B.dx - post.start.dx, B.z - post.start.z), Math.hypot(B.dx - post.hide.dx, B.z - post.hide.z));
+    // (its words fit every lane: the page's toast for a pasted code says them on the turner lane too, where nobody stands at a post
+    // (the A and D review: "a stand 0 m from the role-player's post in room 2" for v0.0.21's 1037 code on "Stack and clear"))
+    if (gap < POST_GAP_M - 1e-9) return { ok: false, why: `a target ${r2(gap)} m from room ${n}'s live post (where a role-player stands on the live lane)` };
+    if (B.slot === 2 && post.slot === 2) return { ok: false, why: `room ${n}'s live post and a target both in the #2's sector` };
+  }
+  if (!live.includes('noshoot')) return { ok: false, why: 'no no-shoot left with the live posts read as threats' };
   return { ok: true, why: null };
 }
 /** The chunks' set cast on a layout (see the header): A's faces and places by role. */
@@ -394,20 +545,21 @@ export function setCastOf(rooms) {
   const roles = ROLE_ORDER(rooms);
   return { faces: roles.map(({ s }) => COURSES.house.draws.cast[s.role].set), places: roles.map(({ s }) => s.place) };
 }
-/** A cast drawn from the seed for a layout (see the header): { faces, places, tries, fell } (fell: the set cast after DRAW_TRIES). */
-export function drawCast(seed, layout) {
+/** A cast drawn from the seed for a layout (see the header): { faces, places, tries, fell } (fell: the set cast after DRAW_TRIES, DRAW_TRIES8 on a layout holding a room of the other five). posts false: v0.0.21's draw, without the live posts' rule (the tests' only). */
+export function drawCast(seed, layout, { posts = true } = {}) {
   const H = parseHouse(layout), roles = ROLE_ORDER(H.rooms), rf = stream(seed, 'house:cast'), rp = stream(seed, 'house:place');
-  for (let t = 1; t <= DRAW_TRIES; t++) {
+  const tries = H.rooms.every(R => ROOM_SETS.a.includes(R.letter)) ? DRAW_TRIES : DRAW_TRIES8;
+  for (let t = 1; t <= tries; t++) {
     const faces = roles.map(({ s }) => weighted(rf, COURSES.house.draws.cast[s.role].faces));
     const places = [];
     for (let k = 0; k < 3; k++) {
       const K = caseOf(H.rooms[k].letter, H.rooms[k].side, H.rooms[k].how), offer = K.places.filter(p => p.offered).map(p => p.i);
-      const a = offer[int(rp, offer.length)], rest = offer.filter(i => i !== a);
-      places.push(a, rest[int(rp, rest.length)]);
+      const a = offer[int(rp, offer.length)], rest = offer.filter(i => i !== a), pair = [a, rest[int(rp, rest.length)]];
+      places.push(...(posts ? postSwap(H.rooms[k], k + 1, K, pair) : pair));
     }
-    if (castFair(H.rooms, faces, places).ok) return { faces, places, tries: t, fell: false };
+    if (castFair(H.rooms, faces, places, { posts }).ok) return { faces, places, tries: t, fell: false };
   }
-  return { ...setCastOf(H.rooms), tries: DRAW_TRIES, fell: true };
+  return { ...setCastOf(H.rooms), tries, fell: true };
 }
 /** A cast's part of the code: '|f…|p…'. */
 export const castCodeOf = ({ faces, places }) => `|f${faces.map(f => LETTER_OF_FACE[f]).join('')}|p${places.join('')}`;
@@ -467,12 +619,17 @@ const FLOOR = setRoom('w4.hall').floor;
 
 // (a lane room's rooms and openings in the area (see the header), as wheel.js place() makes the set's: inner openings first, then
 // the door; its rooms' ids the lane's)
+// (a chunk's room key as the lane's room id: the door's room 'r<k>', the closet the house's one closet, any other 'r<k>-<key>' (the
+// ell's far leg 'r<k>-far', v0.0.21's; the twin's back room 'r<k>-back'); and its name ('Room 2', 'Room 3, the far leg', 'Room 1,
+// the back room'))
+const roomIdOf = (C, k, ic) => (key) => (key === 'closet' ? `${ic}.closet` : key === C.sockets[0].room ? `${ic}.r${k}` : `${ic}.r${k}-${key}`);
+const innerIdOf = (k, ic) => (key) => (key === 'closet' ? `o:${ic}:closet` : `o:${ic}:r${k}-${key}`);
 function placeRoom(R, k, ic) {
-  const Q = placement(R), C = Q.C, S = Q.S, roomId = (key) => (key === 'closet' ? `${ic}.closet` : key === 'far' ? `${ic}.r${k}-far` : `${ic}.r${k}`);
-  const name = (r) => (r.key === 'closet' ? r.name : r.key === 'far' ? `Room ${k}, the far leg` : `Room ${k}`);
+  const Q = placement(R), C = Q.C, S = Q.S, roomId = roomIdOf(C, k, ic);
+  const name = (r) => (r.key === 'closet' ? r.name : r.key === 'far' ? `Room ${k}, the far leg` : r.key === S.room ? `Room ${k}` : `Room ${k}, ${r.name.replace(/^The /, 'the ')}`);
   const rooms = C.rooms.map(r => ({ id: roomId(r.key), kind: r.kind, name: name(r), rect: Q.rect(r.rect), ceilingM: 2.8, zone: `${ic}.z.house`, floor: { ...FLOOR }, ...(r.lighting ? { lighting: r.lighting } : {}) }));
   const openings = C.openings.map(o => {
-    const id = o.key === 'closet' ? `o:${ic}:closet` : `o:${ic}:r${k}-${o.key}`, rest = { ...o };
+    const id = innerIdOf(k, ic)(o.key), rest = { ...o };
     delete rest.key;
     if (o.axis === 'z') {
       const za = Q.z0 + (Q.flip ? Q.D - o.b : o.a), zb = Q.z0 + (Q.flip ? Q.D - o.a : o.b);
@@ -488,9 +645,9 @@ function placeRoom(R, k, ic) {
 }
 // (a chunk plan placed in the lane (see the header): every point moved, its ids the lane's, its paths routed after (route))
 function placePlan(R, k, ic) {
-  const Q = placement(R), C = Q.C, P = C.plans[C.family[R.how]], pt = (p) => Q.P(p), door = `o:${ic}:r${k}`;
-  const roomId = (key) => (key === 'closet' ? `${ic}.closet` : key === 'far' ? `${ic}.r${k}-far` : `${ic}.r${k}`);
-  const innerId = (key) => (key === 'closet' ? `o:${ic}:closet` : `o:${ic}:r${k}-${key}`);
+  const Q = placement(R), C = Q.C, P = C.plans?.[C.family[R.how]], pt = (p) => Q.P(p), door = `o:${ic}:r${k}`;
+  if (!P) return null;
+  const roomId = roomIdOf(C, k, ic), innerId = innerIdOf(k, ic);
   const why = (w) => (w === 'behind the door' && R.how === 'pull' ? 'corner' : w);
   return {
     room: roomId(P.parts[0]), parts: P.parts.map(roomId), door, threshold: pt(P.threshold), entry: P.entry,
@@ -500,9 +657,20 @@ function placePlan(R, k, ic) {
     sectors: P.sectors.map(s => ({ slot: s.slot, yawRad: Q.yaw(s.yawRad), halfDeg: 20 })),
     dead: P.dead.map(([x, z, rM]) => [...pt([x, z]), rM]),
     paths: { 1: P.paths[1].map(pt), 2: P.paths[2].map(pt) },
-    ...(P.far ? { far: { path: P.far.path.map(pt), hot: `r${k}:${P.far.hot}` } } : {}),
+    ...(P.far ? { far: { path: P.far.path.map(pt), hot: `r${k}:${P.far.hot}`, ...(P.far.words ? { words: P.far.words } : {}) } } : {}),
     inner: P.inner.map(innerId), light: P.light,
   };
+}
+// (a chunk's declared no-stop zones placed (G2): a doorway's funnel by the lane's opening id, `into` the side of the room it
+// leads on to (zones.js reads it: inZone is the same both sides, exitOf reads the heading))
+function placeNoStop(R, k, ic, openings) {
+  const C = X4_CHUNKS[R.chunk];
+  return (C.noStop ?? []).map(Z => {
+    const id = innerIdOf(k, ic)(Z.opening), o = openings.find(x => x.id === id), C0 = C.openings.find(x => x.key === Z.opening);
+    if (!o || !C0) return null;
+    const far = placement(R).rect(C.rooms.find(r => r.key === C0.rooms[0]).rect), mid = o.axis === 'x' ? (far[1] + far[3]) / 2 : (far[0] + far[2]) / 2;
+    return { kind: 'funnel', opening: id, why: 'doorway', into: Math.sign(mid - o.at) || 1 };
+  }).filter(Boolean);
 }
 // (the hall's leg from the last door (see the header))
 function hallPlan(last, ic) {
@@ -554,16 +722,21 @@ function buildLayout(H) {
   // (the plans fitted to the area with the lane's doors open (fitPath), routed where no fit holds)
   const laneDoors = H.rooms.map((R, i) => `o:${ic}:r${i + 1}`), G = openNavOf(areaId, ROUTE_CLS);
   const route = (p) => fitPath(G, p) ?? routed({}, p, { area: areaId, open: laneDoors }).map(q => [r4(q[0]), r4(q[1])]);
-  const plans = {};
+  const plans = {}, noStop = H.rooms.flatMap((R, i) => placeNoStop(R, i + 1, ic, openings));
+  const funnels = noStop.filter(Z => Z.kind === 'funnel').map(Z => Z.opening);
   H.rooms.forEach((R, i) => {
-    const P = placePlan(R, i + 1, ic), raw = { 1: P.paths[1], 2: P.paths[2], far: P.far?.path ?? null };
+    const P = placePlan(R, i + 1, ic);
+    // (a chunk with no plan for the family (a room before tools/derive-plans.mjs has proposed its plans) is derived here, in
+    // the area's frame (combat/derive.js); every committed family is placed as before)
+    if (!P) { const door = `o:${ic}:r${i + 1}`, parts = X4_CHUNKS[R.chunk].rooms.map(r => roomIdOf(X4_CHUNKS[R.chunk], i + 1, ic)(r.key)).filter(id => !id.endsWith('.closet')); const D0 = derivePlan(geoOf(areaId, door, parts), { funnels, open: laneDoors }); plans[door] = { ...D0, hot: D0.hot.map(h => ({ ...h, id: `r${i + 1}:${h.id}` })), ...(D0.far ? { far: { ...D0.far, hot: `r${i + 1}:${D0.far.hot}` } } : {}), $raw: { 1: D0.paths[1], 2: D0.paths[2], far: D0.far?.path ?? null } }; return; }
+    const raw = { 1: P.paths[1], 2: P.paths[2], far: P.far?.path ?? null };
     plans[P.door] = { ...P, paths: { 1: route(P.paths[1]), 2: route(P.paths[2]) }, ...(P.far ? { far: { ...P.far, path: route(P.far.path) } } : {}), $raw: raw };
   });
   const hp = hallPlan(H.rooms[2], ic);
   plans.hall = { ...hp, paths: { 1: route(hp.paths[1]), 2: route(hp.paths[2]) } };
   const raws = Object.fromEntries(Object.entries(plans).map(([k, P]) => [k, P.$raw ?? null]));
   for (const P of Object.values(plans)) delete P.$raw;
-  const layout = deepFreeze({ lane: 'A', area: areaId, order: [...laneDoors, 'hall'], plans });
+  const layout = deepFreeze({ lane: 'A', area: areaId, order: [...laneDoors, 'hall'], plans, ...(noStop.length ? { noStop } : {}) });
   const rects = Object.fromEntries(area.rooms.map(r => [r.id, r.rect]));
   return { area, plans: layout, raws, rects, ic, H };
 }
@@ -671,6 +844,81 @@ function assembleNow(code) {
   let spec = SPECS.get(whole);
   if (!spec || spec.area !== L.area.id || !areaOf(L.area.id)) { spec = buildSpec(L, H, cast.faces, cast.places); SPECS.set(whole, spec); if (SPECS.size > 4 * HOUSE_REG_KEEP) SPECS.delete(SPECS.keys().next().value); }
   return { area: L.area, spec, plans: L.plans, code: whole };
+}
+
+// ---- the live lane's posts (the build sheet item 15, §3.1; house lens G5) ----
+
+const POSTS = new WeakMap();
+// (the role-players' billets by lane room ('2' room 2's man, '3' room 3's): house-opfor.js's, read by lane room, never a spot by stand
+// (tests/syntax.test.mjs: no OPFOR_SPOTS[...] read outside opfor.js spotOf))
+const BILLETS = Object.freeze(Object.fromEntries(Object.entries(OPFOR_SPOTS).map(([stand, S]) => [stand[0], S.post])));
+const FLIP_FACE = Object.freeze({ up: 'down', down: 'up', left: 'left', right: 'right' });
+const swapLR = (w) => w.replace(/\bleft\b/, '\u0000').replace(/\bright\b/, 'left').replace('\u0000', 'right');
+/**
+ * A house's role-players' posts by stand id (opfor.js spotOf's drawn branch reads it; C's): { [stand]: { post, name, door, start,
+ * face, hide, dash, aimAt, why } }, the chunks' posts of lane rooms LIVE_ROOMS placed as their rooms are (start, hide and dash
+ * moved, the face's up and down swapped and the words' left and right on a room flipped across the hall), `door` the lane's
+ * door, `aimAt` its plan's threshold (as the set's are), `post` the billet of the lane room's role-player (room 2's man
+ * OPFOR_SPOTS['2a'].post, room 3's '3a''s: the same two men of Base Melas wherever their rooms fall; my call), the stand the
+ * chunk's post's letter in its lane room ('2a'). The set (HOUSE1, no code): the corner's and the ell's placed by LAYOUT_A, its
+ * doors' ids, so house-opfor.js OPFOR_SPOTS is their placement (tests/opfor-spots-drawn). Memoised by the spec; never saved.
+ */
+export function postsOf(spec) {
+  if (!spec || typeof spec !== 'object') return {};
+  let out = POSTS.get(spec);
+  if (out) return out;
+  const billet = (n) => BILLETS[String(n)] ?? null, r2p = (p) => [r2(p[0]), r2(p[1])];
+  out = {};
+  if (!spec.code || spec === HOUSE1) {
+    const order = ['x4:centre', 'x4:corner', 'x4:ell'];
+    for (const n of LIVE_ROOMS) {
+      const lay = LAYOUT_A.find(x => x.chunk === order[n - 1]), C = X4_CHUNKS[lay.chunk], P0 = C.posts?.[0], door = lay.sockets.door.id;
+      if (!P0) continue;
+      const at = (p) => r2p([lay.at[0] + p[0], lay.at[1] + p[1]]);
+      out[`${n}${P0.stand}`] = deepFreeze({ post: billet(n), name: P0.name, door, start: at(P0.start), face: P0.face, hide: at(P0.hide), dash: P0.dash.map(at), aimAt: [...X4_PLANS.A.plans[door].threshold], why: P0.why });
+    }
+  } else {
+    const H = parseHouse(spec.code), A = assembleHouse(spec.code);
+    if (H && A) for (const n of LIVE_ROOMS) {
+      const R = H.rooms[n - 1], C = X4_CHUNKS[R.chunk], P0 = C.posts?.[0], Q = placement(R), door = A.plans.order[n - 1];
+      if (!P0) continue;
+      const words = (w) => (Q.flip ? swapLR(w) : w);
+      out[`${n}${P0.stand}`] = deepFreeze({ post: billet(n), name: words(P0.name), door, start: Q.P(P0.start), face: Q.flip ? FLIP_FACE[P0.face] : P0.face, hide: Q.P(P0.hide), dash: P0.dash.map(Q.P), aimAt: [...A.plans.plans[door].threshold], why: words(P0.why) });
+    }
+  }
+  out = Object.freeze(out);
+  POSTS.set(spec, out);
+  return out;
+}
+
+// ---- a chunk's family derived in its own frame (G1: tools/derive-plans.mjs proposes it, tests/chunks-fresh.test.mjs holds it) ----
+
+/**
+ * A chunk's plan for a swing derived in the chunk's own frame (see the header and combat/derive.js): the room placed on its authored
+ * side in its reference lane (roomCaseOf's, the swing given), its plan derived in the lane's area (every lane door open) and moved
+ * back by the placement, every field as a chunk's plan has it (parts and inner by key, ids local, sectors { slot, yawRad }), with
+ * `source: 'derived@1'`. letter: a lane chunk's letter; how: 'push' | 'pull'; opts: derivePlan's (the tests' only: a rule changed).
+ */
+export function deriveChunkPlan(letter, how, opts = {}) {
+  const C = X4_CHUNKS[X4_LANE_CHUNKS[letter]], side = C.side, S = refShapeOf(letter, side), at = S.rooms.findIndex(r => r.letter === letter && r.side === side);
+  const fit = search(S.rooms, null), rooms = fit.map((R, i) => ({ ...R, how: i === at ? how : 'push', state: 'closed' }));
+  const code = layoutCodeOf(rooms), areaId = areaIdOf(code), held = LANES.has(areaId), L = held ? LANES.get(areaId) : buildLayout(parseHouse(code));
+  const R = rooms[at], k = at + 1, ic = L.ic, Q = placement(R), door = `o:${ic}:r${k}`, rid = roomIdOf(C, k, ic), iid = innerIdOf(k, ic);
+  const parts = C.rooms.map(r => r.key).filter(key => key !== 'closet'), funnels = (C.noStop ?? []).filter(Z => Z.kind === 'funnel').map(Z => iid(Z.opening));
+  const P = derivePlan(geoOf(areaId, door, parts.map(rid)), { ...opts, funnels, open: L.plans.order.filter(x => L.plans.plans[x]?.door).map(x => L.plans.plans[x].door) });
+  const back = (p) => [r2(p[0] - Q.x0), r2(p[1] - Q.z0)];
+  const keyOfRoom = Object.fromEntries(C.rooms.map(r => [rid(r.key), r.key])), keyOfOpening = Object.fromEntries(C.openings.map(o => [iid(o.key), o.key]));
+  const out = {
+    parts: P.parts.map(id => keyOfRoom[id]), threshold: back(P.threshold), entry: P.entry, stack: P.stack.map(back), points: P.points.map(back),
+    corners: P.corners.map(c => { const [x, z] = back([c.x, c.z]); return { id: c.id, x, z }; }),
+    hot: P.hot.map(h => { const [x, z] = back([h.x, h.z]); return { id: h.id, x, z, why: h.why }; }),
+    sectors: P.sectors.map(x => ({ slot: x.slot, yawRad: x.yawRad })), dead: P.dead.map(([x, z, rM]) => [...back([x, z]), rM]),
+    paths: { 1: P.paths[1].map(back), 2: P.paths[2].map(back) },
+    ...(P.far ? { far: { path: P.far.path.map(back), hot: P.far.hot, ...(P.far.words ? { words: P.far.words } : {}) } } : {}),
+    inner: P.inner.map(id => keyOfOpening[id] ?? id), light: P.light, source: 'derived@1',
+  };
+  if (!held) { dropArea(areaId); resetZones(); resetLight(); resetGraph(); }
+  return out;
 }
 
 /** A drawn house's area registered (model.js's registry) and returned, or null for a code that is no house. */

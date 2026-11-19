@@ -59,7 +59,7 @@
 // sidearm.js ADMIN.safe), so the P-12 in the hand at Stop is never "already so": its plan is read as it is carried, not as if in the
 // hands, and no edge of Stop's takes it there, so Fix falls to the command's row (shooting.js markFix: MAKE SAFE). Pure.
 import { act, actionMs, beliefOf, gunField, actionKey, pull, feel, ready as readyTruth } from './firearms.js';
-import { pouchesOf, handMagOf, handGunOf, atFeetOf, dumpOf, believedN, rankOf, meantLoad, topUpGains } from './kit.js';
+import { pouchesOf, handMagOf, handGunOf, atFeetOf, dumpOf, believedN, rankOf, meantLoad, topUpGains, magBucket, BUCKET_RANK } from './kit.js';
 import { MODELS, modelOf, isLong } from './models.js';
 import { SLUNG } from './carry.js';
 import { fixedRoller, rollerOf } from '../combat/roll.js';
@@ -106,10 +106,9 @@ const PURPOSE_OF = Object.freeze({ fed: 'speed', retain: 'retain', topup: 'tacti
 // ---- the abstraction ----
 
 const N_OF = Object.freeze({ '0': 0, '+': 5, '?': 5 });
-const BUCKET_RANK = Object.freeze({ '+': 0, '?': 1, '0': 2 });
 const countBucket = (n) => (typeof n !== 'number' ? '?' : n === 0 ? '0' : '+');
-/** A magazine's bucket as its holder believes it: '0' counted empty or felt so, '?' unknown, else '+'. */
-export const magBucket = (m) => (believedN(m) === 0 || m?.belief?.feel === 'none' ? '0' : believedN(m) === null && !m?.belief?.feel ? '?' : '+');
+// (a magazine's bucket as its holder believes it: kit.js magBucket, the one rule, which pickMag's ground reach reads too)
+export { magBucket };
 const rounds = (x) => x === '+' || x === '?';
 
 /**

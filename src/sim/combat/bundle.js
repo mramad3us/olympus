@@ -128,6 +128,11 @@
 // dcK, a fail ×FAIL_K and "It won't give. Again, or hold it.", the tool let go at the door, the rifle up). A device left in the
 // hands by a cut or a hand-back has its own rows (deviceRows: "Throw it", "Pin back in", "Let it go"), never a dead end; a
 // tool let go at a door is picked up again by "Pick up the halligan".
+// v0.0.20's hunt (breach-4, breach-10, breach-11): Shoot the lock on an inner door walks you from across the room to its latch
+// side first (innerStandOf, the walk in the row's time; startSingle's `walk`), and an inner door opened with a man at its leaf is
+// seen (innerSeen, H.innerSeen; shoothouse.js reads it at the room's "Clear!": merely open is
+// 'open', a fault); the breach struck "charge spent" (CHARGE_SPENT) once your charge has burst, never "no charge issued"; Pry it
+// at a later door struck "halligan left at room 2" (toolLeftOf), never gone with nothing said.
 // v0.0.19 (D2, the build sheet 0.0.19 §1, §3.1; kit2 §2.7): **the second slice of the kit.** The practice frag and concussion
 // ride the bang's beats with their count: `cook` (the lever let go, the count held: devices.js cookCount, Weapon handling DC 6,
 // unpaced; the fuse running from the lever), the throw saying the device's own call (DEVICES[model].call: "Frag out!",
@@ -215,7 +220,7 @@ import { relook, ORDER_RUNG } from './contact.js';
 import { ENTER_AND_CLEAR, bundleDef, beatsOf, BUNDLES, ARRIVE_M, PASS_SHARE, REMOVED, MUSCLE, KIT_BEATS, kitBeats, BANGS, AFTER_D2, cookDefault, taskDef } from './drills/enter-and-clear.js';
 import { kitHas, entryOptions, safePointsOf, chargePointOf, placedOn, forceMs, FIRE_S, NOT_ISSUED, chargeFor, ballisticOk, NOT_LOCKED, shootMs, CHARGE_ON_WHY } from './breach.js';
 import { shootPlanOf, shootRound, BALLISTIC_MAX_ROUNDS } from './ballistic.js';
-import { tickDevices } from './burst.js';
+import { tickDevices, stunOn, liveIn } from './burst.js';
 import { DEVICES, deviceMs, pouchedOf, handDeviceOf, handsFullWhy, setSt, fuseBelieved, wayOut, HANG_S, UP_S, DEVICE_ACTIONS, devicesOf, cookCount, cookOk, MISFIRE_WAIT_MS } from '../arms/devices.js';
 import { throwSolve, throwLand, throwDc, throwVMax, aimOf, fuseLeftMs, DEEP_BEYOND_M } from '../arms/throw.js';
 import { spinOf } from '../places/spin.js';
@@ -230,7 +235,7 @@ import { upNow } from './men.js';
 import { startled } from './supp.js';
 import { routed, clipped } from './route.js';
 import { coastTo, throughTick, throughAway, stepAside, roundAbout, PIN_GIVE_MS, PIN_END_MS } from '../places/move.js';
-import { liveZoneAt } from '../places/zones.js';
+import { liveZoneAt, zoneAt } from '../places/zones.js';
 import { swingFrom, KICK_PULL_WHY } from '../places/swing.js';
 import { locoStep } from '../body/loco.js';
 import { COURSES } from '../../data/courses.js';
@@ -948,6 +953,7 @@ registerKind('door', {
     // fact names when the leaf starts and first stands at its stop, the kick's boom and the knock's times (the audio's))
     const openMs = Math.round((o.openS ?? DOOR_S) * 1000), leafAtMs = atMs + Math.round(b.handMs ?? 0);
     setOpening(state, o.id, 'open', { atMs: leafAtMs + openMs, how: LEAF_HOWS.includes(b.how) ? b.how : null });
+    innerSeen(state, d.who, o, atMs);
     ((state.$places ??= {}).moving ??= new Set()).add(o.id);
     const [x, z] = doorMid(o);
     bus?.emit('door', { id: o.id, area: openingArea(o.id)?.id ?? null, x, z, state: 'open', kind: o.kind, who: d.who, how: b.how, leafAtMs, stopAtMs: stopAtOf(b.how, leafAtMs, openMs) });
@@ -1026,13 +1032,53 @@ registerKind('call', {
       }
       delete b.gateFromMs;
     }
+    // (your "Room clear!" waits while your #2's Dominate of this room runs with its "Clear!" still to come, at most CLEAR_WAIT_MS:
+    // the sector calls first, then the room's (the play review found your "Room clear!" before his "Clear!" in 22
+    // of 709 rooms, where his entry was halted on contact and his Dominate began after your own "Clear!", and the scene's echo of
+    // his call said in the same tick as yours, his own beat 0.55 s after it: two calls of his in one room)
+    if (!dry(d) && b.say === 'roomclear' && d.who === playerId(state) && b.plan) {
+      const two = houseOf(state)?.two ?? null, from = (b.roomFromMs ??= atMs);
+      const owed = !!two?.doing && two.doing.door === b.plan && !two.swept?.[b.plan] && (two.doing.beats ?? []).some(x => x.key === 'clear' && x.st !== 'done');
+      // (the call's own length kept through the wait, which the stepper writes over with each tick's)
+      if (owed && atMs - from < CLEAR_WAIT_MS) { b.roomMs ??= b.ms; return { ms: TICK_MS, ok: true, routine: true, again: true, text: null }; }
+      if (b.roomMs !== undefined) { b.ms = b.roomMs; delete b.roomMs; }
+      delete b.roomFromMs;
+    }
+    // (the hunt of v0.0.20's T2: a casualty on the lane, yours or his, and no call is said: the stack is out of the fight (men.js casualtyOn))
+    if (!dry(d) && houseOf(state)?.live?.casualty) return { ms: 0, ok: true, routine: true, text: null };
+    // (one "Clear!" of your #2's a room (FL22-4, held by its fixer): never a second once the scene echoed yours for him or he
+    // called it since you went in (R.house.two.clearMs), as when a Dominate re-planned after "Covering!" and "Up." swept again (the play
+    // review: "Clear!", "Covering!", "Up.", "Clear!" in the recruit's room 2 on seed 7))
+    if (!dry(d) && b.say === 'clear' && b.plan && isTwo(state, d.who) && twoClearSaid(state, b.plan)) return { ms: 0, ok: true, routine: true, text: null };
+    // (and T1: your #2's "Clear!" waits while a man of the room the team has seen is up and not given up (twoClearWait); the leg
+    // over (cleared or passed), it is never said)
+    if (!dry(d) && b.say === 'clear' && b.plan && isTwo(state, d.who)) {
+      const w = twoClearWait(state, b.plan, atMs);
+      if (w === 'over') return { ms: 0, ok: true, routine: true, text: null };
+      if (w) return { ms: TICK_MS, ok: true, routine: true, again: true, text: null };
+    }
     const words = b.words ?? SAY[b.say] ?? b.say;
     if (!dry(d)) bus?.emit('say', { who: d.who, text: words, kind: 'speech', durMs: b.ms, call: b.say, room: b.plan ?? null });
-    // (the #2's own "Clear!" noted on the house's record: the scene drops its echo of yours within a second of it)
+    // (the #2's own "Clear!" noted on the house's record: the scene echoes yours for him only where he has called none in the leg
+    // (shoothouse.js twoCalledIn), and he never calls a second (twoClearSaid))
     if (!dry(d) && b.say === 'clear' && houseOf(state)?.two?.pid === d.who) houseOf(state).two.clearMs = atMs;
     return { ms: b.ms, ok: true, routine: true, text: words };
   },
 });
+/**
+ * Why your #2's "Clear!" for a door's room waits (the hunt of v0.0.20's T1; COMBAT §25.21): 'over' when the room's leg is cleared or
+ * passed (the call is never said), the key of a live man of the room the team has seen (R.house.live.seenBy) who is up and has not
+ * given up ('hands'), down or been ruled out, else null. On the live lane only (R.house.live): every turner lane is as it was.
+ */
+export function twoClearWait(state, door, ms = state.clock.ms) {
+  const H = houseOf(state), plan = H?.live ? planOf(state, door) : null;
+  if (!plan) return null;
+  const L = (H.rooms ?? []).find(x => x.door === door);
+  if (L && (L.state === 'clear' || L.state === 'passed')) return 'over';
+  // (the turners through op.js's session, the range's or the operation's (OP_HOME; the v0.0.22 integration of v0.0.20's hunt on v0.0.21))
+  const T = (sessionOf(state)?.turners ?? []).find(x => x.live && x.room === plan.room && x.stoppedAtMs === null && !['hands', 'down', 'out'].includes(x.live.st) && H.live.seenBy?.[x.key] !== undefined);
+  return T ? T.key : null;
+}
 // (the scene's ready-to-clear predicate: (state, door, ms) → a reason to wait, or null; shoothouse.js registers it)
 // (held on a function, which a module's instantiation sets up before its body runs: the scene registers it at its own load,
 // which can come first in an import cycle (the rework's R4: bundle.js reads the gun's belief and the macros now))
@@ -1054,7 +1100,7 @@ function upIn(state, room, ms) {
 }
 // (the build sheet v0.0.20 item 12: the last man marks. Your #2's Dominate ends on it, which arms his mark (R.house.two.markOwed,
 // by door) and takes no time where he stands: he makes it on the latch-side jamb as he passes the door's plane outward
-// (house-two.js twoTick). Yours (the single, where he cannot: markYoursOf) is made where you stand, on the room's leg (L.marked))
+// (combat/two.js twoTick). Yours (the single, where he cannot: markYoursOf) is made where you stand, on the room's leg (L.marked))
 registerKind('markArm', {
   run(state, bus, d, b, atMs) {
     if (!dry(d) && isTwo(state, d.who) && b.plan && b.plan !== 'hall') (houseOf(state).two.markOwed ??= {})[b.plan] = atMs;
@@ -1136,6 +1182,14 @@ function blockEnd(state, rec, ms) {
 const legNow = (state) => { const H = houseOf(state); return H && Array.isArray(H.rooms) ? [...H.rooms, H.hall][H.cur ?? 0] ?? null : null; };
 // (whether a person is the shoot house's number two)
 const isTwo = (state, pid) => !!pid && (houseOf(state)?.two?.pid ?? null) === pid;
+// (whether your #2 has said his "Clear!" of door's room: the scene's echo of yours for him on its leg, or his own call since you
+// entered it (his call of an earlier room comes before you enter the next; shoothouse.js twoCalledIn's rule))
+function twoClearSaid(state, door) {
+  const H = houseOf(state), L = (H?.rooms ?? []).find(x => x.door === door);
+  if (!L) return false;
+  if ((L.calls ?? []).some(c => c.by === 'two' && c.how === 'echo')) return true;
+  return Number.isFinite(H.two?.clearMs) && Number.isFinite(L.enteredAtMs) && H.two.clearMs >= L.enteredAtMs;
+}
 // (the explosive breach: never planned without a charge issued. v0.0.18: "Breaching!", the count and the fire of the charge placed
 // on the door (primed here if a misfire left it to prime again); the FD-1's misfire hands back at the count's end, the charge on
 // the door to prime again (Carry on) or the halligan; else the charge's fuse is the count's end, where it bursts (burst.js))
@@ -1260,18 +1314,29 @@ registerKind('throw', {
     bus?.emit('say', { who: pid, text: call, kind: 'speech', durMs: 600, call: callId });
     // (v0.0.19: a practice grenade slipped at your own feet hands back at once, stop motion with its fuse still to run, so "Get
     // clear" (singleRows) is yours to take; the bang beat ran on to the burst with no pause (the review of v0.0.19's K: 4.7 s, no row))
-    if (land.atFeet && DEVICES[g.model]?.as && pid === playerId(state)) return { ms: b.ms, ok: false, grade: r.grade, routine: false, halt: 'fail', text: SLIP_WORDS };
+    // (R1 b: every grenade, a G-11 too, and a failed toss that lands where its burst would stun you (burst.js stunOn: its
+    // stun line, the walls counted by the blast's line): "Grenade short! Get clear." Before it the boot recruit's G-11 slipped at
+    // his feet on seed 48229 burst there with no row to take, 321.3 kPa on him and 38.7 on his #2)
+    if (pid === playerId(state) && a) {
+      if (land.atFeet) return { ms: b.ms, ok: false, grade: r.grade, routine: false, halt: 'fail', text: SLIP_WORDS };
+      if (!r.ok && stunOn(state, { kind: 'grenade', model: g.model, x: land.x, z: land.z, area }, a)) return { ms: b.ms, ok: false, grade: r.grade, routine: false, halt: 'fail', text: SHORT_WORDS };
+    }
     return { ms: b.ms, ok: r.ok, grade: r.grade, routine: false, text: call };
   },
 });
-/** The hand-back of a grenade slipped at your feet (v0.0.19). */
-export const SLIP_WORDS = 'Grenade! At your feet. Get clear.';
+/** The hand-back of a grenade slipped at your feet (v0.0.19; every grenade from v0.0.22), and of a failed toss that lands where its burst would stun you (R1 b). */
+export const SLIP_WORDS = 'Grenade! At your feet. Get clear.', SHORT_WORDS = 'Grenade short! Get clear.';
 /** "Get clear" runs this far from a live grenade lying within CLEAR_NEAR_M of you, never nearer a body in its line than CLEAR_BODY_M (m; v0.0.19, my call). */
 export const CLEAR_RUN_M = 5, CLEAR_NEAR_M = 4, CLEAR_BODY_M = 0.6;
 // (a live grenade on the floor within CLEAR_NEAR_M of a person, and where "Get clear" takes him: of eight headings CLEAR_RUN_M
 // long, each stopped 0.4 m short of the first wall it meets and CLEAR_BODY_M short of the first body in its line (the #2 behind
-// you on the stack), the end farthest from the grenade; null where none lies near)
-function clearOf(state, pid, a) {
+// you on the stack), the end farthest from the grenade; null where none lies near. Exported in v0.0.22 for two.js twoClear, his own
+// run (the build sheet v0.0.22 §0 item 35). v0.0.22 (my call, against that item's "unchanged"): the heading is the one that has
+// you farthest from it when it bursts, its fuse left run along the heading at your legs' pace (stepper.js profileOf, the walk of
+// your move stance; `stance` the caller's), the end farthest from it where the fuse outlasts every run; the farthest end alone sent
+// the boot recruit west past his own G-11 on 48224 (0.72 m off it mid-run, 23.4 kPa at the burst against 22.5 standing still) and
+// on 48229 (0.25 m off it, 21.7 kPa))
+export function clearOf(state, pid, a, { stance = a?.moveStance === 'assault' ? 'assault' : 'combat' } = {}) {
   let g = null, gd = Infinity;
   for (const site of Object.values(state.places?.sites ?? {})) for (const l of site?.items ?? []) {
     const rec = state.items?.[l.id];
@@ -1280,6 +1345,8 @@ function clearOf(state, pid, a) {
     if (dd < gd) { gd = dd; g = l; }
   }
   if (!g || gd > CLEAR_NEAR_M) return null;
+  const fuseAt = state.items?.[g.id]?.fuseAtMs, leftS = Number.isFinite(fuseAt) ? Math.max(0, (fuseAt - state.clock.ms) / 1000) : Infinity;
+  const legs = legsOf(state, pid, a.x, a.z), vMax = legs.walk[stance] ?? legs.walk.combat;
   let best = null;
   for (let k = 0; k < 8; k++) {
     const ang = k * Math.PI / 4, to = [a.x + Math.cos(ang) * CLEAR_RUN_M, a.z + Math.sin(ang) * CLEAR_RUN_M];
@@ -1293,9 +1360,11 @@ function clearOf(state, pid, a) {
     if (L < 0.5) continue;
     const end = [a.x + ux * L, a.z + uz * L];
     const far = Math.hypot(end[0] - g.x, end[1] - g.z);
-    if (!best || far > best.far + 1e-9) best = { to: [q(end[0], 1e-3), q(end[1], 1e-3)], far };
+    // (where the run has you when it bursts: its fuse left along the heading's profile)
+    const sAt = Number.isFinite(leftS) ? profileAt(profileOf(L, vMax, legs.pushMs2, legs.brakeMs2), leftS).s : L, atBurst = Math.hypot(a.x + ux * sAt - g.x, a.z + uz * sAt - g.z);
+    if (!best || atBurst > best.atBurst + 1e-9 || (Math.abs(atBurst - best.atBurst) <= 1e-9 && far > best.far + 1e-9)) best = { to: [q(end[0], 1e-3), q(end[1], 1e-3)], far, atBurst };
   }
-  return best;
+  return best ? { to: best.to, far: best.far } : null;
 }
 // (the bang: the eyes off it while the fuse burns, the rifle back up (ACTIONS.up's second, inside the fuse), the burst at its end)
 registerKind('burst', {
@@ -1372,6 +1441,7 @@ registerKind('force', {
     // (a pried or rammed leaf keeps the linear swing (no verb on the delta); its fact names the leaf's start and its stop)
     const openMs = Math.round((o.openS ?? DOOR_S) * 1000);
     setOpening(state, o.id, 'open', { atMs: atMs + handMs + openMs });
+    innerSeen(state, d.who, o, atMs);
     ((state.$places ??= {}).moving ??= new Set()).add(o.id);
     const [x, z] = doorMid(o);
     bus?.emit('door', { id: o.id, area: openingArea(o.id)?.id ?? null, x, z, state: 'open', kind: o.kind, who: pid, how: b.how, leafAtMs: atMs + handMs, stopAtMs: stopAtOf(null, atMs + handMs, openMs) });
@@ -1470,6 +1540,7 @@ registerKind('shootDoor', {
     rec.atMs = atMs;
     const openMs = Math.round((o.openS ?? DOOR_S) * 1000);
     setOpening(state, o.id, 'open', { atMs: atMs + openMs });
+    innerSeen(state, pid, o, atMs);
     ((state.$places ??= {}).moving ??= new Set()).add(o.id);
     const [x, z] = doorMid(o);
     bus?.emit('door', { id: o.id, area: openingArea(o.id)?.id ?? null, x, z, state: 'open', kind: o.kind, who: pid, how: 'shot' });
@@ -1550,7 +1621,7 @@ registerKind('recover', {
 });
 
 // ---- v0.0.20, the room (the build sheet's items 12 and 17; drill.md items 3 and 4; COMBAT §25.19.2.1) ----
-// The leaving of a room and the far leg's cover, as beats of yours that the #2's tick answers (house-two.js twoTick): `out` says
+// The leaving of a room and the far leg's cover, as beats of yours that the #2's tick answers (combat/two.js twoTick): `out` says
 // "Coming out!" where the row starts inside a room called clear (nothing, and no time, elsewhere), flowing from rung 3 (CALL_FLOW_S)
 // and CALL_S below; `status` waits after your "Room clear!" on his status (R.house.two.status[door]: asked here, answered by his
 // tick), at most STATUS_MS; `moving` says "Moving!" before the far leg and waits on his "Move!" (R.house.two.moving[door]) at most
@@ -1897,6 +1968,55 @@ export function breachWays(state, pid, plan) {
 // (the ways in that force the leaf (the charge, the halligan, the ram), and why one carried is struck away from the door)
 const FORCE_WAYS = new Set(['door:breach', 'door:pry', 'door:ram']);
 export const STACK_FIRST_WHY = 'stack first';
+/** Where you stand to work an inner door by hand (m; the hunt of v0.0.20, breach-4, my calls): INNER_PAST_M past its latch jamb along the wall, INNER_OFF_M off the leaf's face, out of a pull door's swing and 45 degrees off the lock for the ballistic breach (ballistic.js MUZZLE_REACH_M puts the muzzle on it). */
+export const INNER_PAST_M = 0.25, INNER_OFF_M = 0.5, INNER_PAST_MAX_M = 1.0;
+/** The point to stand at an inner door of the plan's room (see INNER_PAST_M), on the room's side: [x, z], or null for a doorway. */
+export function innerStandOf(state, plan, id) {
+  const o = openingOf(id), sw = o ? doorSwing(state, { ...plan, door: id }, plan.room) : null;
+  if (!o || !sw) return null;
+  const u = [sw.latchXZ[0] - sw.hingeXZ[0], sw.latchXZ[1] - sw.hingeXZ[1]], L = Math.hypot(u[0], u[1]) || 1;
+  // (the room's side of the door's line: toward the plan's room's middle)
+  const rect = (openingArea(id)?.rooms ?? []).find(r => r.id === plan.room)?.rect ?? null, mid = rect ? [(rect[0] + rect[2]) / 2, (rect[1] + rect[3]) / 2] : null;
+  const n = o.axis === 'x' ? [0, Math.sign((mid?.[1] ?? o.at + 1) - o.at) || 1] : [Math.sign((mid?.[0] ?? o.at + 1) - o.at) || 1, 0];
+  // (never in the door's own no-stop zone (zones.js zoneAt, the gauges' F4: a walk ends clear of every doorway): further along the
+  // wall, a step of 0.05 m at a time, up to INNER_PAST_MAX_M (room 2's closet: 0.35 m past its latch jamb, 0.94 m off the leaf's middle))
+  const at = (past) => [q(sw.latchXZ[0] + u[0] / L * past + n[0] * INNER_OFF_M, 1e-3), q(sw.latchXZ[1] + u[1] / L * past + n[1] * INNER_OFF_M, 1e-3)];
+  const area = plan.area ?? state.places?.live?.area ?? null;
+  let past = INNER_PAST_M;
+  while (past < INNER_PAST_MAX_M && area && zoneAt(area, ...at(past))) past = q(past + 0.05, 1e-3);
+  return at(past);
+}
+/**
+ * The space behind an inner door seen as it opens (the hunt of v0.0.20, breach-4): the one who opened it inside the room it opens
+ * from (the closet, 1.2 m deep, seen whole from room 2 once its leaf is back) or within DOOR_REACH_M of its leaf, his eyes in as the
+ * leaf goes, written H.innerSeen[id] (the first time). shoothouse.js houseCall reads it: an inner door open with nobody of the room
+ * at it as it opened is 'open', never 'cleared'. Only an inner door of the room you are in is written, so a lane's saves are as
+ * before where none is opened.
+ */
+export function innerSeen(state, pid, o, atMs) {
+  const H = houseOf(state), a = actorOf(state, pid), plan = plan0(state, playerId(state));
+  if (!H || !a || !o || !(plan?.inner ?? []).includes(o.id) || (!pastThreshold(plan, a.x, a.z) && dist([a.x, a.z], doorMid(o)) > DOOR_REACH_M)) return;
+  (H.innerSeen ??= {})[o.id] ??= atMs;
+}
+/** Why the breach is struck once your charges are fired (the hunt of v0.0.20, breach-10): a note, never the issue badge. */
+export const CHARGE_SPENT = 'charge spent';
+// (a charge of yours burst on the lane (R.house.bursts: an SC-1 or a BC-1 fired by you), so the breach's want is spent, not unissued)
+const chargeSpentOf = (state, pid) => (houseOf(state)?.bursts ?? []).some(b => b.byId === pid && DEVICES[b.model]?.kind === 'charge');
+/**
+ * Where a tool of yours lies (the hunt of v0.0.20, breach-11): none of that model on you, one on the floor of the live area that
+ * your scabbard takes back (toolHomeOf), as "halligan left at room 2" (the room whose door is nearest it), else null.
+ */
+export function toolLeftOf(state, pid, model) {
+  if (devicesOf(state, pid).some(d => d.model === model && d.st !== 'gone')) return null;
+  const area = state.places?.live?.area, H = houseOf(state);
+  for (const site of Object.values(state.places?.sites ?? {})) for (const l of site?.items ?? []) {
+    const rec = state.items?.[l.id];
+    if (!rec || rec.model !== model || l.area !== area || !toolHomeOf(state, pid, l.id)) continue;
+    const rooms = (H?.rooms ?? []).map((L, i) => { const o = L.door ? openingOf(L.door) : null; return o ? { n: i + 1, dM: dist([l.x, l.z], doorMid(o)) } : null; }).filter(Boolean).sort((a, b) => a.dM - b.dM);
+    return `${DEVICES[model].word} left ${rooms.length ? `at room ${rooms[0].n}` : 'behind'}`;
+  }
+  return null;
+}
 function kitRow(state, pid, B, here, rung, variant, ms) {
   const plan = here.plan, a = actorOf(state, pid), me = a ? [a.x, a.z] : null, o = plan.door ? openingOf(plan.door) : null;
   const open = !o || openingState(state, o) === 'open', inside = a ? pastThreshold(plan, a.x, a.z) : false;
@@ -1916,8 +2036,12 @@ function kitRow(state, pid, B, here, rung, variant, ms) {
   if (B.id === 'door:shoot' && !has) { const w = ballisticOk(state, pid); return w && w !== NOT_ISSUED ? struck(w) : null; }
   if (!has) {
     // (the default kit's rows as built: the breach struck "no charge issued" at a push door; at a pull door Pry in its place)
+    // (the hunt of v0.0.20: a charge you were issued and fired is "charge spent", a note and never the issue badge (breach-10: room 3's
+    // Breach on 5 read "no charge issued" with the badge after the one SC-1 went on room 1); a tool you let go at an earlier door is
+    // struck where it lies, "halligan left at room 2", where the row had vanished with nothing said (breach-11))
     const pull = swingOf(state, plan) === 'pull';
-    if (B.id === 'door:breach' && !pull) return struck('no charge issued', B.label, { rung: 2 });
+    if (B.id === 'door:breach' && !pull) return struck(chargeSpentOf(state, pid) ? CHARGE_SPENT : 'no charge issued', B.label, { rung: 2 });
+    if (B.id === 'door:pry' || B.id === 'door:ram') { const left = toolLeftOf(state, pid, B.id === 'door:pry' ? 'hal' : 'ram'); if (left) return struck(left); }
     if (B.id === 'door:pry' && pull) return struck(NOT_ISSUED);
     return null;
   }
@@ -2021,6 +2145,13 @@ export function singleRows(state, pid = playerId(state), ms = state.clock.ms) {
     if (openingState(state, io) === 'open') continue;
     // (read from the room it is seen from: "Push door, hinge left." for room 2's closet, its kick live only where it is a push)
     const sw = doorSwing(state, { ...plan, door: id }, plan.room), how = sw?.how ?? 'push', t = doorS(sk.wh, how, rung, io.openS ?? DOOR_S);
+    // (the muzzle on the lock (the hunt of v0.0.20, breach-4): from across the room Shoot the lock walks you to the door's latch side
+    // first (innerStandOf), the walk in the row's time, never fired from 5.5 m off as if there. Open, Kick and Pry it stay where you
+    // stand (v0.0.20's, the gauges' fuzz lanes held to their paths); a door so opened from off its leaf is not seen into, and the
+    // room's "Clear!" reads it 'open', a fault (innerSeen))
+    const st = innerStandOf(state, plan, id), walk = st && dist(me, st) > STACK_NEAR_M ? wayOf(state, [me, st]) : null;
+    const wMs = walk ? (() => { const legs = legsOf(state, pid); return profileOf(pathLen(walk), legs.walk.combat, legs.pushMs2, legs.brakeMs2).T * 1000; })() : 0;
+    const walkOf = (r) => (walk && !r.off ? { ...r, ms: Math.round(r.ms + wMs), walk } : r);
     out.push(row(`door:${how}>${id}`, 'door', `${MUSCLE['door:open'].label}: ${how}`, t.ms, { off: lockedOf(state, id) ? 'locked' : null, how, inner: true, group: 'door', swing: swingNote(sw) }));
     out.push(kickRow(state, pid, row, io, sk, rung, sw, { inner: true, group: 'door' }));
     // (v0.0.18: the halligan on an inner door, either swing, the lock's DC less its dcK (the closet: 14 − 4 = 10), when the kit carries it)
@@ -2030,7 +2161,7 @@ export function singleRows(state, pid = playerId(state), ms = state.clock.ms) {
     }
     // (v0.0.19: the R-7 on the lock, on a breaching lane only (breach.js BALLISTIC_LANES): live on a door locked, struck "not locked")
     const bWhy = ballisticOk(state, pid);
-    if (bWhy !== NOT_ISSUED) out.push(row(`door:shoot>${id}`, 'door', MUSCLE['door:shoot'].label, shootMs(state, pid, how), { how: 'shoot', inner: true, group: 'door', off: bWhy ?? shootGunWhy(state, pid) ?? (lockedOf(state, id) ? null : NOT_LOCKED), skill: 'marksmanship', routine: false }));
+    if (bWhy !== NOT_ISSUED) out.push(walkOf(row(`door:shoot>${id}`, 'door', MUSCLE['door:shoot'].label, shootMs(state, pid, how), { how: 'shoot', inner: true, group: 'door', off: bWhy ?? shootGunWhy(state, pid) ?? (lockedOf(state, id) ? null : NOT_LOCKED), skill: 'marksmanship', routine: false })));
   }
   // (Watch a hot spot from outside; Look at one inside)
   const muzzleYaw = a.headRad ?? 0;
@@ -2048,7 +2179,8 @@ export function singleRows(state, pid = playerId(state), ms = state.clock.ms) {
     const far = plan.far, farEnd = far?.path?.at(-1) ?? null;
     if (far && !here.rec?.covered?.[far.hot] && dist(me, farEnd) > STACK_NEAR_M) {
       const fp = wayOf(state, pathFrom(far.path, me)), FP = profileOf(pathLen(fp), legs.walk.combat, legs.pushMs2, legs.brakeMs2);
-      out.push(row('move:far', 'move', 'Move: the far leg', FP.T * 1000, { to: farEnd, path: fp }));
+      // (in the plan's own words, "Move: the back room" in the twin (A's chunks, plan.far.words); the far leg's elsewhere)
+      out.push(row('move:far', 'move', `Move: ${far.words ?? 'the far leg'}`, FP.T * 1000, { to: farEnd, path: fp }));
     }
     out.push(row('call:clear', 'call', 'Clear!', (rung >= 3 ? CALL_FLOW_S : CALL_S) * 1000, { say: 'clear' }));
     out.push(row('mark', 'mark', 'Mark the room', MARK_S * paceOf(sk.wh) * 1000));
@@ -2168,6 +2300,8 @@ const HOT_WORDS = Object.freeze({ 'behind the door': 'behind the door', corner: 
 /** A corner this deep past the door's plane or less is a near one, metres; this far or less off the door's middle is straight ahead (my calls). */
 export const HOT_NEAR_M = 1.5, HOT_AHEAD_M = 0.3;
 function hotName(plan, h) {
+  // (the far hot spot in its plan's words, "the back room" in the twin; "the far leg" elsewhere)
+  if (h.why === 'far leg' && plan.far?.words) return plan.far.words;
   if (h.why && h.why !== 'corner') return HOT_WORDS[h.why] ?? h.why;
   // (as seen from the door looking in: its depth past the plane, and its side of the door's middle; the plane's normal into
   // the room is the facing, and left of it is (f.z, -f.x) with x east and z south)
@@ -2587,6 +2721,14 @@ export function startSingle(state, bus, pid, row, { tempo = 'normal' } = {}) {
   else if (row.kind === 'mark') beat = { key: 'mark', k: 'mark', ch: 'hands', ms: row.ms, after: [] };
   if (!beat) return { ok: false, why: 'not offered' };
   if (tempo === 'rushed' && beat.k !== 'move') beat.ms = Math.round(beat.ms * RUSH_K);
+  // (a row that walks you up first (singleRows' Shoot the lock on an inner door: the muzzle on the lock): the walk at Combat, then
+  // the row's own beat at its end (the hunt of v0.0.20, breach-4))
+  if (row.walk && a) {
+    const legs = legsOf(state, pid), path = wayOf(state, pathFrom(row.walk, [a.x, a.z])), P = profileOf(pathLen(path), legs.walk.combat, legs.pushMs2, legs.brakeMs2);
+    const mv = { key: 'move', k: 'move', ch: 'feet', stance: 'combat', path, prof: P, ms: Math.round(P.T * 1000), after: [], cut: true };
+    beat.after = ['move'];
+    return beginBeats(state, bus, pid, { step: row.id, bundle: null, plan: { beats: [mv, beat], ms: mv.ms + beat.ms, rung, slot: 1, door: here?.door ?? null, variant: {}, seams: [] }, tempo, label: row.label });
+  }
   return beginBeats(state, bus, pid, { step: row.id, bundle: null, plan: { beats: [beat], ms: beat.ms, rung, slot: 1, door: here?.door ?? null, variant: {}, seams: [] }, tempo, label: row.label });
 }
 
@@ -2685,6 +2827,33 @@ export function runSlot(state, bus, rec, ms = state.clock.ms) {
       haltDoing(state, bus, rec.doing, 'side', null, ms);
       advanceBeats(state, bus, rec.doing, ms);
       rec.last = { step: rec.doing.step, untilMs: ms, why: 'side' };
+      rec.doing = null;
+      return 'halted';
+    }
+  }
+  // (R2 a: his walk in begun before the grenade came down (your throw from past the door's line, the hunt's recipe) and short
+  // of the doorway when one lands in the room he goes into or by his way in (burst.js liveIn): halted where he stands ('live'), silently,
+  // his entry planned again on its burst (the guard below holds it till then); in the doorway or past it he goes on, never stopped in it)
+  if (rec.doing?.bundle === 'room:in' && !rec.doing.halt) {
+    const P0 = planOf(state, rec.doing.door);
+    if (P0?.door && !pastThreshold(P0, a.x, a.z) && !inFunnel(P0, a.x, a.z) && liveIn(state, P0, rec.doing.beats.find(b => b.k === 'move' && b.st !== 'done')?.path ?? entryPath(P0, sideOf(state, rec.doing.door, 2)))) {
+      haltDoing(state, bus, rec.doing, 'live', null, ms);
+      advanceBeats(state, bus, rec.doing, ms);
+      rec.last = { step: rec.doing.step, untilMs: ms, why: 'live' };
+      rec.doing = null;
+      return 'halted';
+    }
+  }
+  // (his stack-up still finishing at his stack point, its "Ready." still to say, when your cue comes: ended there, his
+  // entry on the cue after his reaction, as from his stack idle. Before it he finished the stack-up first: re-stacked after his own
+  // Get clear of your slipped G-11 (two.js twoClear), the mixed loadout's keys recruit on 1222 cued him at 16.00 s, 0.30 s before his
+  // "Ready.", and he started in at 17.35 s, his threshold 3.30 s after the cue (F25, house-flawless-kit2: the integration's open gauge))
+  if ((rec.doing?.bundle === 'stack:up' || rec.doing?.bundle === 'stack:point') && !rec.doing.halt && !rec.doing.task) {
+    const h0 = doorNow(state, playerId(state)), me0 = playerActor(state);
+    if (h0?.plan?.door && h0.door === rec.doing.door && me0 && dist([a.x, a.z], stackOf(h0.plan, 2)) <= STACK_NEAR_M && entryGo(state, h0.plan, me0, ms, h0.rec)) {
+      haltDoing(state, bus, rec.doing, 'cue', null, ms);
+      advanceBeats(state, bus, rec.doing, ms);
+      rec.last = { step: rec.doing.step, untilMs: ms, why: 'cue' };
       rec.doing = null;
       return 'halted';
     }
@@ -2805,7 +2974,9 @@ export function runSlot(state, bus, rec, ms = state.clock.ms) {
   // (the build sheet v0.0.20 item 8 (drill.md D2): below rung 3, you leaving your stack toward the open door, he closes up onto your stack point
   // (heelsGo), so his entry on his cue starts 0.65 m nearer and he is in "almost simultaneously" (FM 3-06.11 §3-22c(6)); from rung 3
   // entryAhead starts him on time, as built)
-  if (rung < 3 && !inside1 && !inside2 && !rec.heels && dist([a.x, a.z], stackOf(plan, 2)) <= STACK_NEAR_M && me && heelsGo(state, plan, me, here.door, ms)) return heelsStart(state, bus, rec, a, here, me, rung, ms);
+  // (R2 a: never onto your stack point over a live grenade (burst.js liveIn): your slip on seed 48229 left it 0.25 m off your
+  // point, and he closed up onto it as you ran clear, 0.39 m from it at the burst)
+  if (rung < 3 && !inside1 && !inside2 && !rec.heels && dist([a.x, a.z], stackOf(plan, 2)) <= STACK_NEAR_M && me && heelsGo(state, plan, me, here.door, ms) && !liveIn(state, plan, [[a.x, a.z], stackOf(plan, 1)])) return heelsStart(state, bus, rec, a, here, me, rung, ms);
   let bundle = null;
   // (cued, he goes in from wherever he stands: a man cut mid-entry by his contact goes on in, never back to the stack. His
   // entry begun (ahead of your cue, entryAhead) and cut short of the threshold is his cue kept: 2026-11-15, the user: "squad AI
@@ -2830,6 +3001,10 @@ export function runSlot(state, bus, rec, ms = state.clock.ms) {
   // swing's end (model.js leafClosed), and the #2 cued in that while walked into it (2026-11-12, the gauges' F1: a recruit's
   // fuzz lane, the #2 0.14 m into room 1's leaf on his lane))
   if (bundle === 'room:in' && plan.door && leafClosed(state, plan.door, ms)) return 'idle';
+  // (R2 a: nor into a live grenade, silently: one lying in the room he would go into, or within its stun line of his way in
+  // (burst.js liveIn); its burst lets him go, "the bang, then in". Before it nothing read one: the hunt's recipe had him start his
+  // entry 1.6 s before the burst, and chaosT's recruit on 48218 walked him into the doorway at 178.6 kPa)
+  if (bundle === 'room:in' && !inside2 && liveIn(state, plan, entryPath(plan, sideOf(state, here.door, 2)))) return 'idle';
   // (nor into a doorway you stand in, or stand on his way through: he holds at his stack, outside it, until you are through
   // (the rework's R8b, the user, 2026-11-13: "soldiers need to stay fluidly moving"; never a queue in the door))
   // (v0.0.19: the other side (sideFor, team.js): you past the threshold on his side, he takes yours, decided once a room; his way
@@ -3526,7 +3701,7 @@ function mirrorTick(state, pid, a, mate, ms) {
   const to = { x: T.x, y: T.y ?? 1.35, z: T.z }, from = lineFromOf(state, mate.who, mate, to);
   const on = (p) => !!lineMasked(from, to, [{ x: p.x, z: p.z, stance: a.stance ?? 'stand' }]);
   // (your #2's line is live only once his next round is due: a body that crosses it before then is across before he fires (his rounds
-  // are held while it is on it: house-two.js maskHold); yours, while your aim or your row is on the man)
+  // are held while it is on it: combat/two.js maskHold); yours, while your aim or your row is on the man)
   const next = me ? H.two.eng.rounds.filter(r => !r.done).reduce((t, r) => Math.min(t, r.atMs), Infinity) : -Infinity;
   let into = false;
   if (!on(a)) for (let t = CROSS_STEP_MS; t <= CROSS_AHEAD_MS && !into; t += CROSS_STEP_MS) into = ms + t >= next && on(moveAt(mv, ms + t));

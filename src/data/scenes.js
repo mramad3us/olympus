@@ -121,6 +121,16 @@ export const SCENES = deepFreeze({
     // (the drawn house (the build sheet v0.0.21 §1 item 1; src/sim/scenes/assemble.js): the house as set (layout A) or drawn
     // from the seed, the picker's row (C's) and &draw=; HOUSE_DRAW_DEFAULT below the page's default)
     draws: ['set', 'drawn'],
+    // (the named houses (its build sheet item 14; src/sim/scenes/assemble.js HOUSE_LAYOUTS): A the set, B and C the
+    // instructors' other two panel settings, the picker's house row (D's) and &layout=; a named house never qualifies (§0 item 21).
+    // The ship rule's switch (§0 "Ship rules"): a layout is listed here only once its nets are green; &layout= plays any of
+    // HOUSE_LAYOUTS whatever this says. C waits: at the A and D review its gauges (house-drawn8's case 1 over 25 seeds × 4 bots)
+    // left F4 open, the keys private stopping in room 3's door (the L at 17.5) on 8 of 25 lanes; the lead adds it at the ship)
+    layouts: ['A', 'B'],
+    // (the drawn house's room sets the picker offers (its "Rooms" row, D's): 'a' alone until house-drawn8 is green on the
+    // lead's quiet run and the nets' eight-room lanes meet 0 cases (the ship rule), then ['a', 'all']; &rooms=all plays the eight
+    // whatever this says)
+    rooms: ['a'],
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
   // (v0.0.19: "Stack and clear, live", the same lane with two role-players of the cadre in place of stands 2a and 3a, firing
@@ -133,8 +143,11 @@ export const SCENES = deepFreeze({
     aspects: [['men', 'do the role-players read as men: the turn, the fire, the hands, the fall'], ['fight', 'does fire on you interrupt fairly and the stack react'], ['calls', "the instructor's calls: paint on you, a man who gave up, a man covered"]],
     body: {}, outfit: 'combatSuit', course: 'house', stances: true, sheets: ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone'], sheet: 'private',
     pars: ['basic', 'advanced', 'operator'],
-    // (the live lane is the house as set: its men's posts are authored by room (src/data/places/house-opfor.js), so the
-    // fill never draws it (shoothouse.js drawnCodeFor) and the picker offers no house row (the build sheet §0 item 13))
+    // (the live lane is the house as set from the page: its men's posts were authored by room (src/data/places/house-opfor.js), and
+    // the page's fill never draws it (shoothouse.js drawnCodeFor) and the picker offers no house row (the build sheet §0 item 13).
+    // v0.0.22 (its build sheet's item 15, G5): the chunks carry the posts (scenes/assemble.js postsOf) and the tests' createGame draws
+    // a live lane as asked (liveDraw), but the page plays it as set and the picker's house row waits on its ship rule: F80
+    // (tests/flawless-end.mjs) is OPEN, F44's band (the tier one painted on 3 of 7 drawn lanes against 5%), so ['set', 'drawn'] when it is MET)
     draws: ['set'],
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
@@ -146,6 +159,13 @@ export const SCENES = deepFreeze({
  * question 3). The tests' house is 'set' whatever this says (tests/game.mjs createGame's draw).
  */
 export const HOUSE_DRAW_DEFAULT = 'set';
+/**
+ * A drawn house's rooms when the page names none (its build sheet item 14, §0 item 40: the picker's "Rooms" row and a drawn
+ * URL with no &rooms): 'a', layout A's three (the centre, the corner and the L), until the ship rule flips it to 'all', X4's eight
+ * (house-drawn8 green on the lead's quiet run, the nets' eight-room lanes at 0 cases, and the user's yes to question 4). The tests'
+ * rooms are 'a' whatever this says (tests/game.mjs createGame's rooms).
+ */
+export const HOUSE_ROOMS_DEFAULT = 'a';
 
 /** The scenes the Tests menu lists, in its order: every built one (a stub's spec waits for its layout). */
 export const SCENE_IDS = Object.freeze(Object.keys(SCENES).filter(id => SCENES[id].built !== false));

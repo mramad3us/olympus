@@ -98,6 +98,8 @@ function placeNumbers(numbered, holes = numbered) {
 
 /** A letter pixel is LETTER_K inset pixels (the 3 × 5 alphabet at 10 px tall at --ui 1), whole device pixels. */
 export const LETTER_K = 2;
+/** The least device pixels a paper pixel, the timer's and the inset's (a letter pixel 2 × it, never under one device pixel; --ui's least is 0.85). */
+export const PAPER_S_MIN = 0.5;
 const letterPx = (s) => Math.max(1, Math.round(LETTER_K * s));
 /** The plaques' 3 × 5 letters on a Canvas2D, at (x, y) inset pixels, LETTER_K inset pixels a letter pixel (whole device pixels). */
 function letters(g, x, y, str, colour, s, k = letterPx(s)) {
@@ -161,11 +163,14 @@ export function createPaper(parent) {
     update(m, { ui = 1, dpr = globalThis.devicePixelRatio ?? 1 } = {}) {
       if (!m) { root.hidden = true; words = ''; return ''; }
       root.hidden = false;
-      const s = Math.max(1, ui * dpr), side = Math.round(PAPER_PX * s);
-      const sg = JSON.stringify([side, m.kind ?? 'card', m.paper ?? null, m.label, m.score, m.holes.map(h => [Math.round(h.x * 10), Math.round(h.y * 10), h.n, h.newest, h.old ?? false, h.label ?? null]), m.centre ?? null, m.arrow ?? null]);
+      // (the hunt of v0.0.20, T6: drawn at the size it is shown, as timer.js's paper: s --ui × dpr, below 1 too, the canvas shown at its own
+      // pixels over dpr; at s 1 in the 170 px box of --ui 0.85 the browser dropped 32 columns, the border 2 of them)
+      const s = Math.max(PAPER_S_MIN, ui * dpr), side = Math.round(PAPER_PX * s);
+      const sg = JSON.stringify([side, Math.round(dpr * 100), m.kind ?? 'card', m.paper ?? null, m.label, m.score, m.holes.map(h => [Math.round(h.x * 10), Math.round(h.y * 10), h.n, h.newest, h.old ?? false, h.label ?? null]), m.centre ?? null, m.arrow ?? null]);
       if (sg !== sig) {
         sig = sg;
         cv.width = side; cv.height = side;
+        cv.style.width = `${side / dpr}px`; cv.style.height = `${side / dpr}px`;
         const g = cv.getContext('2d');
         if (g) { g.imageSmoothingEnabled = false; (m.kind === 'face' ? drawFace : drawPaper)(g, m, s); }
         const mine = m.holes.filter(h => !h.old), old = m.holes.length - mine.length;

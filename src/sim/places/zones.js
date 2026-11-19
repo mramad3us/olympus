@@ -17,6 +17,11 @@
 //           should have a direction they open (pull or push)"; a pull door's arc lies on the stack's side, so nobody waits in
 //           it while it swings toward them
 // The zones are a pure function of the frozen data, kept by area once (no state, nothing saved).
+// What a zone is (its build sheet item 13; house lens G2; PLACES §1.6): each carries a `why` of ZONE_WHYS, beside its shape
+// (ZONE_KINDS stay the three shapes): 'door' a leafed door's funnel (every funnel before v0.0.22), 'doorway' a leafless opening a layout
+// declares a funnel (a gap no wider than FUNNEL_GAP_MAX_M 1.5 m, which a body fills: the twin room's 1.2 m inner doorway; the ell's
+// 2.6 m leg stays floor), 'leaf' a leaf's arc, and 'hatch', 'stairhead' and 'crossing' the rects a place declares (none in X4). A
+// layout's `noStop` list declares them: { kind: 'funnel', opening, why: 'doorway', into } or { kind: 'rect', id, rect, why }.
 //
 // The readers: inZone(zone, x, z); zonesOf(areaId), every funnel and rect of an area (the plan's: the arcs are not, since they
 // live only while a leaf moves); arcsOf(areaId), its leaves' arcs; zoneAt(areaId, x, z), the first funnel or rect holding a point;
@@ -42,16 +47,20 @@ export const FUNNEL_M = 0.5;
 export const FUNNEL_SIDE_M = 0.3;
 /** A carry ends this far past a zone's edge, metres (my call: a body's centre clear of the line, not on it). */
 export const EXIT_M = 0.1;
-/** The kinds of zone. */
+/** The kinds of zone (their shapes). */
 export const ZONE_KINDS = Object.freeze(['funnel', 'rect', 'arc']);
+/** What a zone is (see the header): its `why`. */
+export const ZONE_WHYS = Object.freeze(['door', 'doorway', 'leaf', 'hatch', 'stairhead', 'crossing']);
+/** A leafless gap this wide or narrower declared a funnel is one (a body fills it); wider, it is floor, metres (my call: the ell's 2.6 m leg). */
+export const FUNNEL_GAP_MAX_M = 1.5;
 /** The leaf kinds that swing on hinges, and so have an arc (PLACES §1.6: the sliding and the dogged kinds do not). */
 export const HINGED_KINDS = Object.freeze(['door', 'extDoor', 'fireDoor', 'blastDoor']);
 
 const inRect = (r, x, z) => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3];
 
-/** A door's funnel (see the header): its line { axis, at, a, b }, the room's side `into` (+1 or -1). */
-export function funnelZone(id, door, line, into) {
-  return Object.freeze({ id, kind: 'funnel', door, axis: line.axis, at: line.at, a: line.a, b: line.b, into: into >= 0 ? 1 : -1, depthM: FUNNEL_M, sideM: FUNNEL_SIDE_M });
+/** A door's funnel (see the header): its line { axis, at, a, b }, the room's side `into` (+1 or -1); why 'door', or 'doorway' for a declared leafless one. */
+export function funnelZone(id, door, line, into, why = 'door') {
+  return Object.freeze({ id, kind: 'funnel', door, axis: line.axis, at: line.at, a: line.a, b: line.b, into: into >= 0 ? 1 : -1, depthM: FUNNEL_M, sideM: FUNNEL_SIDE_M, why });
 }
 // (a point's distance across a funnel's line, + on the room's side, and its place along the line)
 const acrossOf = (Z, x, z) => Z.into * ((Z.axis === 'x' ? z : x) - Z.at);
@@ -77,7 +86,7 @@ export function arcsOf(areaId) {
   if (out) return out;
   const area = areaOf(areaId), rects = Object.fromEntries((area?.rooms ?? []).map(r => [r.id, r.rect]));
   out = Object.freeze((area?.openings ?? []).filter(o => HINGED_KINDS.includes(o.kind) && (o.leaf ?? 'hinged') === 'hinged' && Number.isFinite(o.at))
-    .map(o => { const A = arcOf(o, rects); return A ? Object.freeze({ id: `arc:${o.id}`, kind: 'arc', ...A }) : null; }).filter(Boolean));
+    .map(o => { const A = arcOf(o, rects); return A ? Object.freeze({ id: `arc:${o.id}`, kind: 'arc', ...A, why: 'leaf' }) : null; }).filter(Boolean));
   arcsBy.set(areaId, out);
   return out;
 }
@@ -110,7 +119,12 @@ export function zonesOf(areaId) {
       const t = o.axis === 'x' ? P.threshold[1] : P.threshold[0];
       list.push(funnelZone(`funnel:${o.id}`, o.id, o, t >= o.at ? 1 : -1));
     }
-    for (const Z of L.noStop ?? []) if (Z.kind === 'rect') list.push(Object.freeze({ id: Z.id, kind: 'rect', rect: Object.freeze([...Z.rect]) }));
+    for (const Z of L.noStop ?? []) {
+      if (Z.kind === 'rect') list.push(Object.freeze({ id: Z.id, kind: 'rect', rect: Object.freeze([...Z.rect]), why: Z.why ?? 'hatch' }));
+      // (a leafless opening declared a funnel (the twin room's inner doorway), within FUNNEL_GAP_MAX_M; a wider gap is floor)
+      const o = Z.kind === 'funnel' ? openingOf(Z.opening) : null;
+      if (o && !doors.has(o.id) && Math.abs(o.b - o.a) <= FUNNEL_GAP_MAX_M + 1e-9) { doors.add(o.id); list.push(funnelZone(`funnel:${o.id}`, o.id, o, Z.into ?? 1, Z.why ?? 'doorway')); }
+    }
   }
   // (every other door of the area, a leaf in a frame, a funnel from its own line: room 2's closet, the booth (the reach review
   // of 2026-11-13: only the doors with a plan had one); its room's side +1 where no plan says (inZone is the same both sides;

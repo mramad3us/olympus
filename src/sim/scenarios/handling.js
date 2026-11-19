@@ -103,7 +103,7 @@ import { hashPick } from '../../core/hash.js';
 import { nextId, playerActor, playerId } from '../../core/ids.js';
 import { post } from '../../core/queue.js';
 import { SCENES } from '../../data/scenes.js';
-import { COURSES, SEQ, SEQ_KD, SEQ_PAIRS, SEQ_STRESS, SEQ_HOUSE, SEQ_HOUSE_DRAWN, SEQ_HOUSE_CASUALTY, SEQ_HOUSE_DRAWN_CASUALTY, KD_STRINGS, COACH, PAIRS_COACH, HOUSE_NUDGE, MACRO_CMD, MACRO_MARK, NEEDS_ROUNDS } from '../../data/courses.js';
+import { COURSES, SEQ, SEQ_KD, SEQ_PAIRS, SEQ_STRESS, SEQ_HOUSE, SEQ_HOUSE_DRAWN, seqHouseNamed, KD_STRINGS, COACH, PAIRS_COACH, HOUSE_NUDGE, MACRO_CMD, MACRO_MARK, NEEDS_ROUNDS } from '../../data/courses.js';
 import { KD_RANGE } from '../../data/places/range.js';
 import { logEntry } from '../log.js';
 import { lonOfSite } from '../places/env.js';
@@ -126,7 +126,7 @@ import { feetOf } from '../combat/contact.js';
 import { halt } from '../combat/stepper.js';
 import { kdReady, kdRelayReady, kdOnCmd, kdNextI, kdSecond, kdStringEnd, kdShot, kdMoveOn, kdPoint, kdNow, kdWaitOnYou } from './range.js';
 import { pairsReady, pairsOnCmd, pairsSecond, pairsShot, pairsAfterStep, pairsBox, pairsPoint, pairsRangeNow, pairsWant, PAIRS_NUDGE, pairsStepStart } from './pairs.js';
-import { houseReady, houseOnCmd, houseSecond, houseShot, houseStepStart, houseAfterStep, houseRangeNow, houseNudgeOf, houseMoveOn } from './shoothouse.js';
+import { houseReady, houseOnCmd, houseSecond, houseShot, houseStepStart, houseAfterStep, houseRangeNow, houseNudgeOf, houseMoveOn, houseCmdSay, namedLaneOfDraw } from './shoothouse.js';
 import { hostOf } from '../combat/op.js';
 
 /** Where the scene plays. */
@@ -151,9 +151,11 @@ export const NUDGE = Object.freeze({ prone: 'the prone position.', load: 'LOAD.'
 export const rangeOf = (state) => state.armoury?.range ?? null;
 /** The tower's sequence of a session's course (0.0.7: SEQ_KD on the kd course; 0.0.8: SEQ_PAIRS on the pairs course; 0.0.10: SEQ_STRESS on it with the stress course's R.stress). */
 // (a drawn house's brief and standby without the lane's letter, courses.js SEQ_HOUSE_DRAWN, command for command SEQ_HOUSE's)
-// (and a lane a casualty ended washes without "clear": courses.js SEQ_HOUSE_CASUALTY, the same commands)
+// (and a lane a casualty ended washes without "clear": the wash's sayEnd.other, shoothouse.js houseCmdSay)
 export const seqOf = (R) => (R?.course === 'kd' ? SEQ_KD : R?.course === 'pairs' ? (R.stress ? SEQ_STRESS : SEQ_PAIRS) : R?.course === 'house' ? houseSeqOf(R.house) : SEQ);
-const houseSeqOf = (H) => (H?.end?.why === 'casualty' ? (H.draw ? SEQ_HOUSE_DRAWN_CASUALTY : SEQ_HOUSE_CASUALTY) : H?.draw ? SEQ_HOUSE_DRAWN : SEQ_HOUSE);
+// (a named house, B or C (its draw record's layout, else its code's: shoothouse.js namedLaneOfDraw), briefs and stands by with its
+// letter: courses.js seqHouseNamed; the play review of v0.0.22 heard "A new layout" over lane B)
+const houseSeqOf = (H) => { const named = H?.draw ? namedLaneOfDraw(H.draw) : null; return named ? seqHouseNamed(named) : H?.draw ? SEQ_HOUSE_DRAWN : SEQ_HOUSE; };
 // (the command after i: the next, or the kd course's own (its zero's loop); null at the end)
 const nextIOf = (state, R, i) => (R.course === 'kd' ? kdNextI(state, i) : i + 1 < seqOf(R).length ? i + 1 : null);
 // (a shot is the player's: v0.0.6's by their lane; the kd course's by its shooter, the relay's never; the pairs course's all)
@@ -328,7 +330,7 @@ export function onRangeCmd(state, bus, ev) {
   // (0.0.8: on the pairs course the coach gives the commands himself, beside you)
   R.cmd = { id: cmd, i, atMs: now, ...(said ? { text: said } : {}) }; R.next = null; R.livedMs = 0; R.nudged = false;
   if (R.course === 'kd') R.onYouMs = 0;
-  sayOn(state, bus, { who: R.roId, text: said ?? hashPick(def.say, 'range-cmd', state.meta.seed, i), kind: R.course === 'pairs' ? 'speech' : 'pa' });
+  sayOn(state, bus, { who: R.roId, text: said ?? hashPick(R.course === 'house' ? houseCmdSay(state, def) : def.say, 'range-cmd', state.meta.seed, i), kind: R.course === 'pairs' ? 'speech' : 'pa' });
   if (cmd === 'brief') { R.phase = 'brief'; if (R.course !== 'kd' && R.course !== 'pairs' && R.course !== 'house') coachSays(state, bus, R.mixed ? COACH.briefMixed : COACH.brief, 'brief'); }
   else if (cmd === 'fire') {
     R.hot = true; R.phase = 'string'; R.string = def.string;
@@ -485,7 +487,7 @@ export function standingCmd(state) {
   if (R.casualty && R.casualty.phase !== 'outcome') return null;
   if (def.id === 'fire' && !R.hot) return null;
   if (lineReady(state, def.id, { relay: false })) return null;
-  const text = R.cmd.text ?? hashPick(def.say, 'range-cmd', state.meta.seed, R.cmd.i);
+  const text = R.cmd.text ?? hashPick(R.course === 'house' ? houseCmdSay(state, def) : def.say, 'range-cmd', state.meta.seed, R.cmd.i);
   return { i: R.cmd.i, id: def.id, who: R.roId, atMs: R.cmd.atMs, text, short: R.cmd.text ?? def.short ?? capital(NUDGE[def.id] ?? text), point: whoOnLine(state) };
 }
 
@@ -541,7 +543,10 @@ export function coachClears(state, bus) {
   const more = others.filter(id => loaded(state.items[id]));
   // (once: a shooter not still at the next whole second after it (a step under way) gave the move-on again, a 'slow'
   // fault and "Clear." each second until still; the fixer's, 0.0.6)
-  if (!R || R.end || !gun || (R.shown && !loaded(gun) && !more.length)) return;
+  // (a dead end the eight-room fuzz met: shown once, the P-12 then drawn again empty, its port open: no take holstered it
+  // ('pistol:out' at SHOW CLEAR for ever, layout B, the boot recruit's fuzz on 2106); a drawn pistol is taken whatever it holds)
+  const hp0 = handGunOf(state, pid), drawn = !!hp0 && !isLong(modelOf(state.items[hp0]));
+  if (!R || R.end || !gun || (R.shown && !loaded(gun) && !more.length && !drawn)) return;
   fault(state, bus, 'slow', 'warn', hashPick(COACH.take, 'coach', state.meta.seed, 'take'));
   if (state.stop) leaveStop(state, bus, 'coach');
   if (state.stop) state.stop = null;

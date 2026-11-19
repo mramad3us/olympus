@@ -54,10 +54,13 @@ export function keepRun(storage = globalThis.localStorage, { scene, sheet, loado
 }
 
 /** Each sheet's best lane and its GOs on a scene (and a loadout, every loadout when null): { [sheet]: { bestMs, bestGoMs, gos, n } }. */
+// (a lane set up ("Again from room 2", &setup=: its verdict's why 'setup') is no lane: kept, never a best (the hunt of v0.0.20, P3: the hall
+// alone, 5.5 s, became the sergeant's "best 5.5 s · 1 GO" over his full lane's 46.9 s))
+export const setUpRun = (r) => (r?.why ?? []).includes('setup');
 export function bestsOf(runs, { scene = 'test-shoothouse', loadout = null } = {}) {
   const out = {};
   for (const r of runs ?? []) {
-    if (r.scene !== scene || (loadout && (r.loadout ?? 'standard') !== loadout)) continue;
+    if (r.scene !== scene || (loadout && (r.loadout ?? 'standard') !== loadout) || setUpRun(r)) continue;
     const o = (out[r.sheet] ??= { bestMs: null, bestGoMs: null, gos: 0, n: 0 });
     o.n++;
     if (Number.isFinite(r.laneMs) && (o.bestMs === null || r.laneMs < o.bestMs)) o.bestMs = r.laneMs;

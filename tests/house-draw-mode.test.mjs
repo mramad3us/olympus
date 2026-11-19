@@ -2,7 +2,7 @@
 //
 // &draw=drawn on a seed gives that seed's drawn code (HOUSE_DRAWS' rule: scenes/assemble.js drawnCodeOf) under every sheet; the set
 // is the code 'A' and writes nothing (R.house.draw and places.live.gen absent); createGame with no draw is the set whatever
-// HOUSE_DRAW_DEFAULT says (the flip moves no test); "Stack and clear, live" is the set (its men's posts are authored by room); a
+// HOUSE_DRAW_DEFAULT says (the flip moves no test); "Stack and clear, live" is the set from the page until its ship rule (F80) is met, drawn as a test asks; a
 // layout part alone gains the seed's cast, a whole code is played as written where its cast is fair (else its layout with the seed's
 // cast, and houseCodeWhy says why); &doors=fixed keeps the chunks' authored swings, every
 // door closed; the URL's three are read by debug.js readParams (the form only); and the brief names the drawn doors' swings
@@ -16,15 +16,15 @@ import { doorWords, drawnCodeFor, houseGoal, houseNow, laneNameOf, HOUSE_SHEETS 
 
 export default [
   {
-    name: '&draw=drawn on 48213 is its drawn code under every sheet; the set is \'A\' with nothing written, and the fill\'s draw \'set\' plays the set whatever code it is given; no draw is the set whatever HOUSE_DRAW_DEFAULT; "Stack and clear, live" is the set',
+    name: '&draw=drawn on 48213 is its drawn code under every sheet; the set is \'A\' with nothing written, and the fill\'s draw \'set\' plays the set whatever code it is given; no draw is the set whatever HOUSE_DRAW_DEFAULT; "Stack and clear, live" is drawn as the lane is when a test asks (createGame\'s liveDraw; v0.0.22 G5), the set from the page (the fill without liveDraw) and its picker the set\'s until F80 ships it (v0.0.21 forced it to the set everywhere; the B and C review of 2026-11-16)',
     fn() {
       const want = drawnCodeOf(48213), codes = HOUSE_SHEETS.map(tier => houseCodeOf(createGame({ scenario: 'test-shoothouse', seed: 48213, tier, draw: 'drawn' }).state));
       const set = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'private' }).state, setD = drawnCodeFor(48213, { draw: 'set', house: want });
-      const live = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'sgt', opfor: 'live', draw: 'drawn' }).state;
+      const live = createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'sgt', opfor: 'live', draw: 'drawn' }).state, livePage = drawnCodeFor(48213, { draw: 'drawn', live: true });
       const absent = (s) => !('draw' in s.armoury.range.house) && !('gen' in s.places.live);
-      console.log(`      48213: ${want} on ${HOUSE_SHEETS.length} sheets: ${new Set(codes).size} code(s); no draw ${houseCodeOf(set)} (default '${HOUSE_DRAW_DEFAULT}', nothing written ${absent(set)}); the fill's draw 'set' with a code ${setD}; live ${houseCodeOf(live)} (nothing written ${absent(live)}); the scenes' draws ${JSON.stringify(SCENES['test-shoothouse'].draws)} and live ${JSON.stringify(SCENES['test-shoothouse-live'].draws)}`);
-      assert(codes.every(c => c === want) && houseCodeOf(set) === HOUSE_CODE_SET && absent(set) && setD === null && houseCodeOf(live) === HOUSE_CODE_SET && absent(live)
-        && ['set', 'drawn'].includes(HOUSE_DRAW_DEFAULT) && SCENES['test-shoothouse-live'].draws.join() === 'set', JSON.stringify({ codes, want }));
+      console.log(`      48213: ${want} on ${HOUSE_SHEETS.length} sheets: ${new Set(codes).size} code(s); no draw ${houseCodeOf(set)} (default '${HOUSE_DRAW_DEFAULT}', nothing written ${absent(set)}); the fill's draw 'set' with a code ${setD}; live ${houseCodeOf(live)} (nothing written ${absent(live)}), from the page ${livePage ?? 'the set'}; the scenes' draws ${JSON.stringify(SCENES['test-shoothouse'].draws)} and live ${JSON.stringify(SCENES['test-shoothouse-live'].draws)}`);
+      assert(codes.every(c => c === want) && houseCodeOf(set) === HOUSE_CODE_SET && absent(set) && setD === null && houseCodeOf(live) === want && !absent(live) && livePage === null
+        && ['set', 'drawn'].includes(HOUSE_DRAW_DEFAULT) && SCENES['test-shoothouse-live'].draws.join() === 'set', JSON.stringify({ codes, want, live: houseCodeOf(live), livePage }));
     },
   },
   {

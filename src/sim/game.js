@@ -23,7 +23,9 @@
 //      mask lets through; 'input' first routes each of the snapshot's actions through act(); and
 //      whichever of the two runs first in a tick (input alone while time stands still) first takes the
 //      player's tween start, the body's place before anything moves it (src/sim/body/loco.js tickStart;
-//      BODY §16.8: a beat ended in the input layer moves the tween's end, never its start);
+//      BODY §16.8: a beat ended in the input layer moves the tween's end, never its start); a tick whose
+//      hold an act releases (input runs held, the rest lived) takes it at 'player', so a save at a pause
+//      carries on byte for byte ($px is runtime; the hunt of v0.0.20's save-gait);
 //   3. one periodic 'slow' layer at MIN_MS, calling slowStep over the minute just ended. There is no
 //      hourly game layer (TECH §3.5): hourly and daily work are jobs in the queue;
 //   4. the slow contributors (a domain's slow records, and registerSlow({ name, step, steady,
@@ -333,6 +335,11 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
       for (const a of input.act ?? []) act(state, a, bus, ctx);
       run(state, input);
     };
+    // (a tick whose hold an act released in the input layer (a step chosen at a stop-motion pause) is lived from the player layer on:
+    // its tween start is taken there, where the body stands at the pause, never the last lived tick's start kept through the hold,
+    // which no save carries ($px is runtime): the hunt of v0.0.20 (save-gait) saw a save at a pause split one tick after its load,
+    // the original's body drawn walking from where it stood before the pause and the loaded one's idle)
+    if (L.name === 'player') return (state, input, b, lctx) => { ctx.held = lctx.held; startOnce(state, !!lctx.held); run(state, input); };
     return (state, input, b, lctx) => { ctx.held = lctx.held; run(state, input); };
   }
   if (loop) {
@@ -396,7 +403,7 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
 // ---- a new game ----
 
 /** A new game's state (see the header). */
-export function newGame({ seed, mode = 'standard', scenario = 'sandbox', scene = null, startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null, setup = null, tier = null, env = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null } = {}) {
+export function newGame({ seed, mode = 'standard', scenario = 'sandbox', scene = null, startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null, setup = null, tier = null, env = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, liveDraw = false } = {}) {
   if (seed === undefined || seed === null) throw new Error('newGame(): a seed is needed');
   const spec = specOf({ scene, scenario }), fill = SCENARIOS[spec.scenario], site = spec.host.site;
   const s = newState(seed, { version, mode, scenario: spec.scenario, startMs });
@@ -417,8 +424,11 @@ export function newGame({ seed, mode = 'standard', scenario = 'sandbox', scene =
   // (v0.0.19: the shoot house's role-players, the debug's &opfor= over the scene's own ("Stack and clear, live"), passed only when set)
   const op = opfor ?? spec.opfor ?? null;
   // (the shoot house's draw, house and doors, the build sheet §0 item 54: 'set' or 'drawn', a code, 'fixed' (testShoothouse reads
-  // them; absent writes nothing, so every lane without them is as before)
-  fill(s, { at, setup: setup ?? spec.setup ?? null, tier, ...(par ? { par } : {}), ...(loadout ? { loadout } : {}), ...(op ? { opfor: op } : {}), ...(draw ? { draw } : {}), ...(house ? { house } : {}), ...(doors ? { doors } : {}) });
+  // them; absent writes nothing, so every lane without them is as before). v0.0.22 (its build sheet §2 step 3): rooms ('all'),
+  // layout ('B' | 'C') and plans ('derived') likewise, each passed only when given; liveDraw (the tests' createGame only: a live lane
+  // drawn as asked while its ship rule is open, shoothouse.js drawnCodeFor; the B and C review of 2026-11-16) likewise
+  fill(s, { at, setup: setup ?? spec.setup ?? null, tier, ...(par ? { par } : {}), ...(loadout ? { loadout } : {}), ...(op ? { opfor: op } : {}), ...(draw ? { draw } : {}), ...(house ? { house } : {}), ...(doors ? { doors } : {}),
+    ...(rooms ? { rooms } : {}), ...(layout ? { layout } : {}), ...(plans ? { plans } : {}), ...(liveDraw ? { liveDraw } : {}) });
   if (s.places.live?.site !== site) throw new Error(`the scene '${spec.id}' stands on '${site}', and its fill left '${s.places.live?.site}' live`);
   if (live && !s.places.live.env) throw new Error(`the scene '${spec.id}''s fill dropped its environment ('${live.preset}')`);
   s.time.slowToMs = s.clock.ms;                                    // (the slow layer has stepped up to the start)

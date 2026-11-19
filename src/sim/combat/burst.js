@@ -11,7 +11,11 @@
 //      Infinity, which a save cannot hold); at STUN_KPA 20 or more, combat.stunUntilMs at U(2, 6) s (COMBAT §11.3:
 //      overpressure, not a startle). That stun on people is recorded only: in D1 nothing of a person reads it (the stepper and
 //      the startle are D2's to join), and only the stands' daze (3.) acts. The stack's peak at a charge is the run sheet's
-//      STACK IN THE BLAST past BREACH_SAFE_KPA.
+//      STACK IN THE BLAST past BREACH_SAFE_KPA. v0.0.22 (R1 a): the peak is the blast's line's, practice.js blastLine, one model
+//      with the instructor's read: max(peakKPa × k, the room's QSP for a body in the burst's room), k 1 with a line of sight and
+//      CORNER_SHADOW_K 0.5 with a wall or a closed leaf between (the stack on the wall beside the door, the SC-1's stack at its
+//      safe point round the jamb), a body at or above the walls' height clear over them; the stands of 3. likewise. A charge's
+//      standoff stays the free field's (breach.js: the breacher's rule is the open air's).
 //   3. The house's stands (the instructor's brief: "treat every target as unsuited"): each threat or no-shoot stand of the
 //      room is scored as a man in utilities would be dazed (COMBAT §25.18.2's cell member, TARGET_H 8), the longest of
 //      flash-blind FLASH_BLIND_MS 5,000 facing the burst within FLASH_CONE_DEG 60 (a flash grenade), the startle
@@ -36,15 +40,22 @@
 // openOp's state.cqb): its stack, its turners dazed, its bursts and its breach method, and a door blown writes its broken lock
 // on the opening's own delta (op.js breakOpening); the instructor's read of a practice grenade stays the lane's. On a range
 // session every read and write is the house's as before, to the byte.
+// v0.0.22 (the build sheet v0.0.22 items 7 to 9, R1 and R2): peakOn(state, area, burst, body) is a burst's peak on one body, the
+// one formula of 2. (burst reads it for every person; bundle.js's throw reads it for a short toss's hand-back), twinKg(model) the
+// TNT a device is read by (a practice grenade's live twin's: the instructor's read); stunOn(state, d, a) whether a live grenade
+// lying on the floor would put STUN_KPA or more on a body where it stands (its stun line, the walls counted by the blast's line:
+// cqb.js cqb-grenade's and two.js twoClear's "Get clear"); liveIn(state, plan, path) a live grenade whose burst's room holds the
+// plan's room, or within its free-field stun line (blast.js standoffM at STUN_KPA, 1.36 m for a G-11 at 66 kPa) of a path:
+// bundle.js runSlot's guard, so your #2 never starts his entry into a live grenade ("the bang, then in").
 // Pure but burst and tickDevices, which write the people, the stands, the doors, the items and the record.
 import { stream, next, range } from '../../core/rng.js';
 import { playerActor, playerId } from '../../core/ids.js';
 import { roomOf, areaOf, openingOf, openingState, setOpening } from '../places/model.js';
 import { airAt } from '../places/env.js';
 import { bang, addSupp, inputPts, startleMsOf, FLASH_CONE_DEG, FLASH_BLIND_MS } from './supp.js';
-import { peakKPa, qspKPa, BLAST_KPA, STUN_KPA } from '../arms/blast.js';
+import { peakKPa, qspKPa, standoffM, BLAST_KPA, STUN_KPA } from '../arms/blast.js';
 import { DEVICES, liveDevices } from '../arms/devices.js';
-import { readBurst } from './practice.js';
+import { readBurst, blastLine } from './practice.js';
 import { discard, holderOf } from '../arms/kit.js';
 import { laneRec, breakOpening, sessionOf } from './op.js';
 
@@ -101,6 +112,61 @@ export function doorRoom(state, area, door) {
   const inSet = [...new Set(parts.flatMap(p => p.in))], next = [...new Set(parts.flatMap(p => p.next))].filter(id => !inSet.includes(id));
   return { area, id: parts[0].id, in: inSet, next, volM3: Math.round(parts.reduce((n, p) => n + p.volM3, 0) * 10) / 10 };
 }
+/** The TNT a device is read by (kg): a practice grenade's live twin's (DEVICES[model].as: the instructor's read), else its own. */
+export const twinKg = (model) => { const D = DEVICES[model]; return (DEVICES[D?.as] ?? D)?.tntKg ?? 0; };
+/**
+ * A burst's peak on a body (kPa; see the header's 2.): the free field's at its distance, the height apart too, times the blast's
+ * line's k (practice.js blastLine), or the room's QSP for a body in the burst's room, the more. b: { x, z, tntKg, Pa, room, qsp }
+ * (room burstRoom's or doorRoom's record, qsp its pressure); a: the body ({ x, z, y? }). Pure.
+ */
+export function peakOn(state, area, { x, z, tntKg, Pa, room = null, qsp = 0 }, a) {
+  const rM = Math.hypot(a.x - x, a.z - z, a.y ?? 0), line = blastLine(state, area, [x, z], [a.x, a.z], { y: a.y ?? 0 });
+  const r = room && qsp ? roomOf(areaOf(area), a.x, a.z) : null;
+  return Math.max(peakKPa(tntKg, rM, Pa) * line.k, r && room.in.includes(r.id) ? qsp : 0);
+}
+// (a live grenade's burst as peakOn reads it, by its live twin's TNT, where it lies now)
+function burstOf(state, d) {
+  const area = d.area ?? state.places?.live?.area, air = airAt(state, area, d.x, d.z), Pa = air?.vacuum ? 0 : air?.pKpa ?? 0, W = twinKg(d.model);
+  const room = burstRoom(state, area, d.x, d.z);
+  return { area, x: d.x, z: d.z, tntKg: W, Pa, room, qsp: room && Pa > 0 ? qspKPa(W, room.volM3) : 0 };
+}
+/** Whether a live grenade d (devices.js liveDevices' record) would put STUN_KPA or more on body a where it stands (see the header). Pure. */
+export function stunOn(state, d, a) {
+  if (!d || !a || d.kind !== 'grenade') return false;
+  const b = burstOf(state, d);
+  return peakOn(state, b.area, b, a) >= STUN_KPA;
+}
+/** The live grenades lying on the floor that would stun body a where it stands, nearest first: [liveDevices' record]. Pure. */
+export function stunsOn(state, a) {
+  if (!a) return [];
+  return liveDevices(state).filter(d => d.kind === 'grenade' && stunOn(state, d, a)).sort((p, r) => Math.hypot(p.x - a.x, p.z - a.z) - Math.hypot(r.x - a.x, r.z - a.z));
+}
+// (a point's distance to a path's segments, m)
+function pathDist(path, x, z) {
+  let best = Infinity;
+  for (let i = 0; i < path.length; i++) {
+    const p = path[i], r = path[i + 1] ?? p, dx = r[0] - p[0], dz = r[1] - p[1], L2 = dx * dx + dz * dz;
+    const t = L2 > 0 ? Math.max(0, Math.min(1, ((x - p[0]) * dx + (z - p[1]) * dz) / L2)) : 0;
+    best = Math.min(best, Math.hypot(p[0] + dx * t - x, p[1] + dz * t - z));
+  }
+  return best;
+}
+/**
+ * A live grenade into which an entry by plan along path would go (see the header): one lying in a room whose burst holds the
+ * plan's room, or within its free-field stun line of the path; the nearest such device record, or null. Pure.
+ */
+export function liveIn(state, plan, path = []) {
+  let best = null, bd = Infinity;
+  for (const d of liveDevices(state)) {
+    if (d.kind !== 'grenade') continue;
+    const area = d.area ?? state.places?.live?.area, room = burstRoom(state, area, d.x, d.z);
+    const air = airAt(state, area, d.x, d.z), Pa = air?.vacuum ? 0 : air?.pKpa ?? 0, line = Pa > 0 ? standoffM(twinKg(d.model), Pa, STUN_KPA) : 0;
+    const dm = path?.length ? pathDist(path, d.x, d.z) : Infinity;
+    if (!((plan?.room && room?.in.includes(plan.room)) || dm <= line)) continue;
+    if (dm < bd || !best) { best = d; bd = dm; }
+  }
+  return best;
+}
 /**
  * A burst (w; see the header). Returns { id, model, room, kPa, daze, people: bang()'s or the blast's per person }.
  */
@@ -119,7 +185,8 @@ export function burst(state, bus, { id, model, x, z, atMs = state.clock.ms, byId
     if (!a.who) continue;
     // (the height apart too: the instructor on the catwalk 3.0 m over the hall (a.y), who stood 1.20 m from room 1's charge on the
     // plan and took 103.5 kPa there (the play review of v0.0.18); everyone on the floor as before)
-    const rM = Math.hypot(a.x - x, a.z - z, a.y ?? 0), peak = Math.max(peakKPa(D.tntKg ?? 0, rM, Pa), roomOf(areaOf(area), a.x, a.z) && room?.in.includes(roomOf(areaOf(area), a.x, a.z)?.id) ? qsp : 0);
+    // (R1 a: the blast's line, practice.js blastLine: half the free field's peak round a jamb, as the practice read has it)
+    const rM = Math.hypot(a.x - x, a.z - z, a.y ?? 0), peak = peakOn(state, area, { x, z, tntKg: D.tntKg ?? 0, Pa, room, qsp }, a);
     if (peak >= 1) kPa[a.who] = r1(peak);
     if (!D.flash && Pa > 0) {
       const w = addSupp(state, bus, a.who, { id: `${id}`, kind: 'blast', pts: inputPts('blast', { rM }), prep: team.includes(a.who) ? 'prepared' : 'unprepared', why: 'the blast', atMs });
@@ -137,7 +204,7 @@ export function burst(state, bus, { id, model, x, z, atMs = state.clock.ms, byId
     // (v0.0.19: a practice grenade's stands are the read's alone (see the header))
     if (D.as) break;
     if (!room || !room.in.includes(T.room) || T.stoppedAtMs !== null && T.stoppedAtMs !== undefined || !DAZED_FACES.includes(T.face)) continue;
-    const rM = Math.hypot(T.x - x, T.z - z), peak = Math.max(peakKPa(D.tntKg ?? 0, rM, Pa), qsp);
+    const rM = Math.hypot(T.x - x, T.z - z), peak = Math.max(peakKPa(D.tntKg ?? 0, rM, Pa) * blastLine(state, area, [x, z], [T.x, T.z]).k, qsp);
     kPa[T.key] = r1(peak);
     const r = stream(state.meta.seed, 'combat:daze', T.key, id);
     const startle = startleMsOf({ u: next(r), H: TARGET_H }), stun = peak >= STUN_KPA ? Math.round(range(r, STUN_MS[0], STUN_MS[1])) : 0;

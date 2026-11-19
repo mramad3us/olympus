@@ -200,7 +200,7 @@ export function lineFromOf(state, pid, actor, to) {
  * ({ x, z, y? }, muzzleOf's ox, oy, oz) to the aim point ({ x, z, y? }, the target's), each body ({ x, z, stance?, ... }) a
  * capsule of radius rM about its axis from the floor to the top of its stance's span (SPAN_M, as flagsAt's), strictly between
  * the two ends of the segment (a body behind the muzzle or past the target masks nothing). The nearest to the shooter along the
- * line when several do: the first a round meets. Read by the #2's rounds (house-two.js twoFire), your shot rows' rounds
+ * line when several do: the first a round meets. Read by the #2's rounds (combat/two.js twoFire), your shot rows' rounds
  * (specials.js runRound) and a role-player's choice of target (opfor.js fireTick). Distances by Math.sqrt (TECH §8.1 rule 11).
  */
 export function lineMasked(from, to, bodies, { rM = MASK_R_M } = {}) {
@@ -323,7 +323,9 @@ function openApproach(state, bus, A, B, cone, ms, ctx, list) {
   const v = roller.value('weapons') + mods.reduce((s, m) => s + m.v, 0);
   const ctxWords = crowd ? `${word}, crowd` : word;
   if (dc <= v + 1) {
-    if (isMe(state, pid)) logEntry(state, bus, { kind: 'habit', tone: 'note', filter: 'habit', who: pid, other: B.who, posture: cone.posture, result: 'auto', text: `Muzzle past ${who} (${ctxWords}): automatic.` });
+    // (FL22-6: "kept off …: habit.", as a roll's pass says "kept off"; "Muzzle past …: automatic." read as a safety breach on
+    // the end card's toasts)
+    if (isMe(state, pid)) logEntry(state, bus, { kind: 'habit', tone: 'note', filter: 'habit', who: pid, other: B.who, posture: cone.posture, result: 'auto', text: `Muzzle kept off ${who} (${ctxWords}): habit.` });
     return { atMs: ms, result: 'auto', posture: cone.posture, dc: P.habitDC };
   }
   // (one d20, naturals as their numbers only: a habit is not decided by a die's face)

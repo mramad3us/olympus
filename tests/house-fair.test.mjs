@@ -9,10 +9,14 @@
 // against the lane's own plans (room.js sectorOf, the paths, the points) for ten seeds. And the draw is the seed's alone: the fill
 // writes the same code on every sheet and loadout (F61's second half). Prints the face mix, the hostage's rooms and the rooms the
 // frag's brief would call hostiles only (house-kit.js intelOf reads the turners as built: nothing is written for it).
+// v0.0.22 (its build sheet item 15, §0 item 38): the live posts' rule (scenes/assemble.js postFair: each role-player's stand read as a
+// threat, the room's other stand clear of his post, a no-shoot left; postSwap: the other stand drawn onto the post takes the post stand's
+// place) redraws the casts it refuses on every drawn lane, live or not; the third case names each seed of 1 to 1,000 it redraws and
+// the rule v0.0.21's cast failed. F61's figures above are the draw's with it (the set never draws).
 import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { f61, f61Fills, ENFORCED } from './flawless-drawn-a.mjs';
-import { drawnCodeOf, parseHouse, STAND_PATH_CLEAR_M, STAND_GAP_M, HOSTAGE_RANGE_M } from '../src/sim/scenes/assemble.js';
+import { drawnCodeOf, parseHouse, drawHouse, drawCast, castFair, castCodeOf, houseCodeWhy, wholeCodeOf, STAND_PATH_CLEAR_M, STAND_GAP_M, HOSTAGE_RANGE_M } from '../src/sim/scenes/assemble.js';
 import { lanePlanOf, sectorOf } from '../src/sim/combat/room.js';
 
 const THREATS = new Set(['threat', 'armoured', 'hostage']);
@@ -36,6 +40,32 @@ export default [
       console.log(`      ${F.line}${Object.keys(F.why).length ? `; ${JSON.stringify(F.why)}` : ''}`);
       console.log(`      faces ${JSON.stringify(faces)}; the hostage ${JSON.stringify(hostage)}; threats a lane (H counted) ${JSON.stringify(threats)}; hostiles-only rooms a lane ${JSON.stringify(intel)}; ${houses.size} distinct houses in seeds 1 to 100 (ENFORCED ${ENFORCED.join(', ')})`);
       assert(!F.layoutsBad && !F.castsBad && F.fell < 100 && Object.keys(threats).every(n => n >= 4 && n <= 6) && houses.size >= 40, JSON.stringify({ F, threats, houses: houses.size }));
+    },
+  },
+  {
+    name: 'v0.0.22, item 15: the seeds of 1 to 1,000 whose cast the live posts\' rule redraws, each with the rule v0.0.21\'s cast failed (its stand on a post, a post and a stand in the #2\'s sector, no no-shoot left), their layouts the same; every cast drawn fair with the posts in',
+    fn() {
+      const moved = [], why = {}, bad = [];
+      for (let seed = 1; seed <= 1000; seed++) {
+        const L = drawHouse(seed), H = parseHouse(L), now = drawCast(seed, L), was = drawCast(seed, L, { posts: false });
+        if (!now.fell && !castFair(H.rooms, now.faces, now.places).ok) bad.push(seed);
+        if (castCodeOf(now) === castCodeOf(was)) continue;
+        const w = castFair(H.rooms, was.faces, was.places).why ?? 'fair with the posts (an earlier try now taken)', k = w.replace(/[\d.]+ m/, 'X m').replace(/room \d/, 'room N');
+        why[k] = (why[k] ?? 0) + 1;
+        moved.push(`${seed} ${castCodeOf(was)}→${castCodeOf(now)} (${w})`);
+      }
+      console.log(`      ${moved.length} of 1,000 seeds redrawn by the post rule; by the rule v0.0.21's cast failed: ${JSON.stringify(why)}; ${bad.length} drawn casts unfair`);
+      for (let i = 0; i < moved.length; i += 8) console.log(`      ${moved.slice(i, i + 8).join('; ')}`);
+      assert(!bad.length && moved.length > 0, JSON.stringify({ bad: bad.slice(0, 5), moved: moved.length }));
+    },
+  },
+  {
+    name: 'a v0.0.21 code the post rule redraws is said so on every lane (the A and D review): v0.0.21\'s pinned 1037 house pasted on "Stack and clear" (no role-players there) is toasted as a target on room 2\'s live post, never as a role-player\'s, and replays its layout with the seed\'s cast',
+    fn() {
+      const code = 'Ks270pk.En210lc.Cs170lc|fhntttt|p032020', why = houseCodeWhy(code, 1037), played = wholeCodeOf(code.split('|')[0], 1037);
+      console.log(`      houseCodeWhy('${code}', 1037): "${why}"; the page toasts "House '${code}': ${why}. Its rooms as given, its targets drawn from the seed."; played as ${played}`);
+      assert(typeof why === 'string' && /room 2's live post/.test(why) && !/role-player's post|the role-player and|with the role-players in/.test(why), why);
+      assert(played.startsWith(code.split('|')[0]) && played !== code, played);
     },
   },
   {

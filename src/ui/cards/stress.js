@@ -14,7 +14,7 @@
 //   stringLine(x, { fmt })   → one string's line                   (pure)
 //   inocLine(sn)             → the inoculation's line                (pure)
 //   gridCell(x), sessionGrid(sheets) → the session's sheets side by side (pure); gridTable(grid) its table (DOM)
-//   hotWash(cards, { paint, fit }) → one string's truth card at the HUD's size and a button a string (DOM)
+//   hotWash(cards, { paint, fit, caption, tabs }) → one string's truth card at the HUD's size and a button a string (DOM; caption and tabs false: the house's stand, alone)
 import { INOC_FELT } from '../../sim/combat/supp.js';
 
 const two = (ms) => (Number.isFinite(ms) ? (Math.max(0, ms) / 1000).toFixed(2) : '?');
@@ -115,7 +115,9 @@ export function gridTable(grid, { now = -1 } = {}) {
  * string fired at chosen first. cards: [{ k, model }] (model null where no round was fired at him); paint: paintHitcard. The
  * card is painted when its string is chosen, never five at once. Returns the element, its figure's data-text the card's words.
  */
-export function hotWash(cards = [], { paint = null, fit = { size: 200, k: 1, smooth: false } } = {}) {
+// (caption(c): the card's own words for its caption in place of "String n" (the shoot house's plan view: "Room 2, 2a", the hunt of v0.0.20,
+// P4); tabs false: no string's button, the one card shown alone)
+export function hotWash(cards = [], { paint = null, fit = { size: 200, k: 1, smooth: false }, caption = null, tabs: withTabs = true } = {}) {
   const doc = globalThis.document;
   const box = doc.createElement('div'), cv = doc.createElement('canvas'), fig = doc.createElement('figure'), tabs = doc.createElement('div'), cap = doc.createElement('figcaption');
   box.className = 'stress-wash';
@@ -125,7 +127,8 @@ export function hotWash(cards = [], { paint = null, fit = { size: 200, k: 1, smo
   cv.style.imageRendering = fit.smooth ? 'auto' : 'pixelated';
   const show = (c) => {
     for (const b of tabs.children) b.classList.toggle('on', b.dataset.k === String(c?.k));
-    cap.textContent = c ? `String ${Number(c.k) + 1}${c.model ? '' : ': no rounds at him'}` : '';
+    cap.textContent = c ? `${caption ? caption(c) : `String ${Number(c.k) + 1}`}${c.model ? '' : ': no rounds at him'}` : '';
+    cap.classList.toggle('stand', !!caption);
     fig.dataset.k = c ? String(c.k) : '';
     fig.dataset.text = c?.model ? [c.model.words, c.model.line].filter(Boolean).join(' | ') : '';
     const g = cv.getContext('2d');
@@ -144,7 +147,7 @@ export function hotWash(cards = [], { paint = null, fit = { size: 200, k: 1, smo
     tabs.append(b);
   }
   fig.append(cv, cap);
-  box.append(fig, tabs);
+  box.append(...(withTabs ? [fig, tabs] : [fig]));
   show([...cards].reverse().find(c => c.model) ?? cards[0] ?? null);
   return box;
 }

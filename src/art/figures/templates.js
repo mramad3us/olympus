@@ -344,3 +344,75 @@ export function flashCells(kind, mx, my, th, k = 1) {
   if (kind !== 'side') return grown.map(([a, b, c]) => [Math.round(mx + a), Math.round(my + b), c]);
   return turned(grown, mx, my, th);
 }
+
+// ---------- the device in the hands (the build sheet v0.0.22 §1 item 17, the residuals lens's R3) ----------
+// With a G-11, the halligan, the ram or a charge in the hands the stage's figure drew both fists empty (kit-10 of the v0.0.18 hunt).
+// HELD is one template a device's shape (devices.js DEVICES[model].look.shape: can, egg, strip, spool, bar, ram): its parts as
+// compose.js draws a device (a capsule from a to b, th pixels, in a device's role letter; `hand` measures from that hand's tip,
+// else from the shoulders' middle; [forward, left, up] metres), held in the right fist, the way a figure walks or runs with it.
+// HELD_POSES are the beats' own (the held band, poses.js BANDS.stanceHeld): the arms put by the rig's IK where the user's picks
+// of samples/held-devices put them (the defaults until the user scores: G1 the can at the chest, T1 the underhand lob, B1 the
+// halligan across the body, R1 the ram level at the belly, C1 the strip upright in the fist; the pin, the pry, the swing and the
+// placing the sample's, which every candidate shares), with the device's parts where those candidates draw them. The device's
+// pixels are a card over the figure (atlas.js heldStrip: only those the body leaves in sight), so its colour is its model's and no
+// figure's frame carries it: a figure with no device is drawn as before, to the byte.
+/** The device's role letters (a device's own, as the sample's: the body, steel, black, the tube) and the colours the card paints them in by the look's colour word (devicetable.js look.colour; the doll's DEVICE_C). */
+export const HELD_LETTERS = Object.freeze({ body: 'ǧ', steel: 'š', black: 'ƶ', tube: 'ő' });
+export const HELD_COLOURS = Object.freeze({ olive: 0x5a6238, blue: 0x3f6a96, black: 0x2a2c34, grey: 0x7c8088, steel: 0x8a909c, orange: 0xc8742a });
+/** The colour words each shape is drawn in: the catalogue's (devicetable.js DEVICES[model].look; art-held holds the two equal), the spool never in a hand. */
+export const HELD_VARIANTS = Object.freeze([['can', Object.freeze(['black', 'blue', 'grey', 'olive'])], ['egg', Object.freeze(['blue', 'olive'])], ['strip', Object.freeze(['olive'])], ['bar', Object.freeze(['steel'])], ['ram', Object.freeze(['black'])]]);
+const can = (hand = 'r') => [
+  { hand, a: [0, 0, 0.04], b: [0, 0, 0.14], th: 3, role: 'ǧ', layer: 'over' },
+  { hand, a: [0, -0.11, 0.05], b: [0, -0.11, 0.14], th: 1, role: 'š', layer: 'over', dz: 0.001 },
+];
+const egg = (hand = 'r') => [
+  { hand, a: [0, 0, 0.05], b: [0, 0, 0.11], th: 3, role: 'ǧ', layer: 'over' },
+  { hand, a: [0, -0.1, 0.06], b: [0, -0.1, 0.12], th: 1, role: 'š', layer: 'over', dz: 0.001 },
+];
+const bar = (p0, p1, hand = null) => [
+  { a: p0, b: p1, th: 2, role: 'š', layer: 'under', ...(hand ? { hand } : {}) },
+  { a: p1, b: [p1[0] + 0.02, p1[1] + 0.07, p1[2] - 0.03], th: 1, role: 'š', layer: 'under', dz: 0.001, ...(hand ? { hand } : {}) },
+  { a: p1, b: [p1[0] + 0.02, p1[1] - 0.04, p1[2] + 0.06], th: 1, role: 'š', layer: 'under', dz: 0.001, ...(hand ? { hand } : {}) },
+];
+const ram = (p0, p1, hand = null) => {
+  const d = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], L = Math.hypot(...d), e = d.map(v => v / L);
+  return [
+    { a: p0, b: p1, th: 4, role: 'ƶ', layer: 'under', ...(hand ? { hand } : {}) },
+    { a: [p1[0] - e[0] * 0.02, p1[1] - e[1] * 0.02, p1[2] - e[2] * 0.02], b: [p1[0] + e[0] * 0.03, p1[1] + e[1] * 0.03, p1[2] + e[2] * 0.03], th: 4, role: 'š', layer: 'under', dz: 0.001, ...(hand ? { hand } : {}) },
+  ];
+};
+const strip = (a, b, layer = 'under', hand = null) => [{ a, b, th: 2, role: 'ǧ', layer, ...(hand ? { hand } : {}) }];
+/** One template a shape, held in the right fist as a figure walks or runs with it (see above): [part…]. */
+export const HELD = Object.freeze({
+  can: Object.freeze(can('r')),
+  egg: Object.freeze(egg('r')),
+  strip: Object.freeze(strip([0, 0, -0.02], [0, 0, 0.3], 'under', 'r')),
+  // (a spool is never in a hand (devices.js: an initiator fills none); drawn as the FD-1's small orange drum all the same)
+  spool: Object.freeze([{ hand: 'r', a: [0, 0, 0.03], b: [0, 0, 0.07], th: 3, role: 'ǧ', layer: 'over' }]),
+  // (the halligan by its middle, hanging forward of the fist and up along the forearm; the ram by its rear handle, its head down and
+  // forward at the knee: level ahead, a running stride carried it off the cell)
+  bar: Object.freeze(bar([-0.18, 0, -0.16], [0.3, 0, 0.36], 'r')),
+  ram: Object.freeze(ram([-0.12, 0, 0.06], [0.26, 0, -0.08], 'r')),
+});
+// (the defaults' points, held.js's: B1, R1)
+const B1P = [[0.22, -0.3, -0.54], [0.24, 0.26, 0.28]], R1P = [[0.02, -0.25, -0.42], [0.62, 0.02, -0.38]];
+const lerp3 = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+const along = (p0, p1, kr, kl) => ({ r: kr === null ? null : lerp3(p0, p1, kr), l: kl === null ? null : lerp3(p0, p1, kl) });
+/**
+ * The held band's poses (poses.js BANDS.stanceHeld): frame → { lean, reach: { r, l }, parts: { [shape]: [part…] } } over the stack's
+ * legs, the rifle slung in front (the hands-full rule). parts by the shapes the frame holds (a can's frames hold an egg the same way).
+ */
+export const HELD_POSES = Object.freeze({
+  heldCan: { reach: { r: [0.22, -0.06, -0.2] }, parts: { can: can('r'), egg: egg('r') } },
+  heldPin: { reach: { r: [0.2, -0.04, -0.16], l: [0.24, 0.2, -0.12] }, parts: { can: can('r'), egg: egg('r') } },
+  heldThrow0: { lean: 0.2, reach: { r: [-0.14, -0.3, -0.4] }, parts: { can: can('r'), egg: egg('r') } },
+  heldThrow1: { lean: 0.16, reach: { r: [0.34, -0.12, -0.3] }, parts: { can: can('r'), egg: egg('r') } },
+  heldBar: { reach: along(...B1P, 0.3, 0.65), parts: { bar: bar(...B1P) } },
+  heldForce0: { lean: 0.05, reach: along([-0.25, -0.15, -0.25], [0.7, 0.0, 0.1], 0.3, 0.55), parts: { bar: bar([-0.25, -0.15, -0.25], [0.7, 0.0, 0.1]) } },
+  heldForce1: { lean: -0.12, reach: along([-0.2, -0.45, -0.2], [0.7, 0.0, 0.1], 0.3, 0.45), parts: { bar: bar([-0.2, -0.45, -0.2], [0.7, 0.0, 0.1]) } },
+  heldRam: { reach: along(...R1P, 0.25, 0.6), parts: { ram: ram(...R1P) } },
+  heldSwing0: { lean: -0.04, reach: along([-0.3, -0.2, -0.38], [0.38, -0.02, -0.34], 0.2, 0.55), parts: { ram: ram([-0.3, -0.2, -0.38], [0.38, -0.02, -0.34]) } },
+  heldSwing1: { lean: 0.14, reach: along([-0.06, -0.12, -0.3], [0.66, 0.0, -0.22], 0.2, 0.55), parts: { ram: ram([-0.06, -0.12, -0.3], [0.66, 0.0, -0.22]) } },
+  heldStrip: { reach: { r: [0.2, -0.12, -0.3] }, parts: { strip: strip([0, 0, -0.02], [0, 0, 0.3], 'under', 'r') } },
+  heldPlace: { lean: 0.06, reach: { r: [0.43, -0.02, 0.1], l: [0.43, 0.02, -0.2] }, parts: { strip: strip([0.45, 0, -0.3], [0.45, 0, 0.2]) } },
+});

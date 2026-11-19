@@ -375,7 +375,7 @@ export function adminMs(state, pid, sub) {
 }
 /**
  * The P-12's part of a tower macro run (see ADMIN_PARTS): { ms, ok, text, halts? } (halts: its clear stopped at a part that halts,
- * the rest still owed; your #2's admin plans it again from his belief, house-two.js twoAdminTick). v0.0.19: exported for your #2's admin (house-two.js),
+ * the rest still owed; your #2's admin plans it again from his belief, combat/two.js twoAdminTick). v0.0.19: exported for your #2's admin (combat/two.js),
  * rng (his stream, 'house-two') and log (false: his rolls in nobody's log) passed to each action; for you as before; force a
  * test's grades by action (doAction's).
  */
@@ -522,7 +522,7 @@ export function sidearmEnd(state, bus, d, id) {
 }
 
 /**
- * The P-12 drawn into a person's hand (the draw's end; yours by sidearmEnd, your #2's by house-two.js): into the first free hand,
+ * The P-12 drawn into a person's hand (the draw's end; yours by sidearmEnd, your #2's by combat/two.js): into the first free hand,
  * low ready, the finger off; on the lane the thumb takes the safety off (a transition is a fighting draw: the design review of
  * 2026-11-13, it came out "SAFE 1 + 9", Off safe on 8, at the moment the man is up; off the lane it stays as it was). Both hands
  * full (a stripped magazine and another): the draw comes to nothing, the pistol where it was. Returns whether it is drawn.

@@ -15,6 +15,7 @@ import { TWO_PIN_MS, TWO_SLOT_M } from '../src/sim/combat/bundle.js';
 export default [
   {
     name: 'his walk held by your held walk is routed (or ended) at TWO_PIN_MS, and a hold with nothing of his walks left to hold is closed on his record: the private on 1037 by the fuzz, room 1\'s stack (on the integrated tree, neither fix: F46 556 ticks, his record at 1.85 s for 27.6 s; without bundle.js heldStill: 1 tick, his hold 1.80 s; without gapSettle: his record left running at 1.50 s with no walk of his)',
+    heavy: true, // (the v0.0.22 integration: the file over its quick CPU budget, 3 s (QUICK_FILE_CPU_S), on v0.0.21's runner; its whole lanes moved to the heavy suite as TECH §13.7 says, the case unchanged)
     timeoutMs: 120_000,
     fn() {
       let stale = 0, staleMax = 0;

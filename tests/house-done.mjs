@@ -18,7 +18,7 @@
 // LATER; a renamed test or a gauge taken out of its ENFORCED fails it, so the list never claims a check that is gone, and never
 // counts as met a gauge that is red (the review of 2026-11-16: "MET 194" counted F70, F71 and F73, red in their heavy suites). The
 // release announcement quotes the USER and the OPEN rows. Group C, the gauges, is generated: one row a
-// gauge, F1 to F73. Pure data and two resolvers.
+// gauge, F1 to F84 (GAUGE_LAST). Pure data and two resolvers.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -44,6 +44,18 @@ export const GAUGE_HOMES = Object.freeze([
   { from: 69, to: 71, file: 'flawless-done.mjs', role: 'C' },
   { from: 72, to: 72, file: 'flawless-op.mjs', role: 'D' },
   { from: 73, to: 73, file: 'render-bench.test.mjs', role: 'D', by: 'render-bench' },
+  // (its build sheet §8; added by its integration, §0 item 41: each role's file and the set or case that enforces it. F76
+  // printed until the lead's quiet run, its case house-drawn8's sweep (red: OPEN_GAUGES); F81 printed and enforced at the measure,
+  // its case live-race's drawn one; F80 and F82 by their heavy cases)
+  { from: 74, to: 75, file: 'flawless-rooms.mjs', role: 'A' },
+  { from: 76, to: 76, file: 'flawless-rooms.mjs', role: 'A', by: 'house-drawn8 › a hundred eight-room houses' },
+  { from: 77, to: 77, file: 'flawless-rooms.mjs', role: 'A' },
+  { from: 78, to: 79, file: 'flawless-blast.mjs', role: 'B' },
+  { from: 80, to: 80, file: 'flawless-end.mjs', role: 'C', by: 'house-flawless-live › v0.0.22, F80' },
+  { from: 81, to: 81, file: 'flawless-end.mjs', role: 'C', by: 'live-race › v0.0.22, F81' },
+  { from: 82, to: 82, file: 'flawless-end.mjs', role: 'C', by: 'house-live-words › the live lane\'s words over 8 seeds' },
+  { from: 83, to: 83, file: 'ui-houseplan.test.mjs', role: 'D', by: 'ui-houseplan › the ghost' },
+  { from: 84, to: 84, file: 'flawless-held.mjs', role: 'D' },
 ]);
 /** The gauges' names, a short line each (COMBAT §25.19.8 and the sheets' §8; group C's rows). */
 export const GAUGE_WHAT = Object.freeze({
@@ -62,8 +74,11 @@ export const GAUGE_WHAT = Object.freeze({
   F61: 'a drawn house keeps every rule', F62: 'a drawn lane\'s doors', F63: 'the tier one\'s drawn lanes', F64: 'the keys private\'s drawn lanes', F65: 'stops on a drawn lane',
   F66: 'room 1 varies', F67: 'the fumble net empty', F68: 'the route budget', F69: 'the ladder ordered', F70: 'GO at your standard, NO-GO at the next',
   F71: 'the moments\' pace', F72: 'the drill off the range', F73: 'the house benches within TECH §16.1',
+  F74: 'the deriver checks every plan', F75: 'the eight rooms\' cases', F76: 'eight-room lanes in their pars', F77: 'nobody at rest in a no-stop zone',
+  F78: 'the stack\'s own grenade', F79: 'nobody into a live grenade', F80: 'the drawn live lanes', F81: 'the race by post',
+  F82: 'the lane ends as it is ended', F83: 'the ghost on its own key, whole pixels, a 4× replay\'s frames', F84: 'the held device drawn',
 });
-export const GAUGE_LAST = 73;
+export const GAUGE_LAST = 84;
 /** The gauge's home (GAUGE_HOMES' row), or null. */
 export const homeOf = (id) => { const n = Number(String(id).replace(/^F/, '')); return GAUGE_HOMES.find(h => n >= h.from && n <= h.to) ?? null; };
 
@@ -181,9 +196,9 @@ export const DONE = Object.freeze([
   { id: 'J3', group: 'J', what: 'the #2\'s brain in combat/', check: test('two-anywhere'), by: 'v0.0.21 D' },
   { id: 'J3b', group: 'J', what: 'no file of combat/ imports a scenario', check: test('syntax › combat imports no scenario'), by: 'v0.0.21 stage 0' },
   { id: 'J4', group: 'J', what: 'the gauges a library', check: test('cqb-gauges'), by: 'v0.0.21 D' },
-  { id: 'J5', group: 'J', what: 'room plans derived and checked against the authored', check: later('v0.0.22 (D9, with the second chunk set)') },
+  { id: 'J5', group: 'J', what: 'room plans derived and checked against the authored', check: test('plans-derived'), by: 'v0.0.22 A' },
   { id: 'J6', group: 'J', what: 'a clean room counts toward the career\'s rung', check: test('drill-reps'), by: 'v0.0.21 C' },
-  { id: 'J7', group: 'J', what: 'the no-stop zone a kind any plan declares', check: later('v0.0.22 (D9\'s zone kinds)') },
+  { id: 'J7', group: 'J', what: 'the no-stop zone a kind any plan declares', check: test('zones-kinds'), by: 'v0.0.22 A' },
   // ---- K. Docs ----
   { id: 'K1', group: 'K', what: 'the docs give the numbers the code has', check: later('the lead\'s docs stage, each release') },
   { id: 'K2', group: 'K', what: 'COMBAT §25.21 "The pilot handed off", the ROADMAP rows closed, the log', check: user('A1, then the lead\'s close (D12)'), answered: null },
@@ -197,6 +212,42 @@ export const DONE = Object.freeze([
   { id: 'L5', group: 'L', what: 'your man is the one in your sector', check: test('house-owner'), by: 'v0.0.21 B' },
   { id: 'L6', group: 'L', what: 'the gauges on drawn lanes', check: test('house-drawn-quick'), by: 'v0.0.21 B' },
   { id: 'L7', group: 'L', what: 'the drawn house by default', words: W(D16, 'question 3 of v0.0.21'), check: user('question 3: "drawn from the seed" by default, the handcrafted rule read through PLACES §4.12'), answered: null },
+  // ---- M. v0.0.22 (its build sheet §1): each role's rows directly below its own anchor ----
+  // (A: the rooms; F76's row only at the lead's run that enforces it, §0 item 41)
+  { id: 'M1', group: 'M', what: 'every room plan checked by the deriver (F74): layout A\'s and the chunks\' families within DERIVE_TOL, the same owners', check: test('plans-derived'), by: 'v0.0.22 A' },
+  { id: 'M2', group: 'M', what: 'X4\'s other five rooms (the long, narrow, offset and small rooms, the room and its back room), every case held (F75)', check: test('house-cases › v0.0.22, F75'), by: 'v0.0.22 A' },
+  { id: 'M3', group: 'M', what: 'the five rooms\' plans derived by a tool, committed, and fresh', check: test('chunks-fresh'), by: 'v0.0.22 A' },
+  { id: 'M4', group: 'M', what: 'what a no-stop zone is: the back room\'s doorway a funnel, a hatch\'s rect, nobody at rest in either', check: test('zones-kinds'), by: 'v0.0.22 A' },
+  { id: 'M5', group: 'M', what: 'a house drawn from all eight rooms', check: test('house-draw8'), by: 'v0.0.22 A' },
+  { id: 'M6', group: 'M', what: 'layouts B and C, the instructors\' other two panel settings', check: test('house-layouts'), by: 'v0.0.22 A' },
+  { id: 'M7', group: 'M', what: 'the gauges on eight-room lanes (F76 printed, F77)', check: test('house-drawn8'), by: 'v0.0.22 A' },
+  { id: 'M8', group: 'M', what: 'whole lanes on the deriver\'s plans', check: test('house-flawless-derived'), by: 'v0.0.22 A' },
+  { id: 'M9', group: 'M', what: 'X4\'s eight rooms drawn by default', words: W(D16, 'question 4 of v0.0.22'), check: user('question 4: the drawn house from all eight rooms, once 100 eight-room lanes meet every gauge'), answered: null },
+  // (B: the kit's blast and the instinct's words)
+  { id: 'MB1', group: 'M', what: 'your own G-11 shielded by the jamb you stand behind: one blast model with the practice read', check: test('blast-line › one model'), by: 'v0.0.22 B' },
+  { id: 'MB2', group: 'M', what: 'a grenade at your feet or short on you hands back "Get clear", and the DI names it', check: test('slip-g11'), by: 'v0.0.22 B' },
+  { id: 'MB3', group: 'M', what: 'your #2 waits for the bang, and runs clear of a live grenade', check: test('two-live'), by: 'v0.0.22 B' },
+  { id: 'MB4', group: 'M', what: 'the frag named at the stack, the brief\'s warning with it', check: test('cqb-frag-words'), by: 'v0.0.22 B' },
+  { id: 'MB5', group: 'M', what: 'the DI\'s words a new player can read', check: test('house-shorthand › shorthand'), by: 'v0.0.22 B' },
+  { id: 'MB6', group: 'M', what: 'the stack\'s own grenade over the kit lanes, none of yours over BREACH_SAFE_KPA on the stack but a hand-back declined (F78)', check: test('blast-line › F78 (heavy)'), by: 'v0.0.22 B' },
+  { id: 'MB8', group: 'M', what: 'the twin\'s far walk said as its back room, the habit said as kept', check: test('house-twin-words › the twin'), by: 'v0.0.22 B' },
+  { id: 'MB7', group: 'M', what: 'nobody into a live grenade over the kit lanes, the fuzz included (F79)', check: test('two-live › F79 (heavy)'), by: 'v0.0.22 B' },
+  // (C: the lane's end and the live lane; F81's row only at the lead's run that enforces it)
+  { id: 'M-C1', group: 'M', what: 'SHOW CLEAR to the instructor\'s eye, your #2\'s clear behind the splash', check: test('house-showclear'), by: 'v0.0.22 C' },
+  { id: 'M-C2', group: 'M', what: 'paint called when it has landed, the lane\'s words ending with it', check: test('house-live-words'), by: 'v0.0.22 C' },
+  { id: 'M-C3', group: 'M', what: 'one "Clear!" a man a room', check: test('house-echo'), by: 'v0.0.22 C' },
+  { id: 'M-C4', group: 'M', what: 'the casualty\'s lesson names what killed you', check: test('house-cause'), by: 'v0.0.22 C' },
+  { id: 'M-C5', group: 'M', what: 'the umpire\'s words to the man ruled out', check: test('house-words'), by: 'v0.0.22 C' },
+  { id: 'M-C6', group: 'M', what: '"Stack and clear, live" on a drawn house', check: test('house-live-drawn'), by: 'v0.0.22 C' },
+  { id: 'M-C7', group: 'M', what: 'every chunk\'s post valid where it falls', check: test('opfor-spots-drawn'), by: 'v0.0.22 C' },
+  { id: 'MD1', group: 'M', what: 'the plan view\'s ghost: a run kept by the page, keyed on its house and lane, "+5.8 s" at room 2\'s door', check: test('house-ghost'), by: 'v0.0.22 D' },
+  { id: 'MD2', group: 'M', what: '"Again as Tier one" shows where he was: the ghost on the card, in whole pixels, F83', check: test('ui-houseplan › the ghost'), by: 'v0.0.22 D' },
+  { id: 'MD3', group: 'M', what: 'the picker\'s house (A, B, C, drawn) and rooms rows; "LANE B" on the paper and the card', check: test('house-picker'), by: 'v0.0.22 D' },
+  { id: 'MD4', group: 'M', what: 'the device in your hands drawn: every shape, frame and facing on its hand', check: test('art-held'), by: 'v0.0.22 D' },
+  { id: 'MD5', group: 'M', what: 'the held device one quantity with its flight, F84', check: test('look-held › heldLook follows'), by: 'v0.0.22 D' },
+  { id: 'MD6', group: 'M', what: 'the G-11 in your hand on the stage, nothing baked mid-lane', check: test('ui-held-device'), by: 'v0.0.22 D' },
+  { id: 'MD7', group: 'M', what: 'the samples to score: held-devices (G, T, B, R, C; the defaults G1, T1, B1, R1, C1 drawn until scored)', check: { kind: 'sample', ref: 'held-devices' } },
+  // (D: the page and the art)
 ]);
 
 /** Group C: one row a gauge, F1 to GAUGE_LAST. */
@@ -272,6 +323,12 @@ export const OPEN_GAUGES = Object.freeze({
   F70: { run: "house-ladder's sweep, v0.0.21 C's run of 2026-11-16 (40 set seeds)", value: 'the boot recruit a GO at his own standard on 25% (his men\'s pars); the sergeant a NO-GO at operator on 30%', target: 'GO at own 90%, NO-GO at the next 80%' },
   F71: { run: "moment-house's node part, v0.0.21 C's run of 2026-11-16", value: 'the private by the keys from the brief 7.50 real minutes', target: '5 to 7 real minutes; dead air under 20%' },
   F73: { run: "render-bench's house benches, v0.0.21 D's run of 2026-11-16 (this Mac, 60 Hz)", value: 'house-kit 229.8 KB uploaded at 7.67 s, house-live 238.2 KB at 7.25 s (the figures\' bands painted mid-lane)', target: `no upload over 64 KB after GO + 1 s` },
+  // (v0.0.22's integration, its full run of 2026-11-16 on the merged tree (JOBS=3, the Mac shared): the new gauges red. F25 on the
+  // kit's second slice (B's: the mixed loadout's keys recruit on 1222 after a G-11 slipped at his feet, 3.30 s) emptied by v0.0.22's
+  // fixer: your cue ends his stack-up at his stack point (bundle.js), house-flawless-kit2 green on the full run of 2026-11-18
+  // (JOBS=4) and fixer-v022's F25 case 2.25 s, 0.7 s, 1 s on 1222; F25 never left its file's ENFORCED)
+  F76: { run: "house-drawn8's sweep, A's run at the A and D review, 2026-11-16 (printed until the lead's quiet run)", value: 'the small room 76% (68% as room 1 of layout C: roomBookOf books #1 alone), the centre 73%, the narrow 85%, the long 89%', target: 'each room within its par on 90%, every lane at most 60 s, the mean at most 1.10 × the summed par' },
+  F80: { run: "house-flawless-live's drawn case, the v0.0.22 integration's full run of 2026-11-16 (42 lanes)", value: 'F38 to F43 met, 84 posts valid; F44\'s band: the tier one painted on 3 of 7 drawn lanes, the recruit 6 of 7', target: 'F44\'s bands on the drawn slice (the tier one 5%)' },
 });
 
 /** A row resolved: { row, status: 'WIRED' | 'OPEN' | 'USER' | 'ANSWERED' | 'LATER' | 'GAP', why } (see the header). */

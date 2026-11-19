@@ -31,6 +31,15 @@
 //              read first it hid shock and the pain, so it is left out; or
 //   bleeds     the blood, at a walk, would cross the collapse (55%) within BLEED_OUT_MS 120 s of the strike: a man out cold from
 //              the blood inside the longest live lane would not have finished it, and a deep wound bleeds untended for DEEP_H 6 h.
+// **Down later** (wouldTick; the hunt of v0.0.20, bleed-shock): a wound rated not fatal is not the end of it. Each lived tick of the
+// lane the would-have body of a man struck and not yet fatal is judged again by its blood (wounds.js bandOf): the blood he loses at
+// a walk crosses the shock's 70% (BLOOD.shock, downOf's 'shock'), and he would be down from that tick. The blood is the one
+// thing of the would-have that worsens by itself: the pain's floor stays judged at the strike, the adrenaline (ADRENALINE, held
+// 40 s from a hit) kept up while the fight goes on (my call). His last rated wound (the strike that left him so) is then marked
+// fatal, its why the blood's band ('shock', 'collapsed', 'killed': LATE_WHY), with downAtMs the tick: every reader of the verdicts (fatalOf, the card, the hot
+// wash) sees him down, and the casualty opens at downAtMs, not at the strike. Before it the corporal's fuzz lane on seed 31 took
+// a chest wound at 239.4 s rated not fatal, its would-have body in shock at 438.4 s, and the lane ran on to 480 s with the card's
+// "WOULD HAVE BEEN: WOUNDED, CHEST".
 // Anything else is a wound (or 'stopped'), and the man carries on: what he feels of it is the sting only (supp.js's 'hit', as
 // v0.0.19; my call: no limp, no one-hand drill, no knock this round: the would-have body is the lane's record, never his own,
 // so nothing of woundMods or mobilityOf reaches him for free). Measured (2,000 strikes a cell, 5 m, margin 6, the second strike
@@ -43,8 +52,8 @@
 // v0.0.19's count (COUNT_DOWN: two torso strikes, A or C, or one head; its strikes have no margin or range saved to rate them by,
 // my call). wouldWords(state, pid, ms) says a man's would-have in the wound model's words, never a number; wouldWash(state, pid)
 // is the hot wash's, a fatal strike's verdict first (WOULD_WASH) and the words read at the strike that decided it, never the knock.
-// Pure but wouldHave, which writes the ledger, and upgradeHouseWould (w).
-import { applyHit, downOf, bloodCurve, holdFactor, woundWords, EXERTION } from '../body/wounds.js';
+// Pure but wouldHave and wouldTick, which write the ledger, and upgradeHouseWould (w).
+import { applyHit, downOf, bloodCurve, bandOf, holdFactor, woundWords, EXERTION } from '../body/wounds.js';
 import { BODY_V } from '../body/record.js';
 import { BODY_TMPL } from '../../data/people/looks.js';
 import { DEFAULT_TMPL } from '../../data/body/templates.js';
@@ -151,6 +160,32 @@ export function fatalOf(state, pid) {
   return null;
 }
 
+/** The blood's band (wounds.js bandOf) that puts a would-have body down later (see the header's "Down later"), with its why. */
+export const LATE_WHY = Object.freeze({ shock: 'shock', collapsed: 'collapsed', dead: 'killed' });
+/**
+ * The would-have bodies judged again at ms (w; see the header's "Down later"): each man struck, not yet fatal, whose would-have blood is
+ * in shock or under it now (LATE_WHY) has his last rated wound marked fatal, downAtMs ms.
+ * Returns the ids of the men down at this tick ([] most ticks). A v0.0.19 lane's count (rule 'count') has no bodies to judge.
+ */
+export function wouldTick(state, ms = state.clock.ms) {
+  const W = ledgerOf(state);
+  if (!W || W.rule === 'count') return [];
+  const out = [];
+  for (const on of Object.keys(W.bodies ?? {})) {
+    const body = W.bodies[on];
+    if (W.log.some(x => x.on === on && x.fatal)) continue;
+    const band = bandOf(body, ms), why = LATE_WHY[band] ?? null;
+    if (!why) continue;
+    const last = W.log.filter(x => x.on === on && x.layer !== null && x.why !== 'stopped').at(-1);
+    if (!last) continue;
+    last.fatal = true; last.why = why; last.downAtMs = ms;
+    out.push(on);
+  }
+  return out;
+}
+/** When a fatal verdict put its man down (ms): the strike's own, or the tick a wound put him down later (wouldTick). */
+export const downAtOf = (f) => (f ? (Number.isFinite(f.downAtMs) ? f.downAtMs : f.atMs) : null);
+
 /** A man's strikes on the ledger (in order), and their tally: { list, wounds, stopped, fatal }. */
 export function wouldOn(state, pid) {
   const list = (ledgerOf(state)?.log ?? []).filter(x => x.on === pid);
@@ -175,7 +210,7 @@ export const WOULD_WASH = Object.freeze({ killed: 'killed outright', head: 'down
 export function wouldWash(state, pid) {
   const L = ledgerOf(state), list = (L?.log ?? []).filter(x => x.on === pid && x.layer !== null && x.why !== 'stopped');
   if (!list.length) return [];
-  const f = list.find(x => x.fatal), at = (f ?? list.at(-1)).atMs, body = L.bodies?.[pid];
+  const f = list.find(x => x.fatal), at = f ? downAtOf(f) : list.at(-1).atMs, body = L.bodies?.[pid];
   const words = (body ? woundWords(body, at) : []).filter(x => x !== 'Knocked down.' && x !== 'Dead.' && x !== 'Down, and staying down.')
     .map(x => x.replace(/\.$/, '')).map(x => x.charAt(0).toLowerCase() + x.slice(1));
   return f ? [WOULD_WASH[f.why] ?? 'fatal', ...words] : words;

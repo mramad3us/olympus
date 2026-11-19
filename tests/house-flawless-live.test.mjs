@@ -24,4 +24,19 @@ export default [
       assert(!f.length, f.join(' | '));
     },
   },
+  // (v0.0.22 G5: the drawn slice, F80 (tests/flawless-end.mjs))
+  {
+    name: 'v0.0.22, F80: on drawn live lanes (all eight rooms drawn from), every sheet on 7 seeds, F38 to F43 as on the set, every role-player\'s post valid at the fill among the lane\'s own stands, F44\'s bands over the slice',
+    heavy: true,
+    timeoutMs: 1_200_000,
+    async fn() {
+      const { liveDrawnLane, liveDrawnGaugeOf, DRAWN_LIVE_SEEDS } = await import('./flawless-end.mjs');
+      const recs = [];
+      for (const tier of ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']) for (const seed of DRAWN_LIVE_SEEDS) recs.push(await liveDrawnLane({ tier, seed }));
+      const row = await liveDrawnGaugeOf(recs);
+      printGauge(`the drawn live lanes' gauges over ${recs.length} lanes`, row.rows);
+      console.log(`      F80 ${row.met ? 'MET' : 'OPEN'}: ${row.value} (target: ${row.target})`);
+      assert(row.met, row.value);
+    },
+  },
 ];

@@ -746,4 +746,65 @@ export default [
       assert(probe === 1 && !bad.length && combat.some(f => rel(f) === 'src/sim/combat/two.js'), JSON.stringify({ bad, probe }));
     },
   },
+  {
+    name: 'rules: the #2\'s brain has one path (the build sheet v0.0.22 §2 step 1): src/sim/scenarios/house-two.js, v0.0.21\'s shim, is gone, and no module of src, tests or tools imports it; every one imports src/sim/combat/two.js',
+    fn() {
+      // (only a module whose text names the file is parsed: the scan reads 800 modules, the suite's CPU budget is 3 s)
+      const SHIM = 'src/sim/scenarios/house-two.js', files = [...srcFiles(), ...walk(path.join(root, 'tests')), ...toolFiles()], bad = [];
+      let users = 0;
+      for (const f of files) {
+        const src = readFileSync(f, 'utf8');
+        if (!src.includes('two.js')) continue;
+        const ims = importsIn(src, f);
+        if (ims.includes(SHIM)) bad.push(rel(f));
+        if (ims.includes('src/sim/combat/two.js')) users++;
+      }
+      const probe = importsIn("import { twoTick } from '../src/sim/scenarios/house-two.js';\n// import { x } from '../src/sim/scenarios/house-two.js';", path.join(root, 'tests/probe.mjs')).filter(m => m === SHIM).length;
+      console.log(`      ${files.length} modules of src, tests and tools: ${bad.length} importing the shim${bad.length ? `: ${bad.join(', ')}` : ''}; ${users} importing combat/two.js; the shim ${existsSync(path.join(root, SHIM)) ? 'still there' : 'gone'}; the probe ${probe}/1`);
+      assert(probe === 1 && !bad.length && !existsSync(path.join(root, SHIM)) && users > 0, JSON.stringify({ bad, probe, users }));
+    },
+  },
+  {
+    name: 'rules: the live lane\'s one seam (the build sheet v0.0.22 §0 item 16, §2 step 4): no code of src names OPFOR_SPOTS[ outside opfor.js spotOf, nor RP_STANDS outside spotOf, rpStandsOf, parseOpfor and opforCode (the URL\'s grammar), house-opfor.js\'s declarations and the import',
+    fn() {
+      const HOME = 'src/sim/scenarios/opfor.js', DATA = 'src/data/places/house-opfor.js';
+      const RULES = [{ re: /\bOPFOR_SPOTS\s*\[/g, ok: ['spotOf'] }, { re: /\bRP_STANDS\b/g, ok: ['spotOf', 'rpStandsOf', 'parseOpfor', 'opforCode'] }];
+      // (the top-level declaration a place in the code lies in: the last `function name(` or `const name =` at a line's start before
+      // it, `import` for an import statement, the module's name for its data)
+      const ownerAt = (code, at) => {
+        const head = code.slice(0, at), line = head.slice(head.lastIndexOf('\n') + 1);
+        if (/^\s*import\b/.test(line) || /^import\b[^;]*$/s.test(head.slice(head.lastIndexOf(';') + 1).trimStart())) return 'import';
+        let name = null;
+        for (const m of head.matchAll(/^(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*([A-Za-z_$][\w$]*)|(?:const|let|var)\s+([A-Za-z_$][\w$]*))/gm)) name = m[1] ?? m[2];
+        return name;
+      };
+      const hitsIn = (src) => { const code = codeOnly(src), out = []; for (const R of RULES) for (const m of code.matchAll(R.re)) out.push({ what: m[0].replace(/\s+/g, ''), owner: ownerAt(code, m.index), ok: R.ok }); return out; };
+      const bad = [], seen = {};
+      for (const f of srcFiles()) {
+        const r = rel(f), src = readFileSync(f, 'utf8');
+        // (only a module whose text names either is read as code)
+        if (!src.includes('OPFOR_SPOTS') && !src.includes('RP_STANDS')) continue;
+        for (const h of hitsIn(src)) {
+          seen[r] = (seen[r] ?? 0) + 1;
+          if (r === DATA || h.owner === 'import') continue;
+          if (r !== HOME || !h.ok.includes(h.owner)) bad.push(`${r}: ${h.what} in ${h.owner ?? 'the module'}`);
+        }
+      }
+      const owners = hitsIn(readFileSync(path.join(root, HOME), 'utf8')).filter(h => h.owner !== 'import').map(h => `${h.what} ${h.owner}`);
+      const probe = hitsIn("import { OPFOR_SPOTS, RP_STANDS } from 'x';\nexport function spotOf(state, T) { return OPFOR_SPOTS[T.stand]; }\nfunction hear(state, T) { const S = OPFOR_SPOTS[T.stand]; } // OPFOR_SPOTS[x]\nconst all = RP_STANDS.length;")
+        .filter(h => h.owner !== 'import' && !h.ok.includes(h.owner)).length;
+      console.log(`      named in ${Object.entries(seen).map(([f, n]) => `${f} (${n})`).join(', ')}; in opfor.js's code: ${owners.join(', ')}; out of place ${bad.length}${bad.length ? `: ${bad.join('; ')}` : ''}; the probe ${probe}/2`);
+      assert(probe === 2 && !bad.length && owners.some(o => o === 'OPFOR_SPOTS[ spotOf') && owners.some(o => o === 'RP_STANDS rpStandsOf'), JSON.stringify({ bad, owners, probe }));
+    },
+  },
+  {
+    name: 'rules: the ghosts are the page\'s (the build sheet v0.0.22 §0 item 31): no module of src/sim or src/core imports src/ui/cards/house-ghosts.js',
+    fn() {
+      const GHOSTS = 'src/ui/cards/house-ghosts.js', bad = [];
+      for (const f of simFiles()) { const src = readFileSync(f, 'utf8'); if (src.includes('house-ghosts') && importsIn(src, f).includes(GHOSTS)) bad.push(rel(f)); }
+      const probe = importsIn("import { ghostOf } from '../../ui/cards/house-ghosts.js';", path.join(root, 'src/sim/scenarios/probe.js')).filter(m => m === GHOSTS).length;
+      console.log(`      ${simFiles().length} sim and core modules: ${bad.length} importing the ghosts${bad.length ? `: ${bad.join(', ')}` : ''}; the module ${existsSync(path.join(root, GHOSTS)) ? 'built' : 'not built yet (v0.0.22 D)'}; the probe ${probe}/1`);
+      assert(probe === 1 && !bad.length, JSON.stringify({ bad, probe }));
+    },
+  },
 ];

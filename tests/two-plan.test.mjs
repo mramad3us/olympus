@@ -8,7 +8,7 @@
 import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { runHouse, houseHonestBot } from './bots/house.mjs';
-import { twoFixOf, twoDrillOf, fixReady } from '../src/sim/scenarios/house-two.js';
+import { twoFixOf, twoDrillOf, fixReady } from '../src/sim/combat/two.js';
 import { beliefOf } from '../src/sim/arms/firearms.js';
 
 const two = (s) => s.armoury.range.house.two;

@@ -813,7 +813,11 @@ const CARRY_GOALS = Object.freeze({ 'macro:reload:speed': 'fed', 'macro:reload:r
  */
 export function carryOnOf(state, pid, S = state.stop) {
   const q = S?.queue ?? [], goal = CARRY_GOALS[S?.queueOf];
-  if (!q.length || !goal) return q;
+  if (!q.length) return q;
+  // (the tower's templates carried on as saved, but a look in with the bolt or slide believed closed first locks it back, as the
+  // look itself asks ("The slide is closed: lock it back to look in."): the queued UNLOAD, SHOW CLEAR on the P-12 halted at its
+  // inspect at once on every press, the row unchanged (the hunt of v0.0.20, breach-8))
+  if (!goal) return (q[0] === 'inspect' || q[0] === 'show') && S.gun && !beliefOf(state, S.gun)?.locked ? ['lockBack', ...q] : q;
   const p = planFor(state, pid, S.gun, goal, { purpose: null });
   if (!p.subs?.length) return null;
   let a = absOf(state, pid, S.gun), ms = 0;

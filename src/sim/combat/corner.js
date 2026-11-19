@@ -266,7 +266,7 @@ export function aidK(startMs, endMs, ms) {
   return Math.max(0, 1 - (ms - endMs) / AID_FADE_MS);
 }
 // ---- v0.0.20, the room's numbers (the build sheet's items 12, 17 and 18; drill.md items 3 to 5): the leaving of a room, the far
-// leg covered, the #2's call-outs. Here, beside the rule they read, so bundle.js, house-two.js and react.js share one table ----
+// leg covered, the #2's call-outs. Here, beside the rule they read, so bundle.js, combat/two.js and react.js share one table ----
 /** Your "Room clear!" waits on your #2's status ("Up.") at most this long (ms; drill D3). */
 export const STATUS_MS = 600;
 /** The last man's mark: this far outward of the door's plane, this high on the latch-side jamb (m; THRESHOLD_M's 0.3, drill D3). */

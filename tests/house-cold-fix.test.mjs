@@ -98,8 +98,12 @@ export default [
       assert(unloaded.fix === 'macro:clear' && unloaded.why === 'the tower: UNLOAD, SHOW CLEAR' && unloaded.none !== 'already so', JSON.stringify(unloaded));
       press(/^macro:clear$/);
       const shown = look();
-      console.log(`      Fix pressed: shown ${shown.shown}, Fix ${shown.fix ?? '-'}, ✓ ${shown.none ?? 'none'}; the tower on ${houseNow(s).cmd}`);
-      assert(shown.shown && shown.none === 'already so', JSON.stringify(shown));
+      // (v0.0.22, its build sheet's item 1 (FL22-1): your guns passed under the instructor's eye, the scene leaves stop motion and the rest
+      // of SHOW CLEAR passes behind the brief splash ('house-showclear'): no panel left to read, nothing owed of you; before, the panel
+      // stayed up with ✓ "already so" while the tower waited on your #2)
+      const skipped = !s.stop && (s.time?.doing?.activity === 'house-showclear' || !!s.skip);
+      console.log(`      Fix pressed: shown ${shown.shown}, Fix ${shown.fix ?? '-'}, ✓ ${shown.none ?? 'none'}; the tower on ${houseNow(s).cmd}; the scene's skip ${skipped}`);
+      assert(shown.shown && (shown.none === 'already so' || (skipped && shown.fix === null)), JSON.stringify({ shown, skipped }));
     },
   },
   {

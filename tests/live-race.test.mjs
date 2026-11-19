@@ -25,4 +25,18 @@ export default [
       assert(by.tierone.paint <= by.recruit.paint, JSON.stringify({ tierone: by.tierone, recruit: by.recruit }));
     },
   },
+  // (v0.0.22 G5: the race by post on drawn live lanes, F81 (tests/flawless-end.mjs raceByPostOf), printed until the measure enforces it)
+  {
+    name: 'v0.0.22, F81: the honest sergeant on 40 drawn live lanes (all eight rooms drawn from), by the chunk holding each post, the share of its role-players who fired first (printed; LIVE_FIRST_MAX 50% enforced at the measure), every lane to its card',
+    heavy: true,
+    timeoutMs: 900_000,
+    async fn() {
+      const { endLane, raceByPostOf } = await import('./flawless-end.mjs');
+      const recs = Array.from({ length: 40 }, (_, i) => endLane({ tier: 'sgt', seed: 9000 + 43 * i, bot: 'honest', opfor: 'live', fill: { rooms: 'all' } }));
+      const row = raceByPostOf(recs);
+      console.log(`      ${recs.filter(r => r.done).length}/${recs.length} to the card; ends ${JSON.stringify(recs.reduce((o, r) => ({ ...o, [r.end]: (o[r.end] ?? 0) + 1 }), {}))}`);
+      console.log(`      F81 ${row.met ? 'MET' : 'OPEN'} (printed): ${row.value} (target: ${row.target})`);
+      assert(recs.every(r => r.done), JSON.stringify(recs.filter(r => !r.done).map(r => r.cell)));
+    },
+  },
 ];

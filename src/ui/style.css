@@ -176,6 +176,8 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .glass-list .item { display: flex; gap: 10px; align-items: center; text-align: left; background: var(--ink-2); border: 1px solid var(--glass-line); color: var(--glass-text); padding: 5px 10px; cursor: pointer; border-radius: 2px; }
 .glass-list .item:hover, .glass-list .item:focus-visible { border-color: var(--brass); outline: none; }
 .glass-list .item kbd { min-width: 1.4em; }
+/* (a line no digit reaches, past the ten keys: a dot for its key, clicked only (the hunt of v0.0.20, P2)) */
+.glass-list .item.nokey kbd { border-color: transparent; color: var(--faint); }
 .glass-list .item small { color: var(--muted); margin-left: auto; font-size: calc(11px * var(--ui)); }
 .glass .keylist { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; align-items: baseline; font-size: calc(12.5px * var(--ui)); }
 .glass .keylist kbd { justify-self: end; }
@@ -350,7 +352,10 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .radio.voices .voice .said { min-width: 0; overflow: hidden; color: var(--paper); font-family: var(--type); white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; }
 
 /* PAPER, 200 × 200 at the top centre under PAUSED's slot: your card close, its holes numbered. */
-.paper { position: absolute; left: 50%; top: calc(var(--m) + (48px + 6px) * var(--ui)); transform: translateX(-50%); width: calc(200px * var(--ui)); height: calc(200px * var(--ui)); border: 1px solid var(--glass-edge); border-radius: 4px; overflow: hidden; pointer-events: none; }
+.paper { position: absolute; left: 50%; top: calc(var(--m) + (48px + 6px) * var(--ui)); transform: translateX(-50%); width: calc(200px * var(--ui)); height: calc(200px * var(--ui)); outline: 1px solid var(--glass-edge); border-radius: 4px; overflow: hidden; pointer-events: none; }
+/* (the hunt of v0.0.20, T6: the timer's and the paper's edge an outline, drawn outside the box, never a border: with '* { box-sizing:
+   border-box }' a 1 px border left the canvas 200 × --ui less 2 px wide while timer.js and paper.js size its pixels TIMER_W × --ui
+   × dpr, so the pixelated scale dropped two columns at every window size: '9' read as 3, '8' broke. The box stays layout.js's 200) */
 .paper canvas { display: block; width: 100%; height: 100%; }
 
 /* The plaque over the bracketed target and its brackets (src/ui/plaque.js place(): a picture pixel at a time). */
@@ -412,7 +417,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .plaque.window { z-index: 1; }
 .plaque.stamp { z-index: 2; transition: none; }
 .plaque.contact, .plaque.parts { z-index: 1; }
-.timer { position: absolute; left: 50%; top: calc(var(--m) + (48px + 6px) * var(--ui)); transform: translateX(-50%); width: calc(200px * var(--ui)); height: calc(140px * var(--ui)); border: 1px solid var(--glass-edge); border-radius: 4px; overflow: hidden; pointer-events: none; }
+.timer { position: absolute; left: 50%; top: calc(var(--m) + (48px + 6px) * var(--ui)); transform: translateX(-50%); width: calc(200px * var(--ui)); height: calc(140px * var(--ui)); outline: 1px solid var(--glass-edge); border-radius: 4px; overflow: hidden; pointer-events: none; }
 .timer canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; }
 .steps .step.shot .label .name { color: #f6d0c8; letter-spacing: 0.02em; }
 .steps .step.shot.off .label .name { color: var(--faint); }
@@ -497,10 +502,11 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 #title .sheet.picker .pars .parhead kbd { color: var(--ink); border-color: rgba(26, 18, 20, 0.35); }
 #title .sheet.picker .item.parpick { width: auto; margin: 0; padding: calc(2px * var(--ui)) calc(8px * var(--ui)); font-size: calc(12px * var(--ui)); opacity: 0.7; }
 #title .sheet.picker .item.parpick.on { opacity: 1; outline: 1px solid rgba(26, 18, 20, 0.55); }
-/* (the House row's choices are the par's chips, on its line: as full rows they pushed Back below a 720-px window, the play review of 2026-11-16) */
-#title .sheet.picker .item.drawpick { width: auto; margin: 0; padding: calc(2px * var(--ui)) calc(8px * var(--ui)); font-size: calc(12px * var(--ui)); opacity: 0.7; }
-#title .sheet.picker .item.drawpick.on { opacity: 1; outline: 1px solid rgba(26, 18, 20, 0.55); }
-.house-side { display: flex; flex-direction: column; gap: calc(8px * var(--ui)); width: calc(330px * var(--ui)); max-height: 92vh; overflow: hidden; }
+/* (the House row's choices are the par's chips, on its line: as full rows they pushed Back below a 720-px window, the play review of 2026-11-16; the rooms' choices too, a choice of the rooms off while the house is not drawn) */
+#title .sheet.picker .item.drawpick, #title .sheet.picker .item.roompick { width: auto; margin: 0; padding: calc(2px * var(--ui)) calc(8px * var(--ui)); font-size: calc(12px * var(--ui)); opacity: 0.7; }
+#title .sheet.picker .item.drawpick.on, #title .sheet.picker .item.roompick.on { opacity: 1; outline: 1px solid rgba(26, 18, 20, 0.55); }
+#title .sheet.picker .item.roompick.off { opacity: 0.35; outline: none; cursor: default; }
+.house-side { display: flex; flex-direction: column; gap: calc(8px * var(--ui)); width: calc(330px * var(--ui)); max-height: 92vh; overflow-x: hidden; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--glass-line) transparent; }
 .runsheet { background: #efe9dc; color: #24201f; border-radius: 3px; padding: calc(6px * var(--ui)) calc(8px * var(--ui)); font-family: var(--type); font-size: calc(10.5px * var(--ui)); line-height: 1.3; box-shadow: inset -2px 0 0 #d9d0bc; }
 .runsheet .rs-title { display: flex; justify-content: space-between; color: #7d746a; letter-spacing: 0.08em; border-bottom: 1px solid #d9d0bc; margin-bottom: calc(3px * var(--ui)); }
 .runsheet .rs-card { margin: 0 0 calc(4px * var(--ui)); font-weight: 600; letter-spacing: 0.02em; }
@@ -702,7 +708,7 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .item.again-as.up { outline: 1px solid rgba(95, 191, 126, 0.6); }
 .timer.strip { height: calc(22px * var(--ui)); }
 .plaque.speaker { position: absolute; left: 0; top: 0; pointer-events: none; image-rendering: pixelated; transition: none; }
-.house-side.with-plan { width: auto; flex-direction: column; }
+.house-side.with-plan { width: auto; flex-direction: column; flex: 1 1 auto; min-width: 0; }
 .house-side.with-plan > .runsheet { width: auto; font-size: calc(9.5px * var(--ui)); }
 .houseplan { background: var(--glass); border: 1px solid var(--glass-edge); border-radius: 4px; padding: calc(4px * var(--ui)); color: var(--glass-text); font-size: calc(10px * var(--ui)); }
 .houseplan .plan-head { display: flex; gap: calc(8px * var(--ui)); justify-content: space-between; color: var(--brass); letter-spacing: 0.08em; }
@@ -712,6 +718,11 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .houseplan .plan-legs { position: relative; height: calc(11px * var(--ui)); }
 .houseplan .plan-leg { position: absolute; top: 0; height: 100%; border-left: 1px solid var(--faint); padding-left: 2px; color: var(--faint); overflow: hidden; white-space: nowrap; font-size: calc(9px * var(--ui)); }
 .houseplan .plan-leg.passed { color: #d07a6e; }
+/* (the ghost's legs, a thin row under yours; its choice in the head, as small as the clock) */
+.houseplan .plan-legs.ghost { height: calc(6px * var(--ui)); opacity: 0.55; }
+.houseplan .plan-leg.ghost { border-left-style: dotted; font-size: 0; }
+.houseplan .plan-ghost { font: inherit; font-size: calc(9px * var(--ui)); letter-spacing: 0; color: var(--glass-text); background: transparent; border: 1px solid var(--glass-edge); border-radius: 3px; padding: 0 calc(2px * var(--ui)); max-width: calc(150px * var(--ui)); }
+.houseplan .plan-ghost option { color: #1a1214; }
 .houseplan .plan-scrub { width: 100%; margin: 0; }
 .houseplan .plan-lane { position: relative; height: calc(8px * var(--ui)); margin-left: calc(36px * var(--ui)); border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
 .houseplan .plan-lane b { position: absolute; left: calc(-36px * var(--ui)); top: 0; font-weight: normal; color: var(--faint); font-size: calc(8px * var(--ui)); }
@@ -723,7 +734,10 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .houseplan .plan-foot button { font: inherit; color: var(--glass-text); background: rgba(255, 255, 255, 0.06); border: 1px solid var(--glass-edge); border-radius: 2px; padding: 0 calc(4px * var(--ui)); cursor: pointer; }
 .houseplan .plan-foot .plan-fault { color: #e0533f; }
 .houseplan .plan-truth:empty { display: none; }
-#title .sheet.picker .item.sheetpick small.best { display: block; color: #2f7a4c; }
+/* (the best on the sheet's own line, after its name, not a line of its own: with bests the picker's Back fell below a
+   1280 x 720 window, which v0.0.21's fixer had made fit unscrolled) */
+#title .sheet.picker .item.sheetpick small.best { display: block; color: #2f7a4c; flex-basis: auto; margin-left: auto; order: 1; }
+#title .sheet.picker .item.sheetpick small:not(.best) { order: 2; }
 .glass.end.house .glass-list { display: grid; grid-template-columns: 1fr 1fr; gap: calc(3px * var(--ui)); }
 .glass.end.house .glass-list .item { margin: 0; }
 .glass.end.house .aspect-said { font-size: calc(11px * var(--ui)); line-height: 1.25; }
@@ -739,3 +753,13 @@ kbd { display: inline-block; min-width: 1.6em; padding: 0 4px; border: 1px solid
 .end-wrap:has(> .house-side.with-plan) .glass.end.house .glass-list .item small { display: none; }
 .end-wrap:has(> .house-side.with-plan) .glass.end.house .aspect-said { font-size: calc(10.5px * var(--ui)); line-height: 1.2; }
 .end-wrap:has(> .house-side.with-plan) .glass.end.house .note { font-size: calc(10px * var(--ui)); margin-top: calc(6px * var(--ui)); }
+/* (the hunt of v0.0.20, P1 and P4: beside the plan the card took what the run sheet's long lines left it, 202 to 627 px, so the live
+   casualty's card scrolled 167 to 252 px with its last choices out of sight. The card now has its own width, 400 px × --ui
+   (the window's 40% at most), and never gives it up; the side column takes the rest, the plan's canvas at its own size and the run
+   sheet wrapping under it. A stand clicked opens its truth card beside the canvas (.plan-row), where the side column had room, and
+   the column scrolls where a narrow window wraps it under the canvas, so the run sheet is never cut out of reach) */
+.end-wrap:has(> .house-side.with-plan) { max-width: calc(100vw - 2 * var(--m)); }
+.end-wrap:has(> .house-side.with-plan) > .glass.end.house { flex: none; width: min(calc(400px * var(--ui)), 40vw); }
+.houseplan .plan-row { display: flex; flex-wrap: wrap; align-items: flex-start; gap: calc(6px * var(--ui)); }
+.houseplan .plan-row > .plan-truth .stress-wash { padding: calc(4px * var(--ui)); }
+.end-wrap .stress-wash figcaption.stand { color: var(--paper); }

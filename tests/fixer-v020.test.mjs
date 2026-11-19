@@ -79,6 +79,7 @@ export default [
   },
   {
     name: 'on the live lane a wound that leaves you fighting is the one thing ("paint"), never "Clean lane", its room is not counted a clean room, and the wound model\'s sentences are on the run sheet the end card shows under the plan view (the play review of v0.0.20: the corporal by T on 1111, struck in the chest and wounded, was told "Clean lane. Again, faster." and "3 clean rooms", the page never said "bleeding")',
+    heavy: true, // (the v0.0.22 integration: the file over its quick CPU budget, 3 s (QUICK_FILE_CPU_S), on v0.0.21's runner; its whole lanes moved to the heavy suite as TECH §13.7 says, the case unchanged)
     fn() {
       const { H, rs } = houseLane({ tier: 'cpl', seed: 1111, mode: 'T', opfor: 'live' });
       const el = runSheetEl(rs, { doc: fakeDoc }), text = textOf(el);
@@ -146,6 +147,7 @@ export default [
   },
   {
     name: 'the house\'s voice keeps every fixed line (the PA\'s, the team\'s calls) however many other lines are said, and bakes a line said after the sounds are all baked: 230 lines after the fixed 56 leave the 56 cached and 160 others, and a fixed line said again is not baked again (the code review of v0.0.20: the trim deleted the oldest, the fixed lines first, at 280; and no line said once toBake was empty was ever baked)',
+    heavy: true, // (the v0.0.22 integration: the file over its quick CPU budget, 3 s (QUICK_FILE_CPU_S), on v0.0.21's runner; its whole lanes moved to the heavy suite as TECH §13.7 says, the case unchanged)
     fn() {
       const Klass = function () { return new FakeContext(); };
       const audio = createAudio({ sound: 'new', voice: 'c', AudioContextClass: Klass });

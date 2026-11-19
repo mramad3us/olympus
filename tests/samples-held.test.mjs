@@ -15,7 +15,10 @@ import { golden } from './golden.mjs';
 import { composeFrame } from '../src/art/figures/compose.js';
 import { shade } from '../src/art/figures/shade.js';
 import { wear, coloursOf } from '../src/art/figures/outfits.js';
-import { FRAMES, DIRS } from '../src/art/figures/poses.js';
+import { FRAMES as FRAMES_ALL, DIRS, BANDS } from '../src/art/figures/poses.js';
+// (v0.0.22: the held band's frames are new (poses.js BANDS.stanceHeld, the build sheet v0.0.22 §1 item 17); the game's frames before
+// them are pinned here as they were, and art-held holds the new ones)
+const FRAMES = FRAMES_ALL.filter(f => !BANDS.stanceHeld.includes(f));
 import { BEAT_FRAMES, beatPose } from '../src/art/figures/walk.js';
 import { expand } from '../tools/gallery.mjs';
 import { DEV_COL, isDevice, SETS, THROWS, specOf, poseFor } from '../samples/held-devices/held.js';

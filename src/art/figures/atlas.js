@@ -24,6 +24,14 @@
 // sheets: flashStrip() paints every one there can be (each gun, facing and fire frame: tradecraft's
 // FLASH turned with the gun, or a star at you) into one small strip, with each one's offset from its
 // cell's top-left, and the render draws it as a card of its own, unlit, for FLASH_MS.
+// v0.0.22 (its build sheet §1 item 17; the residuals lens's R3): the device in the hands is not on the sheets either. heldStrip()
+// paints it once, at load, into one small strip of cards: for each device's shape (templates.js HELD and HELD_POSES), each frame a
+// body with it in hand draws (the idle, the walk and the run, the rifle slung in front, holding it in the right fist; and the held
+// band's own) and each facing, the frame composed with the device and without it, both shaded in the house marine's look, and the
+// card is every pixel the two differ in (the device where the body leaves it in sight, its outline, the inner line it lays on the
+// body), cropped, with its offset from its cell's top-left: so the card over the figure's card is the frame with the device, to the
+// pixel, and a figure with no device is the frame it always was. A card a colour of that shape (devicetable.js look.colour); the
+// hands' tips kept for the checks. The render draws them as the figures are, lit (src/render/figures.js).
 // Pure: Pixmaps (src/art/paint.js words), no GPU objects.
 import { PX_PER_M } from '../../render/scale.js';
 import { BANDS, BAND_KEYS, DIRS, cellKind, FRAMES, POOL_OF } from './poses.js';
@@ -31,7 +39,7 @@ import { bodyOf } from './body.js';
 import { composeFrame } from './compose.js';
 import { shade } from './shade.js';
 import { coloursOf, wear } from './outfits.js';
-import { flashCells } from './templates.js';
+import { flashCells, HELD, HELD_POSES, HELD_COLOURS, HELD_VARIANTS } from './templates.js';
 import { word } from '../paint.js';
 
 /** The sheet's width, metres at the density (512 px at 16 px/m, 768 at 24). */
@@ -219,6 +227,63 @@ export function flashStrip(ppm = PX_PER_M) {
   strips.set(key, out);
   return out;
 }
+
+// ---------- the device in the hands (see the header) ----------
+/** The frames a body walking or standing with a device draws (the held band's are HELD_POSES' own), each with the device in its right fist. */
+export const HELD_WALK_FRAMES = Object.freeze(['idle0', 'idle1', ...Array.from({ length: 8 }, (_, i) => `walk${i}`), ...Array.from({ length: 8 }, (_, i) => `run${i}`), 'slungFront']);
+/** The look the held cards are composed in: the house marine's (the black combat EVA suit, the carrier, the R-7 slung in front). */
+export const HELD_LOOK = Object.freeze({ outfit: 'combatSuit', carrier: true, weapon: 'rifle', carry: 'front', seed: 3, model: 'r7' });
+/** The width of the held strip (px; its shelves of cards). */
+const HELD_STRIP_W = 512;
+const heldStrips = new Map();
+export { HELD_VARIANTS };
+/** A card's key in the strip's index. */
+export const heldKey = (shape, colour, frame, dir) => `${shape}|${colour}|${frame}|${dir}`;
+/**
+ * The held strip at a density (see the header): { pm (the strip, rows of cards), index: Map heldKey → { x, y, w, h (in the strip), ox,
+ * oy (the card's top-left from its cell's), hands: { r, l } (the tips in the cell's pixels), seen (pixels), all? (check: the device
+ * drawn alone, { n, px, w, h }) }, shapes, ms }. look: the look composed (HELD_LOOK); shapes: the shapes baked (all by default; the
+ * render bakes the lane's kit's at the brief's splash); check: the tests' whole-device pixels too.
+ */
+export function heldStrip(ppm = PX_PER_M, { look = HELD_LOOK, shapes = null, check = false } = {}) {
+  const want = HELD_VARIANTS.filter(([shape]) => !shapes || shapes.includes(shape)), key = `${ppm}|${JSON.stringify(look)}|${want.map(v => v[0]).join(',')}${check ? '|check' : ''}`;
+  if (heldStrips.has(key)) return heldStrips.get(key);
+  const t0 = performance.now(), L = wear(look), col0 = coloursOf(L, ppm), steel = HELD_COLOURS.steel;
+  const cards = [], plain = new Map();
+  const plainOf = (frame, dir) => { const k = `${frame}|${dir}`; if (!plain.has(k)) plain.set(k, shade(composeFrame(L, dir, frame, { ppm }).cells, col0)); return plain.get(k); };
+  for (const [shape, colours] of want) {
+    const frames = [...HELD_WALK_FRAMES.map(f => [f, HELD[shape]]), ...Object.entries(HELD_POSES).filter(([, P]) => P.parts[shape]).map(([f, P]) => [f, P.parts[shape]])];
+    for (const [frame, parts] of frames) for (const dir of DIRS) {
+      const fr = composeFrame(L, dir, frame, { ppm, device: { parts } });
+      const base = plainOf(frame, dir), W = fr.w;
+      // (check: the device drawn alone too, its whole pixels and whether any lies on the cell's edge, where a longer part is cut off)
+      const only = check ? composeFrame(L, dir, frame, { ppm, device: { parts, only: true } }) : null;
+      const devPx = only ? only.cells.flatMap((row, y) => row.map((c, x) => (c && HELD_LETTER_SET.has(c.ch.toLowerCase()) ? [x, y] : null))).filter(Boolean) : null;
+      const all = devPx ? { n: devPx.length, px: devPx, w: only.w, h: only.h } : null;
+      for (const colour of colours) {
+        const c = HELD_COLOURS[colour] ?? HELD_COLOURS.olive;
+        const pm = shade(fr.cells, { ...col0, 'ǧ': c, 'ƶ': c, 'š': steel, 'ő': HELD_COLOURS.orange });
+        const px = [];
+        for (let i = 0; i < pm.data.length; i++) if (pm.data[i] !== base.data[i]) px.push(i);
+        let x0 = W, y0 = fr.h, x1 = -1, y1 = -1;
+        for (const i of px) { const x = i % W, y = (i / W) | 0; x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+        cards.push({ key: heldKey(shape, colour, frame, dir), pm, W, px, x0, y0, w: x1 < 0 ? 0 : x1 - x0 + 1, h: y1 < 0 ? 0 : y1 - y0 + 1, hands: fr.hands, ...(all ? { all } : {}) });
+      }
+    }
+  }
+  // (shelves: cards left to right, then a new row; an empty card (the device all behind the body) takes no room)
+  let sx = 0, sy = 0, shelf = 0;
+  for (const c of cards) { if (!c.w) continue; if (sx + c.w > HELD_STRIP_W) { sx = 0; sy += shelf; shelf = 0; } c.x = sx; c.y = sy; sx += c.w; shelf = Math.max(shelf, c.h); }
+  const H = Math.max(1, sy + shelf), data = new Uint32Array(HELD_STRIP_W * H), index = new Map();
+  for (const c of cards) {
+    for (const i of c.px) { const x = i % c.W, y = (i / c.W) | 0; data[(c.y + y - c.y0) * HELD_STRIP_W + c.x + x - c.x0] = c.pm.data[i]; }
+    index.set(c.key, { x: c.x ?? 0, y: c.y ?? 0, w: c.w, h: c.h, ox: c.x0, oy: c.y0, hands: c.hands, seen: c.px.length, ...(c.all ? { all: c.all } : {}) });
+  }
+  const out = { pm: { w: HELD_STRIP_W, h: H, data, repeat: false, key: `held:${key}`, glows: false }, index, count: cards.length, shapes: want.map(v => v[0]), ms: performance.now() - t0 };
+  heldStrips.set(key, out);
+  return out;
+}
+const HELD_LETTER_SET = new Set(['ǧ', 'š', 'ƶ', 'ő']);
 
 /** The frames a band holds, and which band a frame is in (for the render's lazy painting). */
 export { BANDS, BAND_KEYS, FRAMES };

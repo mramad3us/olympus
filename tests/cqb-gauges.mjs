@@ -20,7 +20,9 @@
 //   bodies   F2   #1 to #2 centre to centre: the least, and the ms under BODY_GAP_M
 //   swings   F26  a body in a door's swing still to come (zones.js arcLiveAt) while its leaf moves: ms each, the leaves swung
 //   entry    F25  the #2's entry on his cue, room by room: the cue's ms (bundle.js entryGo), his threshold's, out (never in
-//                before you left the door), your body standing across his way in
+//                before you left the door), your body standing across his way in; v0.0.22 (the build sheet v0.0.22 §8, R2): a
+//                cue held by a live grenade (burst.js liveIn: in the room he goes into, or within its stun line of his way in) is
+//                timed from its burst, the record's `live` true ("held by a live grenade n"), since he waits for the bang
 //   corners  F7   the corner faults, and at each room's "Clear!" every hot spot covered and by whom (L.covered: the house's
 //                faults and clears by its 'house' facts, an operation's clears by its 'op' facts)
 //   pins     F45  your longest walk held by a body (places/move.js PIN_END_MS), as flawless-bodies.mjs bodiesLane reads it
@@ -29,7 +31,9 @@ import { openNavOf } from '../src/sim/places/nav.js';
 import { areaOf, leafClosed } from '../src/sim/places/model.js';
 import { planOf, leafRect } from '../src/sim/places/plan.js';
 import { pastThreshold } from '../src/sim/combat/room.js';
-import { doorNow, entryGo } from '../src/sim/combat/bundle.js';
+import { doorNow, entryGo, entryPathOf } from '../src/sim/combat/bundle.js';
+import { liveIn } from '../src/sim/combat/burst.js';
+import { sideOf } from '../src/sim/combat/team.js';
 import { keepClearOf, restClear, arcsOf, arcLiveAt } from '../src/sim/places/zones.js';
 import { openingDelta } from '../src/sim/places/model.js';
 import { onFloor } from '../src/sim/places/collide.js';
@@ -141,6 +145,8 @@ export function entry(game, { team } = {}) {
       if (P?.door && here.door !== 'hall') {
         const E = (rec[here.door] ??= { cueMs: null, inMs: null, out: false, blockMs: 0 });
         if (E.cueMs === null && entryGo(st, P, me, now, here.rec)) E.cueMs = now;
+        // (v0.0.22, R2: held by a live grenade, his cue runs from its burst: moved on each tick one lies there)
+        if (E.cueMs !== null && E.inMs === null && !pastThreshold(P, two.x, two.z) && liveIn(st, P, entryPathOf(P, sideOf(st, here.door, 2)))) { E.cueMs = now; E.live = true; }
         if (E.inMs === null && pastThreshold(P, two.x, two.z)) E.inMs = now;
         // (#1 standing across the #2's way in while he is cued and not in: the player's own choice, printed for the fuzz)
         if (E.cueMs !== null && E.inMs === null && dt > 0 && Math.hypot(me.v?.[0] ?? 0, me.v?.[1] ?? 0) < STILL_MS && !restClear(keepClearOf(st, team.me), me.x, me.z)) E.blockMs += dt;

@@ -18,8 +18,12 @@
 //           thing it is at), so the counts are the run sheet's own (tests/house-debrief.test.mjs);
 //   legs    a row a leg: its word, room, door, from, clear, par and state (the scrubber's segments);
 //   from    the trace's first sample (ms), null with no trace.
+// v0.0.22 (its build sheet §1 item 16, the house lens's G4): the model also names the house and the setup the lane was played on,
+// code (assemble.js houseCodeOf: 'A' as set, a drawn house's whole code with its cast) and setup (houseSetupOf: 'room:2', 'room:3'
+// or 'hall' where the legs before it were cleared by a setup, else null), so the end card's ghost (src/ui/cards/house-ghosts.js)
+// is offered only on its own house and lane. Read-only, as the rest.
 // Pure: no DOM, no clock but the game's; called by the end card only (main.js openHouseEnd calls it directly).
-import { houseSpecOf } from '../scenes/assemble.js';
+import { houseSpecOf, houseCodeOf } from '../scenes/assemble.js';
 import { areaOf } from '../places/model.js';
 import { lanePlanOf } from '../combat/room.js';
 import { rangeOf } from './handling.js';
@@ -30,6 +34,8 @@ const LEG_WORD = Object.freeze(['ROOM 1', 'ROOM 2', 'ROOM 3', 'THE HALL']);
 /** A fault's word on the plan (the run sheet's paper words where it has one). */
 const FAULT_WORD = Object.freeze({ funnel: 'DOORWAY', muzzle: 'MUZZLE', corner: 'CORNER MISSED', noshoot: 'NO-SHOOT HIT', hostage: 'HOSTAGE HIT', standing: 'LEFT STANDING', door: 'DOOR LEFT', time: 'TIME', relaxed: 'RELAXED', cold: 'COLD', masked: 'MASKED' });
 
+// (the house's code, null where it cannot be read)
+const codeOf = (state) => { try { return houseCodeOf(state); } catch { return null; } };
 // (a rect inside another: the house's rooms out of the sector's)
 const inside = (r, R) => r[0] >= R[0] - 1e-6 && r[1] >= R[1] - 1e-6 && r[2] <= R[2] + 1e-6 && r[3] <= R[3] + 1e-6;
 // (the sample at or before ms: its index, or -1 before the trace)
@@ -45,6 +51,12 @@ export function placeAt(tr, who, ms) {
   if (!arr?.length) return null;
   const i = Math.max(0, sampleAt(tr, ms)), o = i * 5;
   return arr[o] === null ? null : { x: arr[o], z: arr[o + 1], faceDeg: arr[o + 2], stance: arr[o + 3], carry: arr[o + 4] };
+}
+
+/** The setup a lane was played from: 'room:2', 'room:3' or 'hall' by the legs a setup cleared before it, else null (GO, the brief, a contact). */
+export function houseSetupOf(H) {
+  const n = [...(H?.rooms ?? []), ...(H?.hall ? [H.hall] : [])].filter(L => L?.setup).length;
+  return ['room:2', 'room:3', 'hall'][n - 1] ?? null;
 }
 
 /** The plan view's model (see the header), or null off the house course. */
@@ -86,6 +98,8 @@ export function debriefOf(state) {
   const tracks = tr ? { ms: [...tr.ms], me: [...tr.me], two: [...tr.two], live: Object.fromEntries(Object.entries(tr.live ?? {}).map(([k, v]) => [k, [...v]])) } : { ms: [], me: [], two: [], live: {} };
   return {
     walls, doors, stands, tracks, events, from: tr?.ms?.[0] ?? null, goAtMs: H.goAtMs, endAtMs: H.end?.atMs ?? null, me: playerId(state), tier: H.tier,
+    // (the house and the setup, for the ghost's key)
+    code: codeOf(state), setup: houseSetupOf(H),
     legs: legs.map((L, k) => ({ k, word: LEG_WORD[k] ?? `LEG ${k + 1}`, room: L.room, door: L.door, fromMs: L.fromMs, clearAtMs: L.clearAtMs, parMs: L.parMs ?? null, state: L.state })),
     hot: legs.flatMap((L, k) => (plan.plans[L.door]?.hot ?? []).map(h => ({ leg: k, id: h.id, x: h.x, z: h.z, covered: !!L.covered?.[h.id] }))),
   };

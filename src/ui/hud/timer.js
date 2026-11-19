@@ -33,6 +33,7 @@
 // says its par after its time ("ROOM 1 6.70 / 9.0"). One helper gives both: laneModel.
 import { textW, writeText } from '../plaque.js';
 import { GLOWS } from '../../art/palette.js';
+import { PAPER_S_MIN } from './paper.js';
 
 /** The paper's size (CSS px at --ui 1: within layout.js RECTS.PAPER's 200 × 200), its letters' scale (paper px a font px). */
 export const TIMER_W = 200, TIMER_H = 140, TIMER_K = 2;
@@ -171,10 +172,14 @@ export function createTimer(parent) {
       root.hidden = false;
       // (a model with a strip draws the strip alone, the paper's words kept for the report)
       const strip = typeof m.strip === 'string' && m.strip ? m.strip : null;
-      const s = Math.max(1, ui * dpr), H = strip ? STRIP_H : m.h ?? TIMER_H, sg = JSON.stringify([Math.round(s * 100), m.title ?? null, m.head, m.rows, m.zones, H, strip]);
+      // (the hunt of v0.0.20, T6: the paper drawn at the size it is shown, device pixel for device pixel: s is --ui × dpr, below 1 too (a
+      // letter pixel TIMER_K × s, 1.7 device px at the least --ui), and the canvas shown at its own pixels over dpr. Drawn at s 1 into
+      // the 170 px box of --ui 0.85, the browser dropped 32 columns; drawn 2 px wider than a bordered box, two at every size)
+      const s = Math.max(PAPER_S_MIN, ui * dpr), H = strip ? STRIP_H : m.h ?? TIMER_H, sg = JSON.stringify([Math.round(s * 100), Math.round(dpr * 100), m.title ?? null, m.head, m.rows, m.zones, H, strip]);
       if (sg !== sig) {
         sig = sg;
         cv.width = Math.round(TIMER_W * s); cv.height = Math.round(H * s);
+        cv.style.width = `${cv.width / dpr}px`; cv.style.height = `${cv.height / dpr}px`;
         // (0.0.10: a long paper's strip longer, within PAPER)
         root.style.height = H === TIMER_H ? '' : `calc(${H}px * var(--ui))`;
         root.classList.toggle('strip', !!strip);
@@ -244,8 +249,9 @@ export function laneModel(hn, nowMs = 0) {
   for (const r of legs) for (const [k, n] of Object.entries(r.zones ?? {})) z[k] = (z[k] ?? 0) + (Number(n) || 0);
   const zones = [...ZONE_ORDER, ['hostage', 'HOSTAGE HIT']].map(([k, word]) => ({ k: k === 'hostage' ? 'noshoot' : k, n: Number(z[k]) || 0, word })).filter(x => x.n > 0);
   // (a drawn house is no lettered lane: houseNow gives its lane null; "NEW LAYOUT", as the run sheet's card says it (the play review
-  // of 2026-11-16: the board read "LANE A" over a drawn house))
-  const head = hn.lane === null ? 'NEW LAYOUT' : `LANE ${hn.lane ?? 'A'}`, text = `${head} · ${rows.map(r => `${r.label} ${r.value}`).join(' · ')}${zones.length ? ` · ${zones.map(x => `${x.n} ${x.word}`).join(', ')}` : ''}`;
+  // of 2026-11-16: the board read "LANE A" over a drawn house); a named house's letter (houseNow's lane: 'B' or 'C'), another
+  // drawn house "NEW LAYOUT" (houseNow's `drawn`), the set "LANE A")
+  const head = hn.lane ? `LANE ${hn.lane}` : hn.drawn ? 'NEW LAYOUT' : 'LANE A', text = `${head} · ${rows.map(r => `${r.label} ${r.value}`).join(' · ')}${zones.length ? ` · ${zones.map(x => `${x.n} ${x.word}`).join(', ')}` : ''}`;
   const h = Math.min(TIMER_H_MAX, Math.max(TIMER_H, paperFoot(rows, zones) + PAPER_FOOT_PAD));
   // (the strip while the lane runs (off the room): the room now, its time and par, the man to answer and his par's time left)
   const strip = done ? null : [cur ? `${roomWord(cur.r, cur.i)} ${tenth(cur.r.ms)}` : `GO ${tenth(t)}`, cur && Number.isFinite(cur.r.parMs) ? `PAR ${tenth(cur.r.parMs)}` : null,

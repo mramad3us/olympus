@@ -118,7 +118,17 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
       // (v0.0.21, the build sheet's item 6: the holstered P-12's round owed too (sidearm.js pistolOwed: its part of MAKE READY fumbled),
       // which the tower waits on; before, the bot read the rifle alone and sat through the move-on, the net's p12-unready lanes)
       const settled = b?.mode === 'safe' && finger !== 'on' && posture(state) === 'lowReady' && b?.chamber === 'live' && b?.mag === 'in';
-      const want = (cmd === 'load' && b?.mag !== 'in') || (cmd === 'ready' && !settled) || cmd === 'clear' || (cmd === 'stop' && (b?.mode !== 'safe' || finger === 'on'))
+      // (v0.0.22, FL22-1: at SHOW CLEAR, not where the DI's line says to wait with nothing to press ("Your number two is still on it.
+      // Wait.": your guns passed, his clear the scene's to skip), as a player who reads it)
+      // (the B and C review of 2026-11-16: the lines that say so exactly, the tower's command's 'two' (instinct/range.js range-cmd)
+      // and range-wait ("Done. Wait for the next command."), not any line without an act: "A question mark is not a condition. Check
+      // it." asks you to check the gun, G as the bot pressed before v0.0.22; and nothing on the first tick after a load, where the instinct has not run (its line runtime, $instinct, never saved):
+      // the bot read no line there and pressed G where the unbroken run read the Wait and pressed nothing, so a save in the
+      // house-showclear tail carried on apart in the bot's gAtMs and presses, and after a load the instinct, settled afresh, put up
+      // the tower's line where the unbroken run kept the question mark's, and the bot pressed G on one and not the other)
+      if (cmd === 'clear' && state.$instinct === undefined) return state.armoury?.range?.shown ? {} : press(mem, now, { act: ['ready'] });
+      const line = cmd === 'clear' ? instinctNow(state)?.line ?? null : null, waitTwo = line?.id === 'range-wait' || (line?.id === 'range-cmd' && line.variant === 'two');
+      const want = (cmd === 'load' && b?.mag !== 'in') || (cmd === 'ready' && !settled) || (cmd === 'clear' && !waitTwo) || (cmd === 'stop' && (b?.mode !== 'safe' || finger === 'on'))
         || (p12 && (cmd === 'ready' || cmd === 'standby') && (pistolOwed(state, pid) || !!drawnPistol(state, pid)));
       return want ? press(mem, now, { act: ['ready'] }) : {};
     }
@@ -128,7 +138,11 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     const steps = stepsOf(state), has = (id) => steps.some(s => s.id === id && !s.off), row = (pred) => steps.find(s => !s.off && pred(s)) ?? null;
     if (b?.stoppage === 'double' && has('macro:remedial')) return choose('macro:remedial');
     if (b?.stoppage && has('macro:ia')) return choose('macro:ia');
-    if (['slungFront', 'slungBack'].includes(posture(state)) && has('up') && cmd !== 'clear') return choose('up');
+    // (v0.0.22, its build sheet's item 18 (FL22-8): at SHOW CLEAR too, where the DI's line says "Rifle up." (the rifle swung onto its
+    // sling in the macro, a fumble), as a player reads it, then UNLOAD, SHOW CLEAR again where the DI's line names it (below); before,
+    // the bot pressed Wait until the instructor's take at the move-on (the boot recruit on seed 1 live: the swing 2.55 s into the
+    // macro, the take 60 s after the command))
+    if (['slungFront', 'slungBack'].includes(posture(state)) && has('up') && (cmd !== 'clear' || instinctNow(state)?.line?.act === 'stop:up')) return choose('up');
     // (v0.0.20, the build sheet's item 12: by the keys, "Coming out!" before leaving a room called clear: the single, DRILL_IN 6,
     // once a room (a stack row after it says nothing more: bundle.js's `out` kind, once a room))
     if (lane && mode === 'keys' && has('call:out') && !(mem.out ??= {})[legI]) { mem.out[legI] = now; return choose('call:out'); }
@@ -153,7 +167,10 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
       if (cmd === 'clear') {
         if (has('queue')) return choose('queue');
         // (UNLOAD, SHOW CLEAR once at the command: the instructor's next follows the show)
-        if (has('macro:clear') && mem.clearAt !== N.cmdAtMs) { mem.clearAt = N.cmdAtMs; return choose('macro:clear'); }
+        // (v0.0.22, item 18: and again where the DI's line names it after a halt, a swing onto the sling put right (the macro plans
+        // from what the card believes, so what is already clear is not done twice), once a pause)
+        const again = instinctNow(state)?.line?.act === 'stop:macro:clear' && mem.clearAgainAt !== now;
+        if (has('macro:clear') && (mem.clearAt !== N.cmdAtMs || again)) { mem.clearAt = N.cmdAtMs; if (again) mem.clearAgainAt = now; return choose('macro:clear'); }
         // (the rifle's done and the holstered P-12 still loaded (a fumble halted the macro short of it): its own row, as the
         // instructor names it (sidearm.js pistolClearOwed; the hunt of v0.0.18's pistol-2))
         if (has('weapon:pistol-clear') && mem.pistolClearAt !== now) { mem.pistolClearAt = now; return choose('weapon:pistol-clear'); }
@@ -221,7 +238,7 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     const farW = inside && plan ? (plan.hot ?? []).find(h => h.why === 'far leg' && !L.corners?.by?.[h.id] && !(mem.walked ?? []).includes(`${legI}:${h.id}`)) : null;
     if (farW && mode === 'keys' && (mem.looked?.[legI] ?? []).includes(farW.id)) {
       (mem.walked ??= []).push(`${legI}:${farW.id}`);
-      mem.walk = { leg: legI, fromMs: now, path: [[me.x, me.z], [farW.x, farW.z]], k: 1, lineK: 1, untilCovered: farW.id, stopM: 2.0 };
+      mem.walk = { leg: legI, fromMs: now, path: farPathOf(plan, me, farW), k: 1, lineK: 1, untilCovered: farW.id, stopM: plan.far?.words ? 0 : 2.0 };
       return choose('leave');
     }
     // (the threats down: muzzle up before anything moves you or your eyes past your number two)
@@ -271,6 +288,10 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     // (a walk toward the far leg cut by a contact goes on once the shots are done, never back to the point first: a human keeps
     // going where he was going (2026-11-13, the rework's R8b: the far leg left unseen on 2 of 200 keys lanes))
     if (mode === 'keys' && mem.walk?.untilCovered && mem.walk.leg === legI && !L.corners?.by?.[mem.walk.untilCovered] && !(seen.armed.length || seen.unseen.length)) return choose('leave');
+    // (v0.0.22 A: at a far walk's end in a room of its own, its hot spot still uncovered (the keys' four-way face 27 degrees off the back
+    // room's middle on seed 2): one look more, from there, as the look before the walk)
+    const farEnd = plan?.far?.words ? (plan.hot ?? []).find(h => h.id === plan.far.hot && !L.corners?.by?.[h.id] && (mem.walked ?? []).includes(`${legI}:${h.id}`)) : null;
+    if (farEnd && inside && !mem.walk && has(`look:${farEnd.id}`) && !(mem.lookedEnd ??= []).includes(`${legI}:${farEnd.id}`)) { mem.lookedEnd.push(`${legI}:${farEnd.id}`); return choose(`look:${farEnd.id}`); }
     if (inside && has('move:point')) return choose('move:point');
     // (every hot spot on your side neither of you has covered: a Look, once each; one still unseen past a bend walked
     // toward by the keys until it is; the #2's side his; then "Clear!")
@@ -290,7 +311,7 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     const far = (plan.hot ?? []).find(h => !covered[h.id] && h.why === 'far leg' && !(mem.walked ?? []).includes(`${legI}:${h.id}`));
     if (far && inside) {
       (mem.walked ??= []).push(`${legI}:${far.id}`);
-      mem.walk = { leg: legI, fromMs: now, path: [[me.x, me.z], [far.x, far.z]], k: 1, lineK: 1, untilCovered: far.id, stopM: 2.0 };
+      mem.walk = { leg: legI, fromMs: now, path: farPathOf(plan, me, far), k: 1, lineK: 1, untilCovered: far.id, stopM: plan.far?.words ? 0 : 2.0 };
       return choose('leave');
     }
     if (has('call:clear')) return choose('call:clear');
@@ -307,6 +328,16 @@ function press(mem, now, input) {
   if (input.act?.[0] === 'ready') { if (mem.gAtMs !== undefined && now - mem.gAtMs < 500) return {}; mem.gAtMs = now; }
   mem.presses++;
   return input;
+}
+
+// (v0.0.22 A: a far walk into a room of its own (the plan's far.words: the twin's back room, past an inner doorway) is walked by the
+// plan's own path, through the doorway, to its end and 0.4 m on toward the far hot spot, so the eyes end on the room walked into (a
+// straight press at the back room's middle runs into the wall between the rooms: the keys private and recruit on every eight-room
+// lane with the twin, passed by the stall at 90 s); the ell's far leg, seen round its bend, is walked toward as before)
+function farPathOf(plan, me, h) {
+  if (!(plan?.far?.words && plan.far.hot === h.id)) return [[me.x, me.z], [h.x, h.z]];
+  const end = plan.far.path.at(-1), d = Math.hypot(h.x - end[0], h.z - end[1]) || 1;
+  return [[me.x, me.z], ...plan.far.path.slice(1).map(p => [...p]), [end[0] + (h.x - end[0]) * 0.4 / d, end[1] + (h.z - end[1]) * 0.4 / d]];
 }
 
 // (the walk in by the keys: nothing for the human's start, then toward each point of the path in turn; lineK > 1 runs the last leg long)

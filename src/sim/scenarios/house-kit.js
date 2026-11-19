@@ -16,8 +16,9 @@
 //   - the marks on the leg's row (practice.js readMarks): "FRAG IN ROOM 1: 1A DOWN, 1B DOWN", "1A STUNNED 3.2 S", and from the
 //     Sergeant up "UNCOOKED 3.8 S" with the instructor's "A live man throws that back. Cook it."; the leg's L.throws gains
 //     { by, atMs, exposedMs, at: null };
-//   - a clean frag is the instructor's "Good frag. 1a and 1b down."; a BC-1's door off its hinges his "Hinges cut. Go." (B.said).
-// A role-player (T.live) is never turned away by a read (§0 item 23: L's rebase rules him out 'frag').
+//   - a clean frag is the instructor's "Good frag: both men down." (counted, never the stands' ids: v0.0.22's fixer); a BC-1's door off its hinges his "Hinges cut. Go." (B.said).
+// A role-player (T.live) is never turned away by a read (§0 item 23: L's rebase rules him out 'frag'); the read's verdict on him is
+// kept, T.live.fragOut 'down' | 'wounded' (v0.0.20's hunt fix), which the run sheet counts DOWN or WOUNDED as the FRAG row says.
 // intelOf(state) is the brief's intelligence when the loadout carries a G-9P or G-13P: { [door]: 'hostiles' | 'unknown' }, a room
 // 'hostiles' only when its drawn faces hold no no-shoot and no hostage card (room 1 on the seeds where 1b is a threat), the hall
 // never a frag's room; the instructor says it at the brief (shoothouse.js kitWords). This is what the player is told ("we only
@@ -57,6 +58,9 @@ const legsOf = (H) => (H ? [...H.rooms, H.hall] : []);
 const fill = (line, map) => Object.entries(map).reduce((t, [k, v]) => t.replaceAll(`{${k}}`, String(v)), line);
 const pick = (state, lines, ...key) => hashPick(lines, 'house-chief', state.meta.seed, ...key);
 const listWords = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);
+// (the men a frag put down in words, counted: "one man", "both men", "three men")
+const MEN_NUM = Object.freeze(['no', 'one', 'two', 'three', 'four', 'five', 'six']);
+export const menWords = (n) => (n === 1 ? 'one man' : n === 2 ? 'both men' : `${MEN_NUM[n] ?? n} men`);
 
 /** The reads applied (w; see the header): 'burst' when a read calls the cease fire, else null. */
 export function readsTick(state, bus, R, H, now) {
@@ -76,7 +80,9 @@ export function readsTick(state, bus, R, H, now) {
       // (a role-player is ruled out by the read, never turned away: the build sheet 0.0.19 §0 item 23)
       // (a stun short of that is his combat block's, as burst.js gives a real one: rpShocked reads it, nothing new from him till it ends)
       if (T.live) {
-        if (s.out === 'down' || s.out === 'wounded') ruleOut(state, bus, T, 'frag');
+        // (the read's verdict kept on him (T.live.fragOut 'down' | 'wounded'), so the LIVE row and the card count him as the FRAG
+        // row names him: the hunt of v0.0.20 (frag-down) read "LIVE: 0 DOWN" beside "FRAG IN ROOM 2: 2A DOWN" on the sergeant's frag lane)
+        if (s.out === 'down' || s.out === 'wounded') { if (ruleOut(state, bus, T, 'frag')) T.live.fragOut = s.out; }
         else if (s.stunMs) { const a = state.actors?.list?.find(x => x.who === T.live.who); if (a) { const c = (a.combat ??= { supp: 0, suppAtMs: read.atMs, suppRate: 2, startleFromMs: null, startleUntilMs: null, blindUntilMs: null, dazzleUntilMs: null, deafUntilMs: null }); c.stunUntilMs = Math.max(c.stunUntilMs ?? 0, read.atMs + s.stunMs); } }
         continue;
       }
@@ -109,7 +115,7 @@ export function readsTick(state, bus, R, H, now) {
     // (the cease fire said where the burst was: in the room, or at the thrower's feet where a slip left it (the card's head too))
     const hit = (b) => !!b && (b.n >= FRAG_DOWN_N || b.kPa >= EARDRUM50_KPA);
     if (stack.some(hit)) { cease = 'burst'; read.cease = B.atFeet ? 'feet' : 'room'; chiefSays(state, bus, !B.atFeet ? HOUSE_CHIEF.burst : hit(read.stack?.me) ? HOUSE_CHIEF.burstFeet : HOUSE_CHIEF.burstFeetTwo, 'burst', B.id); }
-    else if (read.as === 'g9' && !read.fragged && down.length) chiefSays(state, bus, fill(pick(state, HOUSE_CHIEF.fragGood, 'fragGood', B.id), { list: listWords(down) }), 'fragGood');
+    else if (read.as === 'g9' && !read.fragged && down.length) chiefSays(state, bus, fill(pick(state, HOUSE_CHIEF.fragGood, 'fragGood', B.id), { list: menWords(down.length) }), 'fragGood');
     if (read.uncookedMs && rung >= COOK_NOTE_RUNG && !cease) chiefSays(state, bus, HOUSE_CHIEF.uncooked, 'uncooked', B.id);
   }
   return cease;

@@ -219,6 +219,13 @@ export const ACTIVITIES = deepFreeze({
     parts: [still('house-wash', 'asked', 1.5, 'stand', { line: 'The instructor went through the lane with you, room by room.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
     log: ['The hot wash: {dur} of the lane, room by room.', '{dur} at the booth with the instructor\'s paper.', 'The instructor walked the lane back with you: {dur}.', '{dur} of the hot wash: the take-ins, the corners, the hits.'],
   },
+  // (its build sheet's item 1 (FL22-1): SHOW CLEAR after your gun is passed, your number two's clear and the instructor's
+  // look at it behind the brief splash, as the hot wash is (src/sim/scenarios/shoothouse.js houseSecond); a fast-forward of lived ticks)
+  'house-showclear': {
+    id: 'house-showclear', class: 'day', uses: [], offer: 'the show clear', noun: 'the show clear', mask: 'D A',
+    parts: [still('house-showclear', 'asked', 1.5, 'stand', { line: 'Your number two cleared his guns for the instructor.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['Your number two cleared his guns for the instructor: {dur}.', '{dur} on safe while your number two showed clear.', 'The instructor looked into your number two\'s chamber: {dur}.', '{dur} for your number two\'s SHOW CLEAR.'],
+  },
   idle: {
     id: 'idle', class: 'day', uses: [], offer: 'idle', mask: 'D A',
     parts: [still('idle', 'asked', 1.5)], resumable: false, stoppable: true, chunkMs: 0, vignette: null, min: 0,

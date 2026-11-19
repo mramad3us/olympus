@@ -80,6 +80,10 @@
 // [&draw=set|drawn] [&house=<code>] [&doors=fixed] (test-shoothouse's house, as set (layout A, the default) or drawn from the
 // seed (src/sim/scenes/assemble.js); &house a drawn house's code, its layout part alone ('Cn290pc.Ks206lc.En175pc', the cast then
 // drawn from &seed) or whole (with '|f…|p…'), which implies drawn; &doors=fixed the chunks' authored swings, every door closed)
+// [&rooms=a|all] [&layout=A|B|C] [&plans=derived] (the build sheet §2 step 3: a drawn house's rooms, the three of layout A
+// (the default, scenes.js HOUSE_ROOMS_DEFAULT) or all eight of X4, &rooms=all alone implying drawn; a named house, A the set and B or
+// C the instructors' other two panel settings; the room plans derived by combat/derive.js at the fill, a lead's switch. main.js sets
+// their precedence (&layout over &house over &rooms) and drops a loser with a toast; here only the form)
 // (tier: test-pairs' sheet, TECH §15.3; else null, the scene's private), hour being the Mars local hour at the
 // start (0-24, a fraction giving minutes), seed a whole number; &area=<id>&at=<x>,<z>&face=<f> a
 // start somewhere else than the scenario's (the barracks' berth): an area, a place in its frame in
@@ -113,9 +117,17 @@ export const OPFOR_URL = /^(none|live(:(fight|give|hide),(fight|give|hide))?)$/;
 /** test-shoothouse's house by the URL (&draw=: v0.0.21, the drawn house): 'set' (layout A) or 'drawn' (from the seed); else null, the scene's default. */
 export const DRAWS_URL = Object.freeze(['set', 'drawn']);
 /** A drawn house's code by the URL (&house=: the form only, three rooms and the cast's parts; scenes/assemble.js parseHouse reads and checks it). */
-export const HOUSE_URL = /^[CKE][nsm0-9plcok]{4,7}\.[CKE][nsm0-9plcok]{4,7}\.[CKE][nsm0-9plcok]{4,7}(\|f[tnah]{6})?(\|p[0-3]{6})?$/;
+// (a room's letter any of X4's eight chunks', C, K and E and the build sheet's W, D, O, T and Q (§5), so an eight-room code
+// reaches parseHouse, which refuses a letter its chunks do not have)
+export const HOUSE_URL = /^[CKEWDOTQ][nsm0-9plcok]{4,7}\.[CKEWDOTQ][nsm0-9plcok]{4,7}\.[CKEWDOTQ][nsm0-9plcok]{4,7}(\|f[tnah]{6})?(\|p[0-3]{6})?$/;
 /** The doors of a drawn house by the URL (&doors=fixed: the chunks' authored swings, every door closed). */
 export const DOORS_URL = Object.freeze(['fixed']);
+/** A drawn house's rooms by the URL (&rooms=): 'a', layout A's three (the centre, the corner and the L), or 'all', X4's eight. */
+export const ROOMS_URL = Object.freeze(['a', 'all']);
+/** A named house by the URL (&layout=): 'A' the set, 'B' and 'C' the instructors' other two panel settings (assemble.js HOUSE_LAYOUTS). */
+export const LAYOUTS_URL = Object.freeze(['A', 'B', 'C']);
+/** The room plans' source by the URL (&plans=): 'derived', each room's plan derived at the fill (combat/derive.js), a lead's switch; else the authored. */
+export const PLANS_URL = Object.freeze(['derived']);
 /** VIEWS §12's "reduce flashes" by the URL (&flashes=reduced: 0.0.9). */
 export const FLASHES = Object.freeze(['reduced']);
 
@@ -140,7 +152,7 @@ export const HOUSE_LIGHTS_URL = Object.freeze(['a', 'b', 'c']);
 /** test-pairs' sheets by the URL (&tier=: the build sheet 0.0.8 §2.6; the corporal by the URL only): else null, the scene's private. */
 export const TIERS_URL = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']);
 
-/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, loadout, opfor, draw, house, doors, panel, cycle, sound, shot, voice, look, houseLight }. */
+/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, loadout, opfor, draw, house, doors, rooms, layout, plans, panel, cycle, sound, shot, voice, look, houseLight }. */
 export function readParams(search = globalThis.location?.search ?? '') {
   const q = new URLSearchParams(search);
   const num = (k) => (q.has(k) && q.get(k) !== '' && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : null);
@@ -178,6 +190,10 @@ export function readParams(search = globalThis.location?.search ?? '') {
     // is dropped above, and said, as &env= and &loadout= are)
     houseAsked: q.get('house') ? String(q.get('house')).slice(0, 80) : null,
     doors: DOORS_URL.includes(q.get('doors')) ? q.get('doors') : null,
+    // (a drawn house's rooms, a named house and the plans' source: the form only (houseChoice below orders them), null when absent)
+    rooms: ROOMS_URL.includes(String(q.get('rooms') ?? '').toLowerCase()) ? String(q.get('rooms')).toLowerCase() : null,
+    layout: LAYOUTS_URL.includes(String(q.get('layout') ?? '').toUpperCase()) ? String(q.get('layout')).toUpperCase() : null,
+    plans: PLANS_URL.includes(q.get('plans')) ? q.get('plans') : null,
     panel: PANELS_URL.includes(String(q.get('panel') ?? '').toLowerCase()) ? String(q.get('panel')).toLowerCase() : null,
     cycle: CYCLES_URL.includes(String(q.get('cycle') ?? '').toUpperCase()) ? String(q.get('cycle')).toUpperCase() : null,
     sound: SOUNDS_URL.includes(q.get('sound')) ? q.get('sound') : null,
@@ -188,6 +204,39 @@ export function readParams(search = globalThis.location?.search ?? '') {
     // (FL-9: a candidate of the shoot house's light, 'HL-b' or 'HL-c' (runtime only, state.$houseLight); 'a' or none is today's)
     houseLight: HOUSE_LIGHTS_URL.includes(hl) && hl !== 'a' ? `HL-${hl}` : null,
   };
+}
+
+/**
+ * The shoot house's options as one choice (the build sheet §0 items 20 and 40; my calls), for the page (main.js playScene and
+ * the URL's start) and the tests (tests/game.mjs createGame) alike: a named layout beats a code, the rooms and the draw ('A' is the
+ * set, so nothing is passed; 'B' and 'C' go alone); a code beats the rooms (a code names its rooms); rooms 'all' alone implies
+ * drawn, and with draw 'set' is dropped; a drawn lane given no rooms takes roomsDefault (the page's scenes.js HOUSE_ROOMS_DEFAULT,
+ * the tests' 'a' whatever it says). Returns { opts }, each option only when it is not the default (the set passes nothing; draw
+ * and house as given, as v0.0.21 passed them), and { dropped }, the losers' words, which the page says as toasts.
+ * v0.0.22's fixer: `pool` is the room set a code was drawn from ('all'), kept with the code as its rooms (no loser: the end card's
+ * "Again" of an eight-room house passes its code and its pool, so "Again with a new seed" after it draws from the eight again; the
+ * URL never passes it); and `drawable` false is a scene played as set from the page (scenes.js `draws` without 'drawn': "Stack and
+ * clear, live" until F80 is met), whose named, coded or drawn house is dropped with its words (the code review of v0.0.22: the live
+ * lane's &layout=B was played as set without a word).
+ */
+export function houseChoice({ draw = null, house = null, rooms = null, layout = null, pool = null } = {}, { roomsDefault = 'a', drawable = true } = {}) {
+  const dropped = [];
+  if (!drawable) {
+    const asked = (layout && layout !== 'A') || house || rooms === 'all' || draw === 'drawn';
+    if (asked) dropped.push('This lane is played as set: no other house yet.');
+    return { opts: draw === 'set' ? { draw } : {}, dropped };
+  }
+  if (layout) {
+    if (house || rooms || draw === 'drawn') dropped.push(`One house a lane: layout ${layout}.`);
+    return { opts: layout === 'A' ? {} : { layout }, dropped };
+  }
+  if (house) {
+    if (rooms) dropped.push('One house a lane: the code given, its rooms with it.');
+    return { opts: { ...(draw ? { draw } : {}), house, ...(pool === 'all' ? { rooms: 'all' } : {}) }, dropped };
+  }
+  if (rooms === 'all' && draw === 'set') { dropped.push('All eight rooms are a drawn house\'s: the house as set instead.'); return { opts: { draw }, dropped }; }
+  const eight = rooms === 'all' || (!rooms && draw === 'drawn' && roomsDefault === 'all');
+  return { opts: { ...(eight ? { draw: 'drawn', rooms: 'all' } : draw ? { draw } : {}) }, dropped };
 }
 
 // ('<x>,<z>' as two finite numbers, else null)

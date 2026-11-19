@@ -90,7 +90,7 @@
 // 1.22 m), the walk ends where it stands and the doing hands back ('blocked',
 // PIN_WORDS: the choice yours again; the DI's cqb-blocked names the keys round him, or T). Every hold is counted on the beat
 // (held, heldAtMs, pinFromMs, pinBy) and how it ended noted once (`pinned`: { atMs, ms, how: 'aside' | 'round' | 'back' }, the
-// scene's leg record's L.pins, house-two.js maskTick); a startle's frozen ticks are no hold (the move is paused, never held:
+// scene's leg record's L.pins, combat/two.js maskTick); a startle's frozen ticks are no hold (the move is paused, never held:
 // bundle.js startleHold). Backspace cuts a held walk at once (stepper.js halt). pinOf is the gauges' and the DI's view.
 // 2026-11-13 (the rework's R8b, fluid movement; the user: "soldiers need to stay fluidly moving"): **never at rest in a no-stop
 // zone** (src/sim/places/zones.js: a door's funnel, from the place plans). A body moving in a stance whose feet the game would

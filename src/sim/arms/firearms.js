@@ -137,6 +137,8 @@ export const DROP_BY = 6, DISCHARGE_BY = 10, DA_GUARD = 5;
 export const NAT1_DROP_BELOW = 10, NAT1_SHOT_BELOW = 5, NAT1_SHOT = 0.4, NAT1_DROP = 0.4;
 /** A dropped long gun swings on its two-point sling: this long to recover it, at value 10 (WEAPONS §5.5). */
 export const SLING_RECOVER_S = 1.0;
+/** The words of a long gun's fumble that swings it onto its sling (the log's record of it; combat/two.js fumbleSwung reads it back: a rifle the hands let go of is not one put away). */
+export const swungWords = (M) => `${M.short} slips out of your hands and swings on its sling.`;
 /** Reliability, WEAPONS §4.3 whole (service grade): misfire and stoppage per pull and their terms. */
 export const MISFIRE = 0.00015, MISFIRE_WORN = 0.05, MISFIRE_DUST = 0.002;
 export const JAM = 0.0006, JAM_WORN = 0.12, JAM_DUST = 0.014, JAM_FOUL = 0.02, JAM_LIMP = 0.03, LIMP_BELOW = 6;
@@ -684,7 +686,7 @@ export function act(rng, roller, gun, mag, action, ctx = {}) {
       if (isLong(M)) {
         out.ms += Math.round(SLING_RECOVER_S * p * 1000);
         out.posture = 'slungFront';
-        out.text = `${M.short} slips out of your hands and swings on its sling.`;
+        out.text = swungWords(M);
       // (a pistol's fumble moves nothing, so its words say where it is: the draw snagged in the holster, the holster missed with it
       // still in the hand, else caught in the hand (the dead-end hunt of 2026-11-16: "slips out of your hand and falls", and the
       // P-12 holstered on safe all the same))

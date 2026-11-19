@@ -459,6 +459,10 @@ export function kitMassKg(state, pid) {
 
 /** A magazine's believed rounds: its own belief's n (unknown: null). */
 export const believedN = (mag) => (mag?.belief && mag.belief.n !== undefined ? mag.belief.n : null);
+/** A magazine's bucket as its holder believes it: '0' counted empty or felt so, '?' unknown, else '+' (plan.js's abstraction; pickMag's ground reach). */
+export const magBucket = (m) => (believedN(m) === 0 || m?.belief?.feel === 'none' ? '0' : believedN(m) === null && !m?.belief?.feel ? '?' : '+');
+/** The buckets best first: rounds believed, unknown, believed empty. */
+export const BUCKET_RANK = Object.freeze({ '+': 0, '?': 1, '0': 2 });
 /** A magazine's believed kind of round ('ball', 'tracer'), or null when the holder does not know it. */
 export const believedKind = (mag) => mag?.belief?.kind ?? null;
 /** The kind the gun is meant to fire: the range session's load (the course's), else ball. */
@@ -562,12 +566,15 @@ export function atFeetOf(state, pid) {
 
 /**
  * The magazine a reach takes (see the header), of the gun's families: from 'p1', 'p2' or 'dump' the one at the
- * pouch's front, from 'ground' the nearest at your feet, by 'rule' the first of every pouch's by the drills' rule
+ * pouch's front, from 'ground' the best believed at your feet (magBucket: rounds, unknown, then felt empty), the nearest of those, by 'rule' the first of every pouch's by the drills' rule
  * (sparesOf without the hand). Returns { id, from: key } or null.
  */
 export function pickMag(state, pid, { from = 'rule', fams = null, load = meantLoad(state) } = {}) {
   const ok = (id) => state.items[id]?.type === 'mag' && (!fams || fams.includes(state.items[id].fam));
-  if (from === 'ground') { const l = atFeetOf(state, pid).find(x => ok(x.id)); return l ? { id: l.id, from } : null; }
+  // (from the ground the best believed first, then the nearest: the planner's abstraction keeps the best bucket at the feet (plan.js
+  // absOf), and the reach taking the nearest seated the P-12 magazine just dropped and felt empty four times running while a full one
+  // lay 0.15 m further (the hunt of v0.0.20, breach-7))
+  if (from === 'ground') { const l = atFeetOf(state, pid).filter(x => ok(x.id)).sort((a, b) => BUCKET_RANK[magBucket(state.items[a.id])] - BUCKET_RANK[magBucket(state.items[b.id])])[0]; return l ? { id: l.id, from } : null; }
   if (from === 'rule') {
     const all = pouchesOf(state, pid).flatMap(p => p.mags.filter(ok).map(id => ({ id, key: p.key })));
     const id = rankOf(state, all.map(e => e.id), { load })[0];

@@ -14,6 +14,14 @@
 // hitModelOf(s, key, k, 'truth') and paintHitcard, never imported here). Its model is house-debrief.js debriefOf's, given by the
 // end card; planAt(d, ms) is the pure part (where everyone was, which leaves stood where, what had happened), drawPlan draws it, and
 // housePlanEl the DOM. It never scrolls: its size is fixed by PLAN_PX_M and the house.
+// v0.0.22 (its build sheet §1 item 16, the house lens's G4; v0.0.20's C6): a ghost, another run on the same house and lane kept by
+// the page (house-ghosts.js), drawn under you at the same lane time from GO: its two discs at GHOST_ALPHA, an outline ring each and
+// no eye cone, after the hot spots and before the stands (past its own end at its last place, GHOST_END_ALPHA); the head's "Ghost"
+// chooses it (none, or each kept run of this key, newest first; the run played just before by default), its legs a second thin row
+// under the scrubber's, and the clock says your lane time at your leg's start less his, "+5.8 s". Each draw is timed (drawMs, the
+// slowest kept: F83's 4× replay).
+
+import { ghostAt, ghostDelta, ghostWords, deltaWords, GHOST_ALPHA, GHOST_END_ALPHA } from './house-ghosts.js';
 
 /** The plan's scale (px a metre) and the window from which it is the larger one (1,600 px wide; and 1,000 high, my call: at 1600 × 900 the larger plan and the run sheet under it would scroll). */
 export const PLAN_PX_M = 16, PLAN_PX_M_WIDE = 20, PLAN_WIDE_PX = 1600, PLAN_TALL_PX = 1000;
@@ -62,8 +70,8 @@ export function planFrame(d, pxM = PLAN_PX_M) {
 /** A point of the house in the plan's pixels. */
 export const toPx = (F, x, z) => [Math.round(MARGIN_PX + (x - F.x0) * F.pxM), Math.round(MARGIN_PX + (z - F.z0) * F.pxM)];
 
-/** Draw the plan at ms on a Canvas2D g (its pixels F.w × F.h). Returns the stands' hit boxes for a click: [{ key, x, y, r }]. */
-export function drawPlan(g, d, ms, F = planFrame(d)) {
+/** Draw the plan at ms on a Canvas2D g (its pixels F.w × F.h), with a ghost (house-ghosts.js) under you if given. Returns the stands' hit boxes for a click: [{ key, x, y, r }]. */
+export function drawPlan(g, d, ms, F = planFrame(d), ghost = null) {
   const P = planAt(d, ms), px = (x, z) => toPx(F, x, z), m = F.pxM;
   g.fillStyle = C.bg; g.fillRect(0, 0, F.w, F.h);
   for (const w of d.walls) { const [a, b] = px(w.rect[0], w.rect[1]), [c, e] = px(w.rect[2], w.rect[3]); g.fillStyle = C.floor; g.fillRect(a, b, c - a, e - b); }
@@ -83,6 +91,17 @@ export function drawPlan(g, d, ms, F = planFrame(d)) {
   }
   // (the current leg's hot spots: pale until covered)
   for (const h of P.hot) { const [a, b] = px(h.x, h.z); g.fillStyle = h.covered ? C.hotOn : C.hot; g.fillRect(a - 1, b - 1, 3, 3); }
+  // (the ghost at the same lane time from GO, under the stands: his #2 then him, a faint disc and its ring, no eye cone)
+  if (ghost) {
+    const at = ghostAt(ghost, ms - (d.goAtMs ?? d.from ?? ms)), k = at.ended ? GHOST_END_ALPHA : GHOST_ALPHA;
+    for (const [p, c] of [[at.two, C.two], [at.me, C.me]]) {
+      if (!p) continue;
+      const [a, b] = px(p[0], p[1]), r = Math.max(3, Math.round(0.25 * m));
+      g.globalAlpha = k; g.fillStyle = c; g.beginPath(); g.arc(a, b, r, 0, Math.PI * 2); g.fill();
+      g.globalAlpha = Math.min(1, k + 0.3); g.strokeStyle = c; g.lineWidth = 1; g.beginPath(); g.arc(a, b, r + 1.5, 0, Math.PI * 2); g.stroke();
+      g.globalAlpha = 1;
+    }
+  }
   // (the stands as the paper's figures, struck once down)
   const hits = [];
   for (const s of P.stands) {
@@ -123,9 +142,11 @@ export const seekOf = (atMs, fromMs) => Math.max(fromMs, atMs - SEEK_LEAD_MS);
 /**
  * The plan view's DOM ({ className 'houseplan' }): the canvas, the scrubber with its legs and ticks, the rates, the faults' lines.
  * { el, seek(ms), play(rate), pause(), get ms, hits }. d: debriefOf's model; onStand(key, stand) a stand clicked; winW the window's
- * width (the scale); now() the page's clock in ms for the replay (performance.now by default).
+ * width (the scale); now() the page's clock in ms for the replay (performance.now by default). aside: an element set beside the
+ * canvas in its row (.plan-row; main.js's truth card's slot: the hunt of v0.0.20, P4, under the plan it pushed the run sheet out of the
+ * side column), wrapping under it where the column is too narrow.
  */
-export function housePlanEl(d, { doc = globalThis.document, onStand = null, winW = globalThis.innerWidth ?? 1024, winH = globalThis.innerHeight ?? 768, now = () => globalThis.performance?.now?.() ?? Date.now() } = {}) {
+export function housePlanEl(d, { doc = globalThis.document, onStand = null, aside = null, winW = globalThis.innerWidth ?? 1024, winH = globalThis.innerHeight ?? 768, now = () => globalThis.performance?.now?.() ?? Date.now(), ghosts = [] } = {}) {
   if (!d || !doc) return null;
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(doc.createElement(tag), props); for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };
   const F = planFrame(d, planPxM(winW, winH)), from = d.goAtMs ?? d.from ?? 0, to = d.endAtMs ?? d.tracks.ms.at(-1) ?? from;
@@ -133,11 +154,17 @@ export function housePlanEl(d, { doc = globalThis.document, onStand = null, winW
   cv.style.width = `${F.w}px`; cv.style.height = `${F.h}px`;
   const g = cv.getContext?.('2d') ?? null;
   let ms = from, rate = 0, last = null, hits = [];
+  // (the ghost drawn, the run just before by default; each draw's time, the slowest kept)
+  const offered = Array.isArray(ghosts) ? ghosts.filter(Boolean) : [];
+  let ghost = offered[0] ?? null, drawMs = 0, drawMaxMs = 0, draws = 0;
   const clock = el('span', { className: 'plan-clock', textContent: '' });
   const range = el('input', { type: 'range', className: 'plan-scrub', min: String(from), max: String(Math.max(from + 1, to)), step: String(PLAN_STEP_MS), value: String(from) });
   const draw = () => {
-    if (g) { g.imageSmoothingEnabled = false; hits = drawPlan(g, d, ms, F); }
-    clock.textContent = `${((ms - from) / 1000).toFixed(1)} s`;
+    const t0 = now();
+    if (g) { g.imageSmoothingEnabled = false; hits = drawPlan(g, d, ms, F, ghost); }
+    drawMs = now() - t0; drawMaxMs = Math.max(drawMaxMs, drawMs); draws++;
+    const dl = ghost ? ghostDelta(d, ghost, ms) : null;
+    clock.textContent = `${((ms - from) / 1000).toFixed(1)} s${dl !== null ? ` \u00b7 ${deltaWords(dl)}` : ''}`;
     range.value = String(ms);
     root.dataset.ms = String(ms);
   };
@@ -158,6 +185,20 @@ export function housePlanEl(d, { doc = globalThis.document, onStand = null, winW
   // (the legs as the scrubber's segments, the ticks in their lanes, the faults red and clickable)
   const span = Math.max(1, to - from), pct = (v) => `${(Math.max(0, Math.min(1, v)) * 100).toFixed(2)}%`;
   const legs = el('div', { className: 'plan-legs' }, ...d.legs.filter(L => Number.isFinite(L.fromMs)).map(L => el('span', { className: `plan-leg ${L.state}`, textContent: L.word, style: `left: ${pct((L.fromMs - from) / span)}; width: ${pct(((L.clearAtMs ?? to) - L.fromMs) / span)}` })));
+  // (the ghost's legs, a second thin row under yours, on your lane's clock from GO)
+  const ghostLegs = el('div', { className: 'plan-legs ghost' });
+  const ghostRow = () => {
+    ghostLegs.replaceChildren(...(ghost ? ghost.legs.map((L, k) => [L, k]).filter(([L]) => Number.isFinite(L[0])).map(([L, k]) => {
+      const a = (d.goAtMs ?? from) + L[0], b = Number.isFinite(L[1]) ? (d.goAtMs ?? from) + L[1] : (d.goAtMs ?? from) + ghost.laneMs;
+      return el('span', { className: 'plan-leg ghost', textContent: d.legs[k]?.word ?? '', style: `left: ${pct((a - from) / span)}; width: ${pct((Math.min(b, to) - Math.min(a, to)) / span)}` });
+    }) : []));
+    ghostLegs.hidden = !ghost;
+  };
+  ghostRow();
+  const ghostPick = offered.length ? el('select', { className: 'plan-ghost', title: 'Ghost: another run on this house and lane, drawn under you at the same time from GO' },
+    el('option', { value: '-1', textContent: 'Ghost: none' }), ...offered.map((G, i) => el('option', { value: String(i), textContent: `Ghost: ${ghostWords(G)}` }))) : null;
+  const setGhost = (i) => { ghost = offered[i] ?? null; if (ghostPick) ghostPick.value = String(ghost ? i : -1); ghostRow(); draw(); };
+  if (ghostPick) { ghostPick.value = '0'; ghostPick.addEventListener('change', () => setGhost(Number(ghostPick.value))); }
   const ticks = scrubTicks(d, from, to);
   const lanes = el('div', { className: 'plan-lanes' }, ...['eyes', 'hands', 'feet'].map(lane => el('div', { className: `plan-lane ${lane}` }, el('b', { textContent: lane.toUpperCase() }),
     ...ticks.filter(t => t.lane === lane).map(t => { const i = el('i', { className: `plan-tick ${t.kind}${t.fault ? ' fault' : ''}`, style: `left: ${pct(t.k)}`, title: t.word ?? t.kind }); if (t.fault) i.onclick = () => { pause(); seek(seekOf(t.atMs, from)); }; return i; }))));
@@ -166,9 +207,12 @@ export function housePlanEl(d, { doc = globalThis.document, onStand = null, winW
   const rates = el('span', { className: 'plan-rates' }, el('button', { className: 'plan-play', type: 'button', textContent: '▶', onclick: () => (rate ? pause() : play(1)) }),
     ...REPLAY_RATES.map(r => el('button', { className: 'plan-rate', type: 'button', textContent: `${r}×`, onclick: () => play(r) })));
   const root = el('div', { className: 'houseplan' },
-    el('div', { className: 'plan-head' }, el('span', { textContent: 'THE LANE FROM ABOVE' }), d.from !== null && d.goAtMs !== null && d.from > d.goAtMs + PLAN_STEP_MS * 2 ? el('small', { textContent: `traced from ${((d.from - d.goAtMs) / 1000).toFixed(1)} s` }) : null, clock),
-    cv, el('div', { className: 'plan-scrubber' }, legs, range, lanes), el('div', { className: 'plan-foot' }, rates, faultList));
+    el('div', { className: 'plan-head' }, el('span', { textContent: 'THE LANE FROM ABOVE' }), d.from !== null && d.goAtMs !== null && d.from > d.goAtMs + PLAN_STEP_MS * 2 ? el('small', { textContent: `traced from ${((d.from - d.goAtMs) / 1000).toFixed(1)} s` }) : null, ghostPick, clock),
+    el('div', { className: 'plan-row' }, cv, aside), el('div', { className: 'plan-scrubber' }, legs, ghostLegs, range, lanes), el('div', { className: 'plan-foot' }, rates, faultList));
   root.dataset.faults = String(faults.length);
+  root.dataset.ghosts = String(offered.length);
   draw();
-  return { el: root, seek, play, pause, get ms() { return ms; }, get hits() { return hits; }, frame: F };
+  return { el: root, seek, play, pause, get ms() { return ms; }, get hits() { return hits; }, frame: F,
+    // (the ghosts offered, the one drawn, the delta now, and the draws' times)
+    ghosts: offered, get ghost() { return ghost; }, setGhost, get delta() { return ghost ? ghostDelta(d, ghost, ms) : null; }, get drawMs() { return drawMs; }, get drawMaxMs() { return drawMaxMs; }, get draws() { return draws; }, resetDraws() { drawMaxMs = 0; draws = 0; } };
 }

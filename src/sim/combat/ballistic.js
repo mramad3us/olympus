@@ -7,7 +7,10 @@
 //
 // shootPlanOf(state, pid, plan) is the door's points: a push door's lock ({ key 'lock', yM 1.0 } a hand in from the latch jamb),
 // a pull door's three hinges top down (h1 1.75, h2 1.0, h3 0.25 m: my call, to check), each on the leaf from the shooter's side,
-// the muzzle BALLISTIC_STANDOFF_M 0.05 off it, the line yawed BALLISTIC_YAW_IN_DEG 45 inboard (toward the door's middle).
+// the muzzle BALLISTIC_STANDOFF_M 0.05 off it, the line yawed BALLISTIC_YAW_IN_DEG 45 inboard (toward the door's middle). The round
+// resolves at the muzzle's real distance, the shooter's body's less MUZZLE_REACH_M 0.6 m and never under the stand-off (the hunt of
+// v0.0.20, breach-4: the closet's lock shot from 5.53 m resolved at 0.05 m); the inner door's row walks him to its leaf first
+// (bundle.js innerStandOf).
 // **Each round is a real shot**: shootRound calls shot.js resolveShot with target { kind: 'door', door, dM: 0.05 }, part 'thing'
 // (PART_DC +4) and the row 'shoot:door', so the magazine's count, the belief, a stoppage and the dummy round all run as for any
 // shot; the scene records it (bundle.js useDoorShot: house-kit.js breachShot, the breach's tally, never a miss on the paper).
@@ -31,6 +34,8 @@ import { sessionOf } from './op.js';
 
 /** The muzzle off the leaf (m), the line's inboard yaw (degrees), a point's most rounds before the hand-back (TC 3-21.76; my call). */
 export const BALLISTIC_STANDOFF_M = 0.05, BALLISTIC_YAW_IN_DEG = 45, BALLISTIC_MAX_ROUNDS = 4;
+/** The muzzle this far before the shooter's body at the high ready (m; my call: the R-7's length past the shoulder): a body MUZZLE_REACH_M from the point or nearer has the muzzle on it (the hunt of v0.0.20, breach-4). */
+export const MUZZLE_REACH_M = 0.6;
 /** The lanes it is offered on (breach.js's own copy, the build sheet 0.0.19 §0 item 16; my call). */
 export const BALLISTIC_LANES = Object.freeze(['breach']);
 /** The points by the door's way (see the header): the lock a hand in from the latch jamb; the hinges top down (to check). */
@@ -103,7 +108,10 @@ export function shootRound(state, bus, d, point) {
   if (!gunId || !o) return { ms: 0, shot: null, defeated: false, struck: null };
   const sp = shootPlanOf(state, pid, { ...(d.plan ?? {}), door: d.door, area: state.places?.live?.area }, { from: d.from ?? null });
   const P = sp.points.find(p => p.key === point.key) ?? { ...point, x: doorMid(o)[0], z: doorMid(o)[1] };
-  const target = { kind: 'door', door: d.door, dM: BALLISTIC_STANDOFF_M, x: P.x, z: P.z, key: null };
+  // (the round at the muzzle's real distance from the point: the body's less MUZZLE_REACH_M, never under the stand-off (the hunt of
+  // v0.0.20, breach-4: fired from 5.53 m across room 2 and resolved at 0.05 m; the rows now walk you to the leaf first))
+  const me = state.actors?.list?.find(x => x.who === pid) ?? null, bodyM = me ? Math.hypot(me.x - P.x, me.z - P.z) : 0;
+  const target = { kind: 'door', door: d.door, dM: q(Math.max(BALLISTIC_STANDOFF_M, bodyM - MUZZLE_REACH_M), 1e-3), x: P.x, z: P.z, key: null };
   const { ms, shot } = resolveShot(state, bus, { pid, gunId, target, part: 'thing', tempo: d.tempo ?? 'normal', atMs: d.atMs ?? state.clock.ms, row: { id: 'shoot:door' } });
   Object.assign(shot, { row: { id: 'shoot:door' }, door: d.door, point: P.key });
   let defeated = false, struck = null, pitchDeg = null, through = false;

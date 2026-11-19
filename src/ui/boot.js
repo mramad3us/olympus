@@ -89,6 +89,18 @@ export const nextPanel = (l) => ({ a: 'c', b: 'c', c: 'a' }[l] ?? 'c');
 
 /** A card ignores Enter and Space this long after it opens (ms; the design review's: a key meant for the screen before). */
 export const CARD_GUARD_MS = 400;
+/**
+ * What a picker's pick starts (cards/pairs.js onPick(tier, o)) as main.js playScene's options: the sheet and every choice the pick
+ * carries, each only when given: the par, the loadout, the house (draw, layout, rooms) and the plans' source, and a qualification.
+ * The play review of v0.0.22 (2026-11-17): the house's B was lit on the picker and lane A was played, since this passed par,
+ * loadout, draw and qual only and dropped the layout and the rooms the picker sent.
+ */
+export function pickedScene(tier, o = {}) {
+  const out = { tier };
+  for (const k of ['par', 'loadout', 'draw', 'layout', 'rooms', 'plans']) if (o[k]) out[k] = o[k];
+  if (o.qual) out.qual = true;
+  return out;
+}
 
 export function createBoot({ root = document.body, cb }) {
   const title = el('div', { id: 'title', hidden: true });
@@ -174,7 +186,7 @@ export function createBoot({ root = document.body, cb }) {
     const { sheets = {}, order = null, hard = null, parMs = {}, parOf = null } = cb.sheets?.() ?? {};
     // (0.0.9: each sheet's hardening in words, main.js's reader (supp.js hardWord); 0.0.12: the shoot house's par chooser, its choice carried)
     // (0.0.18: the shoot house's loadout, main.js's (cb.loadout: the code kept in this browser, the screen's preview), carried with the pick)
-    const p = pickerPage({ scene, sheets, order, hard, parMs, parOf, loadout: cb.loadout?.() ?? null, onPick: (tier, o = {}) => cb.playScene?.(scene, { tier, ...(o.par ? { par: o.par } : {}), ...(o.loadout ? { loadout: o.loadout } : {}), ...(o.draw ? { draw: o.draw } : {}), ...(o.qual ? { qual: true } : {}) }), onBack: () => back() });
+    const p = pickerPage({ scene, sheets, order, hard, parMs, parOf, loadout: cb.loadout?.() ?? null, onPick: (tier, o = {}) => cb.playScene?.(scene, pickedScene(tier, o)), onBack: () => back() });
     title.replaceChildren(p.body);
     title.hidden = false;
     (p.body.querySelector('.item.lead') ?? p.body.querySelector('.item'))?.focus();

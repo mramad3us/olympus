@@ -35,7 +35,7 @@ import { ROLLOFF, PAN_FULL_M, PA_VOICE_DB, WHISPER_DB, SHOUT_DB, SUIT_EARS_DB, S
 import { REGISTER, VOICE_SET, VOICE_DEFAULT } from '../../data/voices.js';
 import { TEAM_WORDS } from '../../sim/combat/team.js';
 import { spokenMs } from '../../core/speech.js';
-import { SEQ_HOUSE } from '../../data/courses.js';
+import { SEQ_HOUSE, HOUSE_CHIEF, COURSES } from '../../data/courses.js';
 
 const r1 = (v) => Math.round(v * 10) / 10;
 const dbOfDist = (dM, roll = ROLLOFF.floor) => 20 * Math.log10(1 / (1 + roll * Math.max(0, dM - 1)));
@@ -68,13 +68,25 @@ export function houseVoice(kind, { me = null, at = null, pKpa, suit = true } = {
   return { gainDb, lowpassHz: lowHz, pan, distM: flat };
 }
 
+/** The parts a held paint call names at the zone (shoothouse.js liveTick's words where the would-have gives no `where`). */
+export const PAINT_PARTS = Object.freeze(['chest', 'head']);
 /**
  * The house's fixed lines, baked at the first key (engine.js): the tower's PA lines and every TEAM_WORDS call in the voice of each
  * man who says it ({ text, voice, register }); a line said otherwise (the instructor's, a templated one) is baked when said.
+ * v0.0.22 (its build sheet §0 item 6): the wash's words by the lane's end (SEQ_HOUSE's sayEnd) with the PA's, and the live lane's
+ * fixed lines, whose timing is their point: the instructor's held paint call at the zone's parts (HOUSE_CHIEF.paint, paintTwice,
+ * paintStopped, and on your #2 paintTwo, paintTwiceTwo and paintStoppedTwo: v0.0.22's fixer, the hunt's merged lines), the casualty's
+ * cease fire and lessons (his and the bled one's too), the bled rulings (bled, twoBled), the ruling ("You, out."), and each marine's "I'm hit!" and "Man down!"
+ * (COURSES.house.opfor hit and manDown: you in your helmet, your #2 at his place; a shout by their "!"). A paint call at a part the
+ * would-have names ("right arm") is baked when said.
  */
 export function fixedLines() {
   const out = [], seen = new Set(), add = (text, voice, register) => { const k = `${voice}|${register}|${text}`; if (text && !seen.has(k)) { seen.add(k); out.push({ text, voice, register }); } };
-  for (const c of SEQ_HOUSE) for (const t of c.say ?? []) add(t, 'pa', REGISTER.pa);
+  for (const c of SEQ_HOUSE) for (const t of [...(c.say ?? []), ...(c.sayEnd?.other ?? [])]) add(t, 'pa', REGISTER.pa);
+  for (const t of [...HOUSE_CHIEF.paint, ...HOUSE_CHIEF.paintTwice, ...HOUSE_CHIEF.paintStopped, ...(HOUSE_CHIEF.paintTwo ?? []), ...(HOUSE_CHIEF.paintTwiceTwo ?? []), ...(HOUSE_CHIEF.paintStoppedTwo ?? [])]) for (const part of PAINT_PARTS) add(t.replaceAll('{part}', part), 'pa', REGISTER.speech);
+  for (const t of [...HOUSE_CHIEF.casualty, ...HOUSE_CHIEF.twoDown, ...HOUSE_CHIEF.out, ...HOUSE_CHIEF.one.casualty, ...HOUSE_CHIEF.one['casualty:click'], ...HOUSE_CHIEF.one['casualty:fought'], ...HOUSE_CHIEF.one['casualty:unseen'],
+    ...(HOUSE_CHIEF.bled ?? []), ...(HOUSE_CHIEF.twoBled ?? []), ...['casualty:two', 'casualty:two:yours', 'casualty:bled', 'paint:two'].flatMap(k => HOUSE_CHIEF.one[k] ?? [])]) add(t, 'pa', REGISTER.speech);
+  for (const t of [...COURSES.house.opfor.hit, ...COURSES.house.opfor.manDown]) for (const who of ['me', 'two']) add(t, who, /!\s*$/.test(t) ? 'shout' : REGISTER.speech);
   for (const [id, w] of Object.entries(TEAM_WORDS)) {
     if (!w?.words) continue;
     const reg = REGISTER[id] ?? REGISTER.speech;

@@ -490,7 +490,8 @@ export function botOf(bot, { tier, seed }) {
   return HB.houseBot({ mode: tier === 'recruit' || tier === 'private' ? 'keys' : 'T' });
 }
 /** A lane's key: tier/setup/seed/bot@rate. */
-export const laneKey = (L) => `${L.tier}/${L.setup ?? 'brief'}/${L.seed}/${L.bot}${L.draw === 'drawn' ? '/drawn' : ''}@${L.rate ?? RATE}`;
+// (v0.0.22: an eight-room lane (rooms 'all', the build sheet v0.0.22 item 14) keyed '/all' after '/drawn')
+export const laneKey = (L) => `${L.tier}/${L.setup ?? 'brief'}/${L.seed}/${L.bot}${L.draw === 'drawn' ? '/drawn' : ''}${L.rooms === 'all' ? '/all' : ''}@${L.rate ?? RATE}`;
 
 /**
  * Play one lane with fumbles forced, every pause checked (see the header). from: { save, n } plays the lane's tail from a save
@@ -498,8 +499,8 @@ export const laneKey = (L) => `${L.tier}/${L.setup ?? 'brief'}/${L.seed}/${L.bot
  * tick, no N8 for a card not reached. snap: each case carries `snap` { save, n, atMs }, the lane's last pause at or before it
  * (for a case of a pause, that pause; for a case of a tick, the pause before), from which a fixture replays it.
  */
-export function runLane({ tier = 'private', setup = null, seed = 48213, bot = 'house', rate = RATE, twoRate = TWO_RATE, grades = GRADES, maxMs = LANE_MAX_MS, until = null, recover = true, keep = false, from = null, snap = false, draw = null } = {}) {
-  const lane = { tier, setup, seed, bot, rate, ...(draw === 'drawn' ? { draw } : {}) };
+export function runLane({ tier = 'private', setup = null, seed = 48213, bot = 'house', rate = RATE, twoRate = TWO_RATE, grades = GRADES, maxMs = LANE_MAX_MS, until = null, recover = true, keep = false, from = null, snap = false, draw = null, rooms = null } = {}) {
+  const lane = { tier, setup, seed, bot, rate, ...(draw === 'drawn' ? { draw } : {}), ...(rooms === 'all' ? { rooms } : {}) };
   const cases = [], seen = new Map(), once = new Set(), key = laneKey(lane);
   let mark = null;
   const add = (c) => { const k = `${c.inv}|${c.why}|${c.belief ?? ''}`; if (once.has(k)) return; once.add(k); cases.push({ ...c, lane: key, ...(snap && mark ? { snap: mark } : {}) }); if (until?.(c)) stop = true; };
@@ -511,7 +512,7 @@ export function runLane({ tier = 'private', setup = null, seed = 48213, bot = 'h
       const st = JSON.parse(from.save);
       game = spare(st.meta.seed, st.armoury?.range?.house?.tier ?? tier, 'lane');
       game.load(from.save);
-    } else game = G.createGame({ scenario: 'test-shoothouse', seed, tier, setup, ...(draw === 'drawn' ? { draw } : {}) });
+    } else game = G.createGame({ scenario: 'test-shoothouse', seed, tier, setup, ...(draw === 'drawn' ? { draw } : {}), ...(rooms === 'all' ? { rooms } : {}) });
     dice.pid = game.state.player.id;
     const scratch = scratchOf(game), b = botOf(bot, lane), s0 = game.state.clock.ms, pid = dice.pid, words = wordsWatch(pid);
     words.tick(game.state);
@@ -633,9 +634,9 @@ export function wordsWatch(pid) {
 }
 
 /** The lanes of a sweep: every tier × every setup × the bots, over seeds (deterministic). */
-export function lanesOf({ seeds, tiers = TIERS, setups = SETUPS, bots = BOTS, rate = RATE, draw = null } = {}) {
+export function lanesOf({ seeds, tiers = TIERS, setups = SETUPS, bots = BOTS, rate = RATE, draw = null, rooms = null } = {}) {
   const out = [];
-  for (const seed of seeds) for (const tier of tiers) for (const setup of setups) for (const bot of bots) out.push({ tier, setup, seed, bot, rate, ...(draw === 'drawn' ? { draw } : {}) });
+  for (const seed of seeds) for (const tier of tiers) for (const setup of setups) for (const bot of bots) out.push({ tier, setup, seed, bot, rate, ...(draw === 'drawn' ? { draw } : {}), ...(rooms === 'all' ? { rooms } : {}) });
   return out;
 }
 

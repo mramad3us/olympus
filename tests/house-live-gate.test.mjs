@@ -10,7 +10,7 @@ import { createGame } from './game.mjs';
 import { runHouse, houseHonestBot } from './bots/house.mjs';
 import { houseShot, runSheetOf, clearGateOf, houseCall, liveTick, liveGateOf, houseNow } from '../src/sim/scenarios/shoothouse.js';
 import { fatalOf } from '../src/sim/combat/would.js';
-import { legOf } from '../src/sim/scenarios/house-two.js';
+import { legOf } from '../src/sim/combat/two.js';
 import { accountedOf, gateWhy, COVER_MS } from '../src/sim/combat/men.js';
 import { lanePlanOf, manPlace } from '../src/sim/combat/room.js';
 import { faceOfHead, stepsOf } from '../src/sim/arms/shooting.js';

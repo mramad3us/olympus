@@ -43,8 +43,12 @@ export const OPFOR_SPOTS = deepFreeze({
   },
 });
 
-/** The cadre's cards by stand, weighted (opfor.md §1: RP-A fight 7, give 3; RP-B fight 4, hide 4, give 2). */
-export const RP_CARD_WEIGHTS = deepFreeze({ '2a': [['fight', 7], ['give', 3]], '3a': [['fight', 4], ['hide', 4], ['give', 2]] });
+/**
+ * The cadre's cards by lane room, weighted (opfor.md §1: room 2's man fight 7, give 3; room 3's fight 4, hide 4, give 2). v0.0.22 (its
+ * build sheet §0 item 18, G5): keyed by the lane room ('2', '3'), not the set's stand ('2a', '3a'), so a drawn house's post in a lane
+ * room is briefed as the set's man of that room; the stream stays keyed by stand (opfor.js drawCards), so the set's cards are v0.0.21's.
+ */
+export const RP_CARD_WEIGHTS = deepFreeze({ 2: [['fight', 7], ['give', 3]], 3: [['fight', 4], ['hide', 4], ['give', 2]] });
 
 /** The role-players' quality (COMBAT §7.9's q: corporate security's 0.6, a security-grade fighter), the same every run (the build sheet §13 question 8). */
 export const RP_QUALITY = 0.6;

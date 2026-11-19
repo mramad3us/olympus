@@ -187,14 +187,16 @@ export default [
     },
   },
   {
-    name: 'the hot wash after a casualty does not call the lane clear, word for word as long (the play review of 2026-11-16: "The lane is clear. Into the booth: hot wash." after "CEASE FIRE! You are a casualty.")',
+    // (v0.0.22's fixer: the words said are the wash's by the lane's end (shoothouse.js houseCmdSay: its sayEnd, v0.0.22's FL22-3, "Weapons
+    // clear. Into the booth: hot wash."), which made v0.0.21's "The lane is closed." a second rule never said (the code review of
+    // 2026-11-17); the tower's chain times the words said, so "as long" is no longer the rule: never the lane called clear is)
+    name: 'the hot wash after a casualty does not call the lane clear (the play review of 2026-11-16: "The lane is clear. Into the booth: hot wash." after "CEASE FIRE! You are a casualty."), the words the wash\'s by the lane\'s end',
     fn() {
-      const wash = (R) => seqOf(R).find(c => c.id === 'wash').say;
-      const clear = wash({ course: 'house', house: {} }), cas = wash({ course: 'house', house: { end: { why: 'casualty' } } }), casDrawn = wash({ course: 'house', house: { draw: { mode: 'drawn' }, end: { why: 'casualty' } } });
-      const words = (t) => t.split(/\s+/).length, same = clear.every((t, i) => words(t) === words(cas[i]));
+      const said = (R) => { const c = seqOf(R).find(x => x.id === 'wash'), why = R.house.end?.why ?? null; return c.sayEnd ? (why === null || why === 'clear' ? c.sayEnd.clear : c.sayEnd.other) : c.say; };
+      const clear = said({ course: 'house', house: {} }), cas = said({ course: 'house', house: { end: { why: 'casualty' } } }), casDrawn = said({ course: 'house', house: { draw: { mode: 'drawn' }, end: { why: 'casualty' } } });
       const ids = (R) => seqOf(R).map(c => c.id).join();
-      console.log(`      clear: ${JSON.stringify(clear)}; after a casualty: ${JSON.stringify(cas)} (drawn ${JSON.stringify(casDrawn)}); the words as many ${same}`);
-      assert(cas.every(t => !/clear/i.test(t)) && casDrawn.every(t => !/clear/i.test(t)) && same && clear.some(t => /clear/.test(t)) && ids({ course: 'house', house: { end: { why: 'casualty' } } }) === ids({ course: 'house', house: {} }), JSON.stringify({ cas }));
+      console.log(`      clear: ${JSON.stringify(clear)}; after a casualty: ${JSON.stringify(cas)} (drawn ${JSON.stringify(casDrawn)})`);
+      assert(cas.every(t => !/lane is clear/i.test(t)) && casDrawn.every(t => !/lane is clear/i.test(t)) && clear.some(t => /lane is clear/.test(t)) && ids({ course: 'house', house: { end: { why: 'casualty' } } }) === ids({ course: 'house', house: {} }), JSON.stringify({ cas }));
     },
   },
   {

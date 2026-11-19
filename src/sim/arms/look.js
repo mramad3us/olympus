@@ -74,6 +74,13 @@
 // The rework's R5 (COMBAT §25.19.5): your number two's rifle is drawn on the sub-step his hands are at (shoothouse.js handsOf: his
 // tower macro's, LOAD to SHOW CLEAR, or his bundle's hands beat), the same frames as yours on the same sub-step.
 // A sitting port is PORT_H_M.sit high.
+// v0.0.22 (its build sheet §1 item 17; the residuals lens's R3; VIEWS §3.10): the device in the hands. heldLook(state, actor, ms) is
+// what a figure holds: { id, model, shape, colour, st } from devices.js handDeviceOf (a G-11 armed, the halligan, the ram, a charge),
+// and through the throw's 0.7 s, its grenade already on the floor's record (bundle.js's throw moves it at the beat's start), until its
+// flight's first moment (rec.flight.fromMs: the devices layer draws it from there, burst.js devicesLook): one quantity, never both
+// and never neither; null otherwise. beatOf gains the device beats the held frames turn on: 'arm' (the reach and the pin), 'throw',
+// 'force' (with its tool's model: the halligan's pry, the ram's swing) and 'place', each with its share k. heldShapesOf(state, pid)
+// lists the shapes a person carries (the stage bakes their cards at the brief's splash). Read by the view only, outside the look's key.
 // AIM_LEAD_K, EDGE_KEEP_M and FRAME_HALF_M are VIEWS §2.4's weapon-mode lead, shared by the camera and
 // the shot role's targetsOf: the frame's centre AIM_LEAD_K of the way from the player to the bracketed
 // target, the player kept EDGE_KEEP_M inside the frame's half-size at 16 px/m.
@@ -96,6 +103,7 @@ import { stressLook } from '../scenarios/stress.js';
 import { houseLook, handsOf, houseOf } from '../scenarios/shoothouse.js';
 import { devicesLook } from '../combat/burst.js';
 import { devicesView } from './devlook.js';
+import { DEVICES, handDeviceOf, devicesOf, liveDevices } from './devices.js';
 import { KD_RANGE, KD_STAKE_DX_M, KD_STAKE_DZ_M } from '../../data/places/range.js';
 import { gravityAt } from '../places/env.js';
 import { G0_MS2 } from '../../core/phys.js';
@@ -165,10 +173,34 @@ export function beatOf(state, pid, ms = state?.clock?.ms ?? 0) {
   }
   const sq = beats.find(b => b.key === 'squeeze' && b.st !== 'wait' && Number.isFinite(b.fromMs));
   if (sq && ms >= sq.fromMs && ms - sq.fromMs < TAP_MS) return { kind: 'tap', k: (ms - sq.fromMs) / TAP_MS, slot: sq.slot ?? 2 };
+  // (a device's beat running: the arm (reach and pin), the throw, the force (its tool's model), the place)
+  const dev = beats.find(b => DEVICE_BEAT_KINDS.includes(b.k) && b.st === 'run' && Number.isFinite(b.fromMs) && ms >= b.fromMs);
+  if (dev) return { kind: dev.k, k: share(dev), slot: dev.slot ?? 1, ...(dev.k === 'force' ? { model: dev.model ?? (dev.how === 'ram' ? 'ram' : 'hal') } : {}) };
   const app = beats.find(b => b.key === 'approach'), ent = beats.find(b => b.key === 'enter');
   if (app?.st === 'done' && (!ent || ent.st === 'wait')) return { kind: 'stack', k: 0, slot: app.slot ?? 1 };
   return null;
 }
+/** The beats that use a device in the hands, as beatOf names them (bundle.js's kinds). */
+export const DEVICE_BEAT_KINDS = Object.freeze(['arm', 'throw', 'force', 'place']);
+/**
+ * The device in a figure's hands at ms (see the header): { id, model, shape, colour, st }, or null. A grenade thrown is
+ * still in the hand until its flight's first moment.
+ */
+export function heldLook(state, actor, ms = state?.clock?.ms ?? 0) {
+  const pid = actor?.who;
+  if (!pid) return null;
+  let h = handDeviceOf(state, pid);
+  if (!h) {
+    for (const d of liveDevices(state)) {
+      const rec = state.items[d.id], F = rec?.flight;
+      if (d.kind === 'grenade' && rec.byId === pid && F && Number.isFinite(F.fromMs) && ms < F.fromMs) { h = { id: d.id, kind: d.kind, model: d.model, st: d.st }; break; }
+    }
+  }
+  const L = h ? DEVICES[h.model]?.look : null;
+  return L ? { id: h.id, model: h.model, shape: L.shape, colour: L.colour, st: h.st } : null;
+}
+/** The shapes of the devices a person carries, hand and pouches: the stage bakes their cards before they are needed. */
+export const heldShapesOf = (state, pid) => [...new Set(devicesOf(state, pid).map(d => DEVICES[d.model]?.look?.shape).filter(Boolean))].sort();
 /** The postures as the art's rigs. */
 export const CARRY_RIGS = Object.freeze({ slungFront: 'front', slungBack: 'slung', lowReady: 'low', highReady: 'high', aimed: 'aim' });
 

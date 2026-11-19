@@ -1885,6 +1885,8 @@ So a grenade is in the air 2.6 s after the decision at value 10 (3.5 s at a recr
 
 **As built in v0.0.19: the cook.** The lever let go after the pin, the count held for 1 or 2 s (`gren:cook:1`, `gren:cook:2`), a Weapon handling check at DC 6, unpaced: at a pass the count times U(0.95, 1.05), a miss times 1.25, a disaster times 1.25 and 0.5 s frozen (`COOK_FREEZE_MS`). A cook is planned only where the believed fuse (4.0 s) less the cook less the throw's 0.7 s keeps `COOK_MARGIN_MS` 1.0 s: a 2 s cook leaves the hand by 3.70 s at worst, and a cooked grenade held past its fuse goes off in the hand. The throw is solved against the fuse the thrower believes is left (`throw.js` `fuseLeftMs`); a row throws a frag or a concussion deep (`aimOf`: the far hot spot, `AIM_OFF_WALL_M` 0.8 m off the far wall, across the room's middle, room 1's (29.0, 8.8)), a G-11 at the room's middle. A deep throw lands at least `DEEP_BEYOND_M` 2.0 m past the door's line, a failed one too (the G-11 keeps v0.0.18's 0.3 m). The room's side is the plan's, never the thrower's.
 
+**As built in v0.0.22 (the hand-back for every grenade).** A grenade of any model slipped at the thrower's feet, or a failed toss landing where its burst would stun him (`burst.js` `stunOn`), hands back at once with its fuse running (`SLIP_WORDS`, `SHORT_WORDS` "Grenade short! Get clear."); Get clear (`bundle.js` `clearOf`) runs the heading that has him farthest from it at its burst, at his move stance's pace. Declined, a slip stays the "BANG AT YOUR FEET" fault.
+
 ### 12.3 Fragments
 
 **One fragment helper** (WEAPONS owns it; COMBAT §11.2 and §11.6's spall call it; settled after the review, which found COMBAT's `λ = 25 / r²` ten times weaker than the M67 class at 15 m and this section's first `K` 120 a little weak):
@@ -1950,6 +1952,8 @@ qsp(W kg TNT, V m³) = min( 2,250 × (W/V)^0.72 ,  0.4 × W × 2 × 4.184 MJ/kg 
 - a **G-9 in a head** (80 kPa) blows out its door, its partitions and any weather or fire door, and is held by a pressure door; **in a cabin** (27 kPa) it blows the cabin door, the honeycomb walls and a sinter-board partition, and leaves a fire door (35) standing; **on a corvette's deck** (6 kPa) it breaks nothing by pressure;
 - a **0.5 kg breaching charge in a 10 m³ compartment** (167 kPa) blows out pressure doors, airlock doors and even dogged bulkhead doors and hatches (150), which is why COMBAT's breaching drill (§11.6 there) puts the charge on the door and the stack outside it, never in a small closed room.
 - **What it does to people** is BODY's (ears, lungs, being thrown), read from the same number COMBAT §11.3 bands.
+
+**As built in v0.0.22 (one model for every burst).** `practice.js` `blastLine` (a wall or a closed leaf on the line: `CORNER_SHADOW_K` 0.5, still to check against the manual; at or above the walls' 2.8 m: clear) is read by the practice read and by `burst.js` `burst` for every person and stand (`peakOn`: max(`peakKPa` × k, the room's quasi-static pressure in the burst's room)), charges included; `standoffM` stays the free field's. The boot recruit's own short flash round room 1's jamb puts 14.9 kPa on him, not 29.8.
 
 ### 12.5 Stun and smoke in each environment
 

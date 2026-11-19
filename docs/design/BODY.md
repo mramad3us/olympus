@@ -837,6 +837,8 @@ On Europa, Callisto and Ganymede the run is a two-footed bound. Direction change
 
 **As built in v0.0.20 (§16.8, the give-way).** "A walk held by a body: at PIN_GIVE_MS 400 ms your #2, idle, steps off it (never off a task of yours); a body that stays is walked round (route.js routed's bodies: a disc of BODY_GAP_M + 0.02 m, the walls' grid); held PIN_END_MS 2 s in all, handed back. His walk held by you standing outside a doorway TWO_PIN_MS 1.5 s is routed round you; a carry 'aside' with no way round is dropped. A startle's frozen ticks are no hold." The close of F17 and F46 (my call, v0.0.20): a walk of yours held by a body counts as standing for his rule, so where each of you holds the other his way round (or his walk ended where he stands, then his step off yours) comes at TWO_PIN_MS rather than after your PIN_END_MS (`bundle.js` `heldStill`); a hold with nothing of his walks left to hold is closed on his record (`gapSettle`); and a leg the stall passes halts his walk to its stack where he stands, the next leg's stack planned from there (`twoLegOver`, from `shoothouse.js` `endLeg`).
 
+The tween start (the hunt of v0.0.20's save-gait fix): a tick whose stop-motion hold an act releases takes the player's tween start at the player layer, where the body stands at the pause, never the last lived tick's kept through the hold, so a save made at a pause carries on byte for byte (TECH §3.1).
+
 ## 17. Wounds, bleeding, pain, shock, consciousness
 
 ### 17.1 Ported from tradecraft's `health.js`, as is

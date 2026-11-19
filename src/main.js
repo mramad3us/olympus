@@ -201,7 +201,7 @@ import { createLoop } from './core/loop.js';
 import { createInput } from './core/input.js';
 import { fromJSON, toJSON } from './core/state.js';
 import * as store from './core/store.js';
-import { createDebugHandle, installDebug, readParams } from './core/debug.js';
+import { createDebugHandle, installDebug, readParams, houseChoice } from './core/debug.js';
 import { MIN_MS, HOUR_MS, TICK_MS, durationText, isHeld } from './core/clock.js';
 import { BUILT } from './core/reads.js';
 import { hitDollCount } from './art/doll/hitcard.js';
@@ -215,6 +215,8 @@ import { WAIT_MS } from './sim/time/domain.js';
 import * as splashTiming from './sim/time/splash.js';
 import { ACTIVITIES } from './data/activities.js';
 import { SCENES, SCENE_IDS } from './data/scenes.js';
+// (the scenes' data read by name where an export may not be there yet: HOUSE_ROOMS_DEFAULT, the build sheet's A's)
+import * as SCENES_DATA from './data/scenes.js';
 import { instinctNow } from './sim/skills/instinct.js';
 import { bodyOf } from './sim/body/body.js';
 import { stagesOf, stripOf, wordsOf, cuesOf } from './sim/body/cues.js';
@@ -313,6 +315,9 @@ import { houseCodeOf, houseUrlNote, HOUSE_CODE_SET } from './sim/scenes/assemble
 import { createRunLog } from './ui/runlog.js';
 import { houseGrid, houseGridEl } from './ui/cards/house.js';
 import { housePlanEl } from './ui/cards/houseplan.js';
+// (the plan view's ghosts, page memory only (the build sheet §1 item 16), and a named house's letter on the card)
+import { ghostKeyOf, ghostOf, keepGhost, ghostsFor, ghostWords, deltaWords } from './ui/cards/house-ghosts.js';
+import { namedLaneOf, againHouseOf } from './ui/cards/house.js';
 import { debriefOf } from './sim/scenarios/house-debrief.js';
 import { speakerMarks, speakerMark, balloon, markPlace, keepOff } from './ui/plaque.js';
 import { spokenMs } from './core/speech.js';
@@ -673,7 +678,7 @@ const boot = createBoot({ cb: {
   // (the hidden rolls only in debug, once the scene is over: tradecraft's)
   logLines: () => logLines(loop.state, { over: !!settings.debug && !!scene?.ended }),
   scenes: () => SCENE_IDS.map(id => SCENES[id]),                    // (the built scenes: a stub's spec, ROADMAP "anywhere" step 4, waits for its layout)
-  playScene: (scene, { tier = null, par = null, loadout = null, draw = null, house = null, doors = null, qual = false } = {}) => (qual ? qualFirst(scene, tier, par) : playScene(scene, { tier, par, loadout, draw, house, doors })),
+  playScene: (scene, { tier = null, par = null, loadout = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, qual = false } = {}) => (qual ? qualFirst(scene, tier, par) : playScene(scene, { tier, par, loadout, draw, house, doors, rooms, layout, plans })),
   // (0.0.18: the shoot house's loadout screen (cards/loadout.js): the code this browser kept (olympus.loadout, a convenience the sim
   // never reads), kept again on Kit up, and the screen's numbers from a fill of the lane with the code (loadout.js loadoutView))
   loadout: () => ({ code: loadoutOf(readLocal('olympus.loadout')).error ? 'standard' : codeOf(loadoutOf(readLocal('olympus.loadout'))),
@@ -700,7 +705,7 @@ function randomSeed() { return crypto.getRandomValues(new Uint32Array(1))[0]; }
  * (test-pairs' sheet, 0.0.8: 'recruit' … 'tierone'; null the scene's private), scene (a scene's spec, src/data/scenes.js:
  * its host, environment, hour and setup; ROADMAP "anywhere" step 4) }.
  */
-function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', scene = null, hour = null, at = null, setup = null, tier = null, par = null, env = params.env, loadout = null, opfor = null, draw = null, house = null, doors = null } = {}) {
+function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks', scene = null, hour = null, at = null, setup = null, tier = null, par = null, env = params.env, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null } = {}) {
   if (!scene && !SCENARIOS[scenario]) throw new Error(`no scenario '${scenario}'`);
   // (0.0.8: tier, test-pairs' sheet (null: the scene's private); scenes never write a career)
   // (ROADMAP "anywhere" step 2: the URL's &env=<preset> runs every game this page starts under that environment)
@@ -708,7 +713,9 @@ function newGame({ seed = randomSeed(), mode = 'standard', scenario = 'barracks'
   // (0.0.18: loadout, the shoot house's (null: the standard))
   // (0.0.19: opfor, the shoot house's role-players by the URL (null: the scene's own, "Stack and clear, live"'s 'live'))
   // (draw, house and doors, the shoot house's drawn house (null: as set; the build sheet §0 item 54))
-  return freshGame({ seed, mode, scenario, ...(scene ? { scene } : {}), hour, at, setup, version: VERSION, ...(tier ? { tier } : {}), ...(par ? { par } : {}), ...(env ? { env } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...(draw ? { draw } : {}), ...(house ? { house } : {}), ...(doors ? { doors } : {}) });
+  // (rooms ('all'), layout ('B' | 'C') and plans ('derived'), each passed only when given (playScene's houseChoice orders them))
+  return freshGame({ seed, mode, scenario, ...(scene ? { scene } : {}), hour, at, setup, version: VERSION, ...(tier ? { tier } : {}), ...(par ? { par } : {}), ...(env ? { env } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...(draw ? { draw } : {}), ...(house ? { house } : {}), ...(doors ? { doors } : {}),
+    ...(rooms ? { rooms } : {}), ...(layout ? { layout } : {}), ...(plans ? { plans } : {}) });
 }
 /** The URL's start somewhere else (&area=, &at=, &face=), or null: an area alone starts at its spawn. */
 function atParam(scenario) {
@@ -752,9 +759,16 @@ const sceneOf = (s) => {
   const all = Object.values(SCENES).filter(x => x.scenario === s.meta.scenario), setup = s.armoury?.range?.mixed ? 'mixed' : String(s.armoury?.range?.setup ?? '').startsWith('bangs') ? 'bangs' : null;
   return all.find(x => (x.setup ?? null) === setup) ?? all[0] ?? null;
 };
+// (whether a scene's house can be other than the set from the page: its `draws` lists 'drawn', or it lists none)
+const drawableOf = (rec) => !Array.isArray(rec?.draws) || rec.draws.includes('drawn');
 /** Start a scene: a new game from its spec, at its hour (or the URL's), with the seed given or a new one, the URL's setup (else the scene's own), and a sheet's tier (test-pairs, 0.0.8). */
-function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null } = {}) {
-  return launch(newGame({ seed, scene: rec.id, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier, par, ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...(draw ? { draw } : {}), ...(house ? { house } : {}), ...(doors ? { doors } : {}) }));
+function playScene(rec, { seed = randomSeed(), hour = null, setup = null, tier = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, pool = null } = {}) {
+  // (draw, house, rooms and layout as one choice (debug.js houseChoice, a drawn lane given no rooms taking scenes.js
+  // HOUSE_ROOMS_DEFAULT, so qualified and "Again with a new seed" follow it); plans beside them, a lead's switch)
+  // (`pool`, the end card's, a drawn code's room set kept with it; a scene played as set from the page (its `draws`
+  // without 'drawn') given no other house)
+  const H = houseChoice({ draw, house, rooms, layout, pool }, { roomsDefault: SCENES_DATA.HOUSE_ROOMS_DEFAULT ?? 'a', drawable: drawableOf(rec) }).opts;
+  return launch(newGame({ seed, scene: rec.id, scenario: rec.scenario, hour: hour ?? rec.hour ?? null, setup: setup ?? rec.setup ?? null, tier, par, ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...H, ...(doors ? { doors } : {}), ...(plans ? { plans } : {}) }));
 }
 
 /** Play a state from here (new, loaded or imported). Resolves with it once its area shows (or the cut gives up). */
@@ -860,6 +874,9 @@ async function continueFrom(slot) {
 
 async function quitToTitle() {
   qualAttempt = null;                                                // (a qualification left for the title ends)
+  // (the card that asked for the title goes with it: the end card's "Back to the title" (its 0) left the card on the title page, over
+  // its buttons (the hunt of v0.0.20, P2, found on the way); the Esc menu closed its own before)
+  boot.closeCard();
   await autosaveNow('live');
   splash.clear(); splashPause(false); scene = null;
   loop.setState(null);
@@ -1516,7 +1533,11 @@ function openHouseEnd(rec, seed) {
   const s = loop.state, hn = houseRead(s), sheets = TEMPLATES.TEST_SHEETS ?? {};
   let code = null;
   try { code = houseCodeOf(s); } catch (e) { broke(e, 'the house\'s code'); }
-  const drawn = code && code !== HOUSE_CODE_SET ? code : null, keepHouse = drawn ? { draw: 'drawn', house: drawn } : {};
+  // (the house kept with its room set and its plans' source (house.js againHouseOf, the same seed's))
+  const H0 = s?.armoury?.range?.house ?? null, roomsOf = H0?.draw?.rooms ?? null, plansOf = H0?.plans ?? null;
+  const drawn = code && code !== HOUSE_CODE_SET ? code : null, keepHouse = againHouseOf({ same: true, code: drawn, rooms: roomsOf, plans: plansOf });
+  // (a named house's letter, B or C, said in the code's place on the card and the paper)
+  const lane = namedLaneOf(drawn);
   let rs = null, hw = null;
   try { rs = houseScene.runSheetOf ? houseScene.runSheetOf(s) : null; } catch (e) { broke(e, 'the run sheet'); }
   try { hw = houseScene.hotWashOf ? houseScene.hotWashOf(s) : null; } catch (e) { broke(e, 'the hot wash'); }
@@ -1549,21 +1570,36 @@ function openHouseEnd(rec, seed) {
   try {
     const said = new Set([...(rs?.rows ?? []).map(r => r.words), ...(rs?.would ?? []), typeof rs?.one === 'string' ? rs.one : rs?.one?.text, rs?.team?.words, verdict?.words].filter(Boolean));
     const stand = new Map((hn?.turners ?? []).map(T => [T.key, T.stand]));
-    const sheetEl = runSheetEl(rs, { bars: hw?.bars ?? null }), washEl = hotWashEl(hw, { fmt: takeInWords, skip: said, nameOf: (k) => stand.get(k) ?? k });
+    const sheetEl = runSheetEl(rs, { bars: hw?.bars ?? null, lane }), washEl = hotWashEl(hw, { fmt: takeInWords, skip: said, nameOf: (k) => stand.get(k) ?? k });
     // (the plan view: the debrief's model; a stand clicked opens its truth card in the slot under the plan)
     const d = debriefOf(s), slot = document.createElement('div');
     slot.className = 'plan-truth';
+    // (this run kept as a ghost once (the score card's way back never keeps it twice), and the ghosts of its house and
+    // lane offered on its plan, the run played just before first (house-ghosts.js; never read by the sim))
+    let ghosts = [], gkey = null;
+    try {
+      gkey = ghostKeyOf(rec, s);
+      if (!ghostKept.has(s)) ghostKept.set(s, keepGhost(ghostOf(d, { key: gkey, label, sheet: played })));
+      ghosts = ghostsFor(gkey, { not: ghostKept.get(s) });
+    } catch (e) { broke(e, 'the ghost'); }
     // (with the plan the hot wash stands down: its lines are the run sheet's, its bars the scrubber's lanes (card C2))
-    const plan = d && d.tracks.ms.length ? housePlanEl(d, { winW: innerWidth, winH: innerHeight, onStand: (key) => {
+    // (the truth card beside the canvas, captioned by its stand ("Room 2, 2a"), with no string's button: the hunt of v0.0.20, P4, it read
+    // "String 1" with a button 1, Pairs' words, under the plan, and pushed the run sheet out of the side column)
+    const plan = d && d.tracks.ms.length ? housePlanEl(d, { winW: innerWidth, winH: innerHeight, aside: slot, ghosts, onStand: (key) => {
       try {
         const T = s.armoury.range.turners.find(x => x.key === key), k = T ? (T.stand === 'H' ? 3 : Number(T.stand[0]) - 1) : 0;
         const model = hitModelOf(s, key, k, 'truth');
-        slot.replaceChildren(...(model ? [hotWash([{ k, model }], { paint: paintHitcard, fit: hitFit(uiK, globalThis.devicePixelRatio ?? 1) })] : []));
+        slot.replaceChildren(...(model ? [hotWash([{ k, model }], { paint: paintHitcard, fit: hitFit(uiK, globalThis.devicePixelRatio ?? 1), caption: () => standWords(T?.stand), tabs: false })] : []));
         slot.dataset.stand = T?.stand ?? '';
       } catch (e) { broke(e, 'the truth card'); }
     } }) : null;
     planEl = plan?.el ?? null;
-    if (planEl) { planEl.append(slot); report.plan = { faults: Number(planEl.dataset.faults) || 0, seek: (t) => plan.seek(t), get ms() { return plan.ms; }, get stand() { return slot.dataset.stand ?? null; }, frame: plan.frame }; }
+    if (planEl) {
+      report.plan = { faults: Number(planEl.dataset.faults) || 0, seek: (t) => plan.seek(t), get ms() { return plan.ms; }, get stand() { return slot.dataset.stand ?? null; }, frame: plan.frame,
+        // (the ghosts offered and the one drawn, its delta now, the replay's slowest draw: the browser test's (F83))
+        ghost: { key: gkey, offered: plan.ghosts.map(ghostWords), get chosen() { return plan.ghost ? ghostWords(plan.ghost) : null; }, get delta() { return deltaWords(plan.delta); }, set: (i) => plan.setGhost(i),
+          play: (r) => plan.play(r), pause: () => plan.pause(), get drawMaxMs() { return plan.drawMaxMs; }, get draws() { return plan.draws; }, reset: () => plan.resetDraws() } };
+    }
     if (sheetEl || washEl || planEl) { side = document.createElement('div'); side.className = `house-side${planEl ? ' with-plan' : ''}`; side.append(...[planEl, sheetEl, planEl ? null : washEl].filter(Boolean)); }
   } catch (e) { broke(e, 'the run sheet'); }
   const order = Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? [];
@@ -1583,10 +1619,11 @@ function openHouseEnd(rec, seed) {
   };
   const leave = (fn) => (...a) => { qualAttempt = null; return fn(...a); };
   const { body, lines } = endCard({ scene: rec, seed, said: houseEndLines(hn, rs), sheet: label, runs, cards: side, grid, aspects: houseAspects(hn, { fmt: takeInWords }), again, verdict,
-    from: from?.setup ? from : null, exportRun: !!runLogOf(s), code: drawn, qual, on: {
-    again: leave((same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played, par, setup: null, loadout, ...(same ? keepHouse : drawn ? { draw: 'drawn' } : {}) })),
+    from: from?.setup ? from : null, exportRun: !!runLogOf(s), code: drawn, lane, qual, on: {
+    // (a new seed keeps a named house, B or C, with a new cast, and a drawn house its rooms (house.js againHouseOf))
+    again: leave((same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played, par, setup: null, loadout, ...againHouseOf({ same, code: drawn, lane, rooms: roomsOf, plans: plansOf }) })),
     // ("Again as" on a drawn house keeps its code (the same seed, the same house, another sheet))
-    againAs: leave((t) => { if (!drawn) return againAs(rec, t); const h = houseScene.againAsHouse(s, t); return playScene(rec, { seed: h.seed, tier: h.tier, par: h.par ?? null, setup: null, loadout: h.loadout ?? null, ...keepHouse }); }),
+    againAs: leave((t) => { if (!drawn && !plansOf) return againAs(rec, t); const h = houseScene.againAsHouse(s, t); return playScene(rec, { seed: h.seed, tier: h.tier, par: h.par ?? null, setup: null, loadout: h.loadout ?? null, ...keepHouse }); }),
     from: leave((setup) => playScene(rec, { seed, tier: played, par, setup, loadout, ...keepHouse })),
     qual: (tier) => qualLane(tier),
     exportRun: () => exportRun(rec, s),
@@ -1597,6 +1634,8 @@ function openHouseEnd(rec, seed) {
 }
 // (the state the end card last kept a run for: the score card's way back never keeps it twice)
 let runKept = null;
+// (each state's own ghost, kept once (house-ghosts.js keepGhost), so its card never offers it to itself)
+const ghostKept = new WeakMap();
 // (the qualification under way (house-runs.js: { sheet, n, seeds, codes, pending: the hidden seed of its lane }) and the step
 // the card said for a state; page memory only: a reload ends the attempt)
 let qualAttempt = null, qualSaid = null;
@@ -1616,6 +1655,8 @@ function qualFirst(rec, tier, par = null) {
   qualAttempt = { ...qualStart(tier), pending: seedQ };
   return qualLaunch(() => playScene(rec, { seed: seedQ, tier, par, setup: null, draw: 'drawn' }));
 }
+/** A stand in the run sheet's words, for the truth card's caption: "Room 2, 2a", "The hall, H". */
+const standWords = (stand) => (!stand ? 'The stand' : stand === 'H' ? 'The hall, H' : `Room ${stand[0]}, ${stand}`);
 
 // ---- v0.0.20: the run's log, its export, who speaks and the plates off the room ----
 /** The run's log for a state, or null (ui/runlog.js: none kept, the log full, or no save at GO). */
@@ -2684,14 +2725,19 @@ loop.start();
 const loadoutParam = params.loadout && !loadoutOf(params.loadout).error ? codeOf(loadoutOf(params.loadout)) : null, loadoutUnknown = params.loadout && !loadoutParam ? params.loadout : null;
 // (a &house= code not played as written (assemble.js houseUrlNote, read from the house the scene plays, once it is made:
 // the code review of 2026-11-16 found the toast said "Its rooms as given" on &draw=set, the live lane and every other scene, and a
-// malformed code dropped silently))
-const houseSay = () => { if (!params.houseAsked) return; let note = null; try { const s = loop?.state, played = s?.armoury?.range?.course === 'house' ? houseCodeOf(s) : null; note = houseUrlNote(params.houseAsked, played, params.seed ?? 48213); } catch (e) { broke(e, 'the house\'s code'); } if (note) toast(note, 'warn'); };
+// malformed code dropped silently; a code that &layout dropped is not judged here: its toast is houseChoice's)
+const houseSay = () => { if (!params.houseAsked || params.layout || !drawableOf(recURL)) return; let note = null; try { const s = loop?.state, played = s?.armoury?.range?.course === 'house' ? houseCodeOf(s) : null; note = houseUrlNote(params.houseAsked, played, params.seed ?? 48213); } catch (e) { broke(e, 'the house\'s code'); } if (note) toast(note, 'warn'); };
+// (&layout, &house, &rooms and &draw as one choice (houseChoice): a loser dropped with its toast)
+// (and on a scene played as set from the page, the live lane until F80 is met, any other house dropped with its words (drawableOf))
+const recURL = params.play ? SCENE_IDS.map(id => SCENES[id]).find(x => x.id === params.play || x.scenario === params.play) ?? null : null;
+const houseURL = houseChoice({ draw: params.draw, house: params.house, rooms: params.rooms, layout: params.layout }, { roomsDefault: SCENES_DATA.HOUSE_ROOMS_DEFAULT ?? 'a', drawable: drawableOf(recURL) });
 const sayEnv = () => { if (envUnknown) toast(`No environment '${envUnknown}': the site's own instead.`, 'warn'); if (lookUnknown) toast(`No look '${lookUnknown}': the game's instead.`, 'warn'); if (loadoutUnknown) toast(`No loadout '${loadoutUnknown}': the standard instead.`, 'warn');
+  for (const t of houseURL.dropped) toast(t, 'warn');
   houseSay(); };
 if (benchName) { await bench(benchName).catch((e) => broke(e, 'the bench')); sayEnv(); }
 else if (params.play) {
   const rec = SCENE_IDS.map(id => SCENES[id]).find(x => x.id === params.play || x.scenario === params.play);
-  if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour, setup: params.setup, tier: params.tier, par: params.par, loadout: loadoutParam, opfor: params.opfor, draw: params.draw ?? null, house: params.house ?? null, doors: params.doors ?? null });
+  if (rec && SCENARIOS[rec.scenario]) playScene(rec, { seed: params.seed ?? 48213, hour: params.hour, setup: params.setup, tier: params.tier, par: params.par, loadout: loadoutParam, opfor: params.opfor, draw: params.draw ?? null, house: params.house ?? null, doors: params.doors ?? null, rooms: params.rooms ?? null, layout: params.layout ?? null, plans: params.plans ?? null });
   else if (SCENARIOS[params.play]) launch(newGame({ seed: params.seed ?? 1, scenario: params.play, mode: params.mode, hour: params.hour, at: atParam(params.play) }));
   else { toast(`No scenario '${params.play}': the title instead.`, 'warn'); await showTitle(); }
   sayEnv();

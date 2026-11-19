@@ -30,6 +30,11 @@
 //   - FLASHES: a third instanced draw of cards from the flash strip (atlas.js flashStrip()), at the
 //     muzzle, unlit, nudged along the camera's line (in front, or behind the head from behind), for
 //     FLASH_MS; the caller lights whoever is within FLASH_LIT_M (poses.js gunPose() decides when).
+//   - HELD (the build sheet v0.0.22 §1 item 17): the device in a figure's hands (p.held: { shape, colour }, view.js from
+//     look.js heldLook) is a fifth instanced draw of cards from the held strip (atlas.js heldStrip: the pixels a device adds to its
+//     frame, by shape, colour, frame and facing), lit by the same tint and carrying the person's part, placed by the drawn frame's
+//     cell and nudged a little toward the camera so it lies over the figure's card. Its strip is baked for the shapes asked
+//     (prepareHeld, the view's behind the brief's cut) and sent whole then; a shape first met mid-lane is baked at once (stats.heldLate).
 //   - BERTHS (0.0.3): a person lying in a rack (lie: { y, head, ... }) is not a card: in this projection an
 //     upright card of a body lying head north reads as one standing (the look round's L5). They are drawn
 //     as the berth shows them, a quad lying on the mattress at its height, painted with the blanket over
@@ -65,7 +70,7 @@ import * as THREE from 'three';
 import { PX_PER_M } from './scale.js';
 import { FRAG_DECL } from './materials.js';
 import { PEOPLE_PART, PEOPLE_PARTS, PEOPLE_PART_STEP } from './cards.js';
-import { sheetLayout, bandSteps, flashStrip } from '../art/figures/atlas.js';
+import { sheetLayout, bandSteps, flashStrip, heldStrip, heldKey } from '../art/figures/atlas.js';
 import { BAND_OF, POOL_OF, gaitFrame, CARRY_FREE_BANDS } from '../art/figures/poses.js';
 const CARRY_FREE = new Set(CARRY_FREE_BANDS);
 import { wear } from '../art/figures/outfits.js';
@@ -86,6 +91,8 @@ export const BERTH_PART = PEOPLE_PART + 1;
 /** Who a flash lights, and the most it lights them (tradecraft's: linear, a warm white). */
 export const FLASH_LIT_M = 3, FLASH_LIGHT = Object.freeze([1.0, 0.85, 0.55]);
 const INK = 0x14151c, TOWARD = new THREE.Vector3(0, Math.SQRT1_2, Math.SQRT1_2).multiplyScalar(0.15);
+/** A held card's nudge toward the camera (m): over its figure's card, under anything a hand's breadth nearer. */
+const HELD_TOWARD = new THREE.Vector3(0, Math.SQRT1_2, Math.SQRT1_2).multiplyScalar(0.02);
 
 /**
  * The figures of the stage: { group (add it to the scene or an area), update(people), prepare(key, look,
@@ -288,6 +295,30 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
   flashes.frustumCulled = false; flashes.count = 0; flashes.renderOrder = 2;
   flashes.userData.noId = true;
 
+  // ---------- the device in the hands (atlas.js heldStrip, see the header) ----------
+  let held = null, heldShapes = [];
+  const hgeo = new THREE.PlaneGeometry(1, 1).translate(0.5, 0.5, 0);
+  const hRect = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople * 4), 4), hTint = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople * 3), 3), hPartK = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople), 1);
+  hgeo.setAttribute('aRect', hRect); hgeo.setAttribute('aTint', hTint); hgeo.setAttribute('aPartK', hPartK);
+  const htex0 = new THREE.DataTexture(new Uint8Array(4), 1, 1);
+  const heldMat = stripMaterial(htex0, [1, 1], PEOPLE_PART);
+  const helds = new THREE.InstancedMesh(hgeo, heldMat, maxPeople);
+  helds.frustumCulled = false; helds.count = 0; helds.renderOrder = 1;
+  /** Bake the held cards of these shapes (with those already baked) and send the strip whole (behind a cut). */
+  function prepareHeld(shapes = []) {
+    const want = [...new Set([...heldShapes, ...shapes])].sort();
+    if (held && want.join() === heldShapes.join()) return held;
+    const t0 = performance.now(), S = heldStrip(ppm, { shapes: want });
+    const tex = new THREE.DataTexture(new Uint8Array(S.pm.data.buffer), S.pm.w, S.pm.h);
+    tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.generateMipmaps = false; tex.colorSpace = THREE.SRGBColorSpace; tex.flipY = false; tex.needsUpdate = true;
+    const old = heldMat.uniforms.atlas.value;
+    heldMat.uniforms.atlas.value = tex; heldMat.uniforms.size.value.set(S.pm.w, S.pm.h);
+    if (old !== htex0) old.dispose();
+    held = S; heldShapes = want;
+    stats.held = { shapes: want, cards: S.index.size, px: [S.pm.w, S.pm.h], bytes: S.pm.w * S.pm.h * 4, bakeMs: Math.round(performance.now() - t0) };
+    return held;
+  }
+
   // ---------- the berths (a sleeper on a mattress: bedding.js, see the header) ----------
   const bw = Math.max(4, Math.round(BERTH_M[0] * ppm)), bh = Math.max(8, Math.round(BERTH_M[1] * ppm));
   const BCOLS = Math.floor(BERTH_ATLAS_PX / bw), BCELLS = BCOLS * Math.floor(BERTH_ATLAS_PX / bh);
@@ -320,7 +351,7 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
 
   const group = new THREE.Group();
   group.name = 'figures';
-  group.add(cards, blobs, flashes, berths);
+  group.add(cards, blobs, flashes, berths, helds);
 
   const m4 = new THREE.Matrix4(), snap = (v) => Math.round(v * ppm) / ppm;
   /**
@@ -332,8 +363,8 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
     frameNo++;
     uploadsLeft = sheetsPerFrame; msLeft = budgetMs;
     stats.lastFrame = { uploads: 0, bytes: 0, paintMs: 0, uploadMs: 0 };
-    let i = 0, nf = 0, nBerth = 0;
-    stats.deferred = 0; stats.fallback = 0; stats.twin = 0; stats.sib = 0; stats.stanceFallback = 0;
+    let i = 0, nf = 0, nBerth = 0, nh = 0;
+    stats.deferred = 0; stats.fallback = 0; stats.twin = 0; stats.sib = 0; stats.stanceFallback = 0; stats.heldDrawn = 0; stats.heldNone = 0;
     for (const p of people) {
       if (i >= maxPeople) break;
       if (p.lie) {
@@ -398,6 +429,20 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
       m4.makeScale(sx * k, 1, sz * k).setPosition(bx, floorY + 0.012, bz);
       blobs.setMatrixAt(i, m4);
       aAlpha.setX(i, p.noBlob ? 0 : Math.max(0.15, 0.4 - 0.083 * lift));
+      // (the device in the hands, its card by the frame drawn; none where the body hides it whole)
+      if (p.held) {
+        if (!held || !heldShapes.includes(p.held.shape)) { prepareHeld([p.held.shape]); stats.heldLate = (stats.heldLate ?? 0) + 1; }
+        const hc = held.index.get(heldKey(p.held.shape, p.held.colour, frame, face));
+        if (hc?.w) {
+          m4.makeScale(hc.w / ppm, hc.h / ppm, 1).setPosition(left + hc.ox / ppm, yb + (c.h - hc.oy - hc.h) / ppm, zc);
+          m4.elements[12] += HELD_TOWARD.x; m4.elements[13] += HELD_TOWARD.y; m4.elements[14] += HELD_TOWARD.z;
+          helds.setMatrixAt(nh, m4);
+          hRect.setXYZW(nh, hc.x, hc.y, hc.w, hc.h);
+          hTint.setXYZ(nh, t[0], t[1], t[2]);
+          hPartK.setX(nh, i % PEOPLE_PARTS);
+          nh++; stats.heldDrawn++;
+        } else stats.heldNone++;
+      }
       // (the flash: its card over the muzzle, a little toward the camera, or behind the head from behind)
       const gun = s.look.weapon;
       if (p.flash && gun && nf < MAX_FLASHES) {
@@ -414,9 +459,9 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
       }
       i++;
     }
-    cards.count = blobs.count = i; flashes.count = nf; berths.count = nBerth;
+    cards.count = blobs.count = i; flashes.count = nf; berths.count = nBerth; helds.count = nh;
     // (only the instances drawn are sent: a frame's few hundred bytes, not MAX_PEOPLE's 16 KB a matrix buffer)
-    for (const [a, n] of [[cards.instanceMatrix, i], [blobs.instanceMatrix, i], [flashes.instanceMatrix, nf], [aRect, i], [aTint, i], [aPartK, i], [aAlpha, i], [aSlot, nf], [berths.instanceMatrix, nBerth], [bRect, nBerth], [bTint, nBerth]]) {
+    for (const [a, n] of [[cards.instanceMatrix, i], [blobs.instanceMatrix, i], [flashes.instanceMatrix, nf], [aRect, i], [aTint, i], [aPartK, i], [aAlpha, i], [aSlot, nf], [berths.instanceMatrix, nBerth], [bRect, nBerth], [bTint, nBerth], [helds.instanceMatrix, nh], [hRect, nh], [hTint, nh], [hPartK, nh]]) {
       if (!n) continue;
       a.clearUpdateRanges(); a.addUpdateRange(0, n * a.itemSize); a.needsUpdate = true;
     }
@@ -456,11 +501,11 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
   }
   function dispose() {
     geo.dispose(); material.dispose(); bgeo.dispose(); bmat.dispose(); fgeo.dispose(); fmat.dispose(); ftex.dispose(); atlas.dispose();
-    bgeo2.dispose(); berthMat.dispose(); batlas.dispose();
+    bgeo2.dispose(); berthMat.dispose(); batlas.dispose(); hgeo.dispose(); heldMat.uniforms.atlas.value.dispose(); heldMat.dispose(); htex0.dispose();
     group.removeFromParent();
   }
   group.userData.dispose = dispose;
-  return { group, cards, blobs, flashes, berths, update, warm, prepare, ready, stats, atlas, layout: lay, slots, dispose, COLS, ROWS, SLOTS, RCOLS, RSLOTS, RY0, ppm, material, bmat, fmat, berthMat };
+  return { group, cards, blobs, flashes, berths, helds, update, warm, prepare, prepareHeld, get held() { return held; }, ready, stats, atlas, layout: lay, slots, dispose, COLS, ROWS, SLOTS, RCOLS, RSLOTS, RY0, ppm, material, bmat, fmat, berthMat, heldMat };
 }
 
 /**
@@ -468,6 +513,35 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
  * of an atlas (aRect, texels, rows top-down), tinted by the light where it stands (aTint), writing the
  * given part (one program for every card material: its source is the same).
  */
+/** The held cards' material: cardMaterial's, over a strip w × h (not square). */
+function stripMaterial(tex, [w, h], part) {
+  return new THREE.ShaderMaterial({
+    uniforms: { atlas: { value: tex }, size: { value: new THREE.Vector2(w, h) }, part: { value: part } },
+    defines: { OLY_SEE: '' },
+    vertexShader: /* glsl */`
+      attribute vec4 aRect; attribute vec3 aTint; attribute float aPartK;
+      varying vec2 vPx; varying vec3 vTint; varying vec3 vOlyWorld; flat varying float vOlyPart;
+      uniform float part;
+      void main() {
+        vPx = aRect.xy + vec2(uv.x, 1.0 - uv.y) * aRect.zw;
+        vTint = aTint; vOlyPart = part + aPartK * ${PEOPLE_PART_STEP.toFixed(1)};
+        vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0);
+        vOlyWorld = w.xyz;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }`,
+    fragmentShader: /* glsl */`
+      ${FRAG_DECL}
+      uniform sampler2D atlas; uniform vec2 size;
+      varying vec2 vPx; varying vec3 vTint;
+      void main() {
+        olySee(vOlyWorld);
+        vec4 c = texture2D(atlas, (floor(vPx) + 0.5) / size);
+        if (c.a < 0.5) discard;
+        gl_FragColor = vec4(c.rgb * vTint, 1.0);
+        pc_fragId = olyId(vOlyPart, olyFlag);
+      }`,
+  });
+}
 function cardMaterial(atlas, size, part) {
   return new THREE.ShaderMaterial({
     uniforms: { atlas: { value: atlas }, size: { value: size }, part: { value: part } },

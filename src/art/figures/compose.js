@@ -62,7 +62,9 @@
 // The held devices sample's candidates (samples/held-devices; kit-10 of the v0.0.18 hunt, the stage's figure drawn with empty
 // fists while a G-11, the halligan, the ram or a charge is in them): a given pose may carry `reach` (a free hand put on a point by
 // the rig's IK) and `device` (the device's parts drawn as capsules between the hands, under the fists or over one), and its
-// frame then reports the hands' tips; no pose of the game carries either, so the game's frames are unchanged. Pure.
+// frame then reports the hands' tips; no pose of the game carries either, so the game's frames are unchanged. v0.0.22 (the build
+// sheet v0.0.22 §1 item 17): the held band's poses (poses.js BANDS.stanceHeld, templates.js HELD_POSES) carry `reach`, never `device`,
+// and the held card (atlas.js heldStrip) composes a game frame with opts.device to read the device's pixels and the hands' tips. Pure.
 import { PX_PER_M } from '../../render/scale.js';
 import { bodyOf } from './body.js';
 import { poseOf, cellKind, AIM_TILT, KICK_TILT } from './poses.js';
@@ -450,10 +452,13 @@ const ROLE_ARM = { blouse: ['t', 't'], tee: ['t', 's'], suit: ['p', 'p'], covera
  * or null), w, h, ax, ay (the anchor), kind (the cell), muzzle ([x, y] or null), flash ({ kind, th } or
  * null), look }.
  */
-export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = null } = {}) {
+export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = null, device = null } = {}) {
   const Lk = look?.top ? look : wear(look);
   // (given: a pose written outright, not one of FRAMES: the walk sample's candidate cycles, src/art/figures/cycles.js; the game's frames never pass one)
-  const B = bodyOf(ppm), pose = given ? { stance: 'stand', lean: 0, bob: 0, lift: 0, roll: 0, ...given } : poseOf(frame, { weapon: Lk.weapon, carry: Lk.carry, tired: !!Lk.tired, cycle: Lk.cycle ?? null });
+  // (device: { parts, only? }, a device drawn into a game frame for the held card (atlas.js heldStrip), which reads its
+  // pixels and the hands' tips; the frame drawn for the figure's sheet never passes one)
+  const B = bodyOf(ppm), pose0 = given ? { stance: 'stand', lean: 0, bob: 0, lift: 0, roll: 0, ...given } : poseOf(frame, { weapon: Lk.weapon, carry: Lk.carry, tired: !!Lk.tired, cycle: Lk.cycle ?? null });
+  const pose = device ? { ...pose0, device } : pose0;
   const kind = cellKind(frame, dir), cell = B.cell[kind];
   const J = solve(pose, B), rig = rigOf(pose, J, B, Lk, dir);
   if (rig) for (const s of ['r', 'l']) if (rig.hand[s]) {
@@ -616,7 +621,7 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
   const out = Array.from({ length: cell.h }, (_, y) => Array.from({ length: cell.w }, (_, x) => cells[y + dy]?.[x + dx] ?? null));
   if (muzzle) muzzle = [muzzle[0] - dx, muzzle[1] - dy];
   // (the held devices sample: the hands' tips in the cell's pixels, so its checks can hold a device to the hand)
-  const hands = given && (pose.device || pose.reach) ? Object.fromEntries(['r', 'l'].map(s => { const t = pp(handTip(s)); return [s, [t[0] - dx, t[1] - dy]]; })) : undefined;
+  const hands = (given && (pose.device || pose.reach)) || device ? Object.fromEntries(['r', 'l'].map(s => { const t = pp(handTip(s)); return [s, [t[0] - dx, t[1] - dy]]; })) : undefined;
   // (a given pose's boots reported in the cell's pixels, heel and toe on the sole, as the muzzle is: the walk sample locks the planted one)
   const feet = given && !pose.noLegs ? Object.fromEntries(['r', 'l'].map(s => { const h = pp(J.foot[s].heel), t = pp(J.foot[s].toe); return [s, { heel: [h[0] - dx, h[1] - dy], toe: [t[0] - dx, t[1] - dy] }]; })) : undefined;
   return { cells: out, w: cell.w, h: cell.h, ax: Math.floor(ax) - dx, ay: ay - dy, kind, muzzle, flash: muzzle ? flash : null, look: Lk, pose, ...(feet ? { feet } : {}), ...(hands ? { hands } : {}) };

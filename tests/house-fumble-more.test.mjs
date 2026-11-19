@@ -40,7 +40,24 @@ const drawnSweep = (tier) => () => {
   assert(!cl.unknown.length, `${cl.unknown.length} UNKNOWN cases on the drawn house: ${cl.unknown.slice(0, 4).map(caseLine).join(' || ')}`);
 };
 
+// (v0.0.22, its build sheet item 14, §6 A: the eight-room slice, 72 lanes drawn from all eight rooms, as the drawn slice; 360 lanes in
+// all, F67's "0 cases" over every one; FUMBLE_DRAWN=0 leaves it out with the drawn)
+const eightSweep = (tier) => () => {
+  const lanes = lanesOf({ seeds: [1, 2], tiers: [tier], setups: DRAWN_SETUPS, bots: BOTS_SET, rate: RATE_SET, draw: 'drawn', rooms: 'all' }).map(L => ({ ...L, twoRate: TWO_SET }));
+  const t0 = Date.now(), recs = lanes.map(L => runLane(L));
+  const cl = classify(recs.flatMap(r => r.cases), [...KNOWN, ...OPEN]);
+  console.log(`      the ${tier} on eight-room houses: seeds 1, 2, the brief and GO, rate ${RATE_SET}, bots ${BOTS_SET.join(', ')}, ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+  printSweep(recs, cl);
+  assert(recs.every(r => r.done) && !cl.unknown.length, `${cl.unknown.length} UNKNOWN cases on eight-room houses: ${cl.unknown.slice(0, 4).map(caseLine).join(' || ')}${recs.some(r => !r.done) ? `; not to the card: ${recs.filter(r => !r.done).length}` : ''}`);
+};
+
 export default [
+  ...(process.env.FUMBLE_DRAWN === '0' ? [] : TIERS.map(tier => ({
+    name: `the ${tier} on eight-room houses, the brief and GO, the three bots, seeds 1 and 2, fumbles forced at the net's rate: no dead end, every lane to the card (v0.0.22)`,
+    heavy: true,
+    timeoutMs: 600_000,
+    fn: eightSweep(tier),
+  }))),
   ...(process.env.FUMBLE_DRAWN === '0' ? [] : TIERS.map(tier => ({
     name: `the ${tier} on the drawn house, the brief and GO, the three bots, seeds 1 and 2, fumbles forced at the net's rate: no dead end, every lane to the card (v0.0.21)`,
     heavy: true,

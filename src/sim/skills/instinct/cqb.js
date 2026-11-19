@@ -10,7 +10,8 @@
 // and after it the instructor's commands are the range's rules', instinct.js: the fixer's of 0.0.12, T stacked a cold
 // rifle on room 1 at LOAD and topped up at UNLOAD). What T does grows with the rung (COMBAT §25.8.1):
 //   cqb-stack     note    the lane's door ahead, not stacked, not in: rung 0 Stack up; 1 and 2 Stack up, take point; 3 and
-//                         4 "Open, clear the room" (one room a press: "Clear the house" withdrawn in the rework's R4)
+//                         4 "Open, clear the room" (one room a press: "Clear the house" withdrawn in the rework's R4); v0.0.20's
+//                         hunt (breach-2): also a stack you had taken and walked off, the door shut (offStack)
 //   (2026-11-15, the corner role: the line at the stack names your corner once, src/sim/combat/corner.js's rule in words,
 //   "Your corner: left.": cqb-door's below rung 3, cqb-stack's from it, where the room is one press from the hall)
 //   cqb-task      note    v0.0.19: your #2 on the door on your word (TEAM 2, 3): "Your two's on the door. Cover it." with your entry
@@ -29,6 +30,10 @@
 //   cqb-funnel    warn    standing in the doorway (room.js inFunnel, still): from rung 2 Enter; below it, once past the
 //                         threshold Move to your point, else "Out of the door. Keys, in." and X, as cqb-go (the fixer's of
 //                         0.0.12: the same advice did nothing on T in the doorway and X at the open door)
+//   cqb-grenade   urgent  (R1 b) a live grenade on the floor whose burst would stun you where you stand (burst.js stunOn: its
+//                         stun line, the walls counted) and Get clear offered: "Grenade! Get clear." (tier 1) to "Grenade! Move." (tier 3),
+//                         T Get clear (bundle.js move:clear; the hand-back of a slip at your feet or a toss short, SLIP_WORDS and
+//                         SHORT_WORDS). First of the rules: nothing else is worth saying with a grenade at your feet
 //   cqb-hands     urgent  (v0.0.19) a device in the hand: a live grenade "Throw it!"; at a contact its way out (devplan.js handsPath,
 //                         "Hands first."); v0.0.20, nobody up: this door's drill that uses it ("Finish it: …"), else its throw
 //                         through the leg's open door from the stack side, else its way out; never "Get it up." (Up is struck
@@ -70,11 +75,12 @@
 //                         your way. {keys} round him, or T." (the keys toward where it was going), T Carry on
 //   cqb-two-out   warn    your #2 held on his cue TWO_OUT_LINE_MS by you standing on his way in, you inside: "Your two's
 //                         outside. Off his lane.", T your point (out of the mode, G first)
-//   cqb-limit     warn    you LIMIT_WARN_MS in his sector's wedge before he has swept the room (house-two.js maskTick):
+//   cqb-limit     warn    you LIMIT_WARN_MS in his sector's wedge before he has swept the room (combat/two.js maskTick):
 //                         "You're in his sector. Back to your point.", T your point (out of the mode, G first)
 //   cqb-pair      note    in the hall, your lead over him along its axis past HALL_PAIR_M (bundle.js hallLead): "Wait for
 //                         your two.", T Wait (out of the mode, G first)
-//   cqb-carryon   note    a bundle halted and nothing standing to answer (the 'two' hand-back once he is in place): Carry on
+//   cqb-carryon   note    a bundle halted and nothing standing to answer (the 'two' hand-back once he is in place): Carry on;
+//                         "He's down." only over a man bracketed down, else "Carry on." (v0.0.20's hunt, breach-9)
 //   cqb-dominate  note    rung 2 in the room, nobody of it up and Dominate offered: Dominate (the corporal's next group)
 //   cqb-corner    warn    rungs 0 and 1, in the room, a hot spot the scene has not seen covered: a Look at it; the far leg
 //                         (a plan's `far`) not yet in view: "Move: the far leg" first (0.0.12's integration)
@@ -102,7 +108,13 @@
 //                         bracketed down ("Down."), then the drill's next row the panel has, in this order: Carry on, your
 //                         point, a corner not yet seen, "Clear!", the hall's end, the walk in by the keys (X); its name and T
 //   cqb-rifle-up  warn    the P-12 out and nobody of yours facing (R6, §25.19.6): Rifle up (holster, the rifle's drill);
-//                         cqb-reload names Transition first where the panel offers it (a man within 10 m, the pistol holstered)
+//                         cqb-reload names Transition first where the panel offers it (a man within 10 m, the pistol holstered);
+//                         Rifle up keeps quiet with a man on you (manOn: bracketed up and facing, or one of the room up and
+//                         facing that you know of), and never onto a rifle the planner finds no round for (v0.0.20's hunt,
+//                         breach-6)
+// v0.0.20's hunt of "Stack and clear" (breach-1, 3, 5): cqb-next names the far leg's walk by hotRow, never its look from the near
+// leg; cqb-contact's "In. On him." acts (Carry on, else the room's In, Clear the room, Dominate or your point: moveAct), and from
+// rung 2 with every shot row struck and the gun on safe names Off safe, as below rung 2.
 // 2026-11-12 (the shoot house's rework R3): a suspended flow (state.stop.flow, bundle.js) is a bundle to carry on: the door's, the
 // stack's, Dominate's and the hall's lines keep quiet while one waits, its "Carry on" the line's (cqb-contact's, cqb-noshoot's).
 // 2026-11-12 (the rework's R4, COMBAT §25.19.4): the catalogue's rows by name (cqb-stack, cqb-door, cqb-go, cqb-hall), and every
@@ -131,12 +143,15 @@ import { ownerOf, sideOf } from '../../combat/team.js';
 import { markYoursOf } from '../../combat/bundle.js';
 import { TEAM_TASKS } from '../../combat/drills/enter-and-clear.js';
 import { handDeviceOf, DEVICES } from '../../arms/devices.js';
+import { placedOn } from '../../combat/breach.js';
+import { planFor } from '../../arms/plan.js';
 import { handsPath } from '../../arms/devplan.js';
 import { isLive, upNow, accountedOf, gateWhy } from '../../combat/men.js';
 import { rungOf, valueOf } from '../templates.js';
 import { openingState } from '../../places/model.js';
 import { keysFor, layoutIn } from '../../arms/groups.js';
 import { opOf, opLive, laneRec, sessionOf } from '../../combat/op.js';
+import { stunsOn } from '../../combat/burst.js';
 
 /** The house's rules repeat as each case comes (the door, the room, the contact are each new advice). */
 export const CQB_REPEAT_MS = 0;
@@ -273,10 +288,42 @@ const coveredOf = (k) => k.here?.rec?.covered ?? null;
 // leg is not seen from the near one. One rule for cqb-corner and cqb-contact's hisNext: the hunt of v0.0.18 found hisNext naming
 // "Look: the far leg." from the near leg, a look that never covers it, four presses with nothing changed)
 const hotRow = (k, h) => (h.why === 'far leg' && k.offered('move:far') ? 'move:far' : `look:${h.id}`);
+// (a stack you had taken and walked off, the door still shut: the leg is 'stacked' in the scene's record, yet you stand off your
+// point (k.stacked: within STACK_NEAR_M 0.3 m of it, where the panel stops offering Stack up), with no charge on the leaf (its
+// safe point is where you wait: cqb-task's and cqb-locked's) and no task of your #2's on the door (cqb-task's). Then Stack up is
+// the line's again (the hunt of v0.0.20, breach-2: 1.09 m off room 2's stack, cqb-next said X ('leave'), cqb-walk said G
+// ('enter'), 1739 times each, the door never opened and the leg passed on time))
+function offStack(k) {
+  if (k.here?.rec?.state !== 'stacked' || k.open || k.stacked || !k.plan?.door || k.S?.carry) return false;
+  if (placedOn(k.state, k.plan.door)) return false;
+  const t = k.R.house?.two?.task;
+  return !(t && t.door === k.here.door);
+}
+// (cqb-contact's "In. On him.": the halted bundle carried on, else the room's own way in from where you stand (In, the rung's Clear
+// the room, Dominate inside), else your point: never a line with no act (the hunt of v0.0.20, breach-3: back on the stack after
+// the take-in in the doorway, the stack's bundle ended, "In. On him." over a live In at 24 stops, T silent, the leg passed on time))
+const moveAct = (k) => (!k.asking ? actIf(k, 'drill:carry') : null) ?? actIf(k, bundleRow(k, 'room:in')?.id ?? null) ?? actIf(k, bundleRow(k, 'room:clear')?.id ?? null)
+  ?? actIf(k, bundleRow(k, 'room:dominate')?.id ?? null) ?? actIf(k, 'move:point');
+// (a man on you, cqb-rifle-up's quiet: the man bracketed up and facing (never a no-shoot), or a man of the room you know of up and
+// facing (upKnown))
+const manOn = (k, ms) => (!!k.T && facingOf(k.T, ms) >= 0.5 && (k.T.stoppedAtMs === null || k.T.stoppedAtMs === undefined) && k.T.face !== 'noshoot') || upKnown(k, ms).length > 0;
 // (the bundle row a rung's T takes at the door: the rung's own (see the header))
 const BUNDLE_OF_RUNG = Object.freeze(['stack:up', 'stack:point', 'stack:point', 'room:clear', 'room:clear']);
 // (the rooms left of the lane in words, the current one with them: "Two rooms and the hall")
 const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
+// (FL22-6: a man's place in words, his name less "the man in": "His man: the near leg's far corner." Before it the line was
+// "Rifle, the man in the near leg's far corner: your two's. Your corner.", which a new player could not read)
+const whereOf = (name) => String(name ?? 'him').replace(/^the man in /, '');
+// (R4: the bang a stack line's row carries (bundle.js variantTag's '@…frag…'), named, and the brief's warning where the brief
+// did not call the room hostiles only (house-kit.js intelOf, what the player was told; briefBars' test on the door). A flash or no bang
+// names nothing: the words to the letter. T's act is the row's as before (the method is the player's, COMBAT §25.5.6))
+const BANG_SAY = Object.freeze({ frag: 'frag', conc: 'concussion' });
+function bangWords(state, k, rowId) {
+  const tags = (/@([^>]*)>/.exec(rowId ?? '')?.[1] ?? '').split('+'), bang = tags.find(t => BANG_SAY[t]) ?? null;
+  if (!bang) return { bang: '', brief: '', tag: '' };
+  const intel = opOf(state)?.intel ?? null, barred = !!intel && intel[k.here?.door] !== 'hostiles';
+  return { bang: `, ${BANG_SAY[bang]}`, brief: barred ? ' The brief: not hostiles only.' : '', tag: `@${bang}${barred ? '!' : ''}` };
+}
 const NUM = Object.freeze(['No', 'One', 'Two', 'Three', 'Four', 'Five']);
 function leftOf(k) {
   const H = k.R.house, legs = [...(H?.rooms ?? []), ...(H?.hall ? [H.hall] : [])], open = legs.filter(L => L.state !== 'clear' && L.state !== 'passed');
@@ -410,6 +457,18 @@ function briefBars(state, h, door) {
   return (opOf(state)?.intel ?? {})[door] !== 'hostiles';
 }
 export const CQB_RULES = Object.freeze([
+  {
+    // (R1 b: a grenade at your feet or short on you, handed back with Get clear on the panel: the row named, T runs it.
+    // Before it no rule named it, so the hand-back of v0.0.19's practice slip had no line and T did nothing there)
+    id: 'cqb-grenade', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'urgent', short: 'Get clear', reach: null,
+    when(state, me, ms) {
+      const k = know(state, me, ms);
+      if (!k?.choosing || !k.offered('move:clear') || !stunsOn(state, me).length) return null;
+      return { k, tier: k.tier, voice: k.voice };
+    },
+    act: (ctx) => actIf(ctx.k, 'move:clear'),
+    text: { 1: ['Grenade! Get clear.', 'Grenade on the floor! Get clear of it.', 'Live grenade! Get clear.', 'Grenade! Get away from it.'], 2: ['Grenade! Get clear.', 'Grenade! Away from it.', 'Get clear!', 'Grenade! Clear of it.'], 3: ['Grenade! Move.', 'Move!', 'Grenade. Away.', 'Off it. Move.'] },
+  },
   {
     // (v0.0.19, D2 (COMBAT §25.20; kit2 §2.8): the hands first. A live grenade in the hand, its lever gone: "Throw it!", T throws
     // (its only legal act, devplan.js guard D1); a grenade armed or any device in the hand at a contact: the hands' way out by
@@ -566,7 +625,7 @@ export const CQB_RULES = Object.freeze([
         // the tier one by T on seed 3405, room 3's 3a unseen at the pause, no line and the honest T's Wait for the stall))
         if (!hands && !all.length && twoPid) {
           const his = (k.last?.ids ?? []).map(key => (k.R.turners ?? []).find(t => t.key === key)).find(T => T && (ownerOf(state, T) ?? 1) === 2 && T.room === k.plan?.room && T.face !== 'hostage' && T.face !== 'noshoot' && (T.stoppedAtMs === null || T.stoppedAtMs === undefined) && facingOf(T, ms) >= 0.5);
-          if (his && k.offered('drill:carry') && !k.asking) return { k, variant: 'his', words: 'hisU', who: his.name ?? 'him', Who: cap(his.name ?? 'him'), voice: k.voice };
+          if (his && k.offered('drill:carry') && !k.asking) return { k, variant: 'his', words: 'hisU', who: his.name ?? 'him', Who: cap(his.name ?? 'him'), where: whereOf(his.name), voice: k.voice };
         }
         if (hands || !all.length) return null;
         // (his man and nothing of yours to carry on: the room's own next row speaks (the corporal's Dominate), never a line with no
@@ -579,7 +638,7 @@ export const CQB_RULES = Object.freeze([
           // (at rung 2 the room's Dominate first, cqb-dominate's row, which takes the corners and the far leg in one: the walk to the
           // far leg alone, then the bundle, cost the corporal on 48213's breach lane 9 s; the hunt of v0.0.18's page-1)
           const next = firstOf(k, ['move:point', k.rung === 2 ? bundleRow(k, 'room:dominate')?.id ?? null : null, look ? hotRow(k, look) : null]);
-          if (next) return { k, variant: 'hisNext', words: 'hisNext', next, row: next, who: all[0].T.name ?? 'him', Who: cap(all[0].T.name ?? 'him'), what: String(k.steps.find(x => x.id === next)?.label ?? next).replace(/\.$/, ''), voice: k.voice };
+          if (next) return { k, variant: 'hisNext', words: 'hisNext', next, row: next, who: all[0].T.name ?? 'him', Who: cap(all[0].T.name ?? 'him'), where: whereOf(all[0].T.name), what: String(k.steps.find(x => x.id === next)?.label ?? next).replace(/\.$/, ''), voice: k.voice };
           return null;
         }
         // (the review of A and B: while the bundle's question stands (k.asking: "Door, east wall. Hold it or clear it?", a drawn
@@ -587,7 +646,7 @@ export const CQB_RULES = Object.freeze([
         // (the tier one on drawn seed 62, room 3), and the honest bot shot the no-shoot bracketed in your sector instead (the sergeant on
         // drawn seed 10, tick 182). His man is his either way: the question's own line (cqb-unplanned: Hold it) leads)
         if (k.asking) return null;
-        return { k, variant: 'his', words: 'his', hold: HOLD_SAY[all[0].hold], Hold: HOLD_SAY[all[0].hold], who: all[0].T.name ?? 'him', Who: cap(all[0].T.name ?? 'him'), voice: k.voice };
+        return { k, variant: 'his', words: 'his', hold: HOLD_SAY[all[0].hold], Hold: HOLD_SAY[all[0].hold], who: all[0].T.name ?? 'him', Who: cap(all[0].T.name ?? 'him'), where: whereOf(all[0].T.name), voice: k.voice };
       }
       // (the man bracketed if he is one of them (and not still up: cqb-still-up's), else the first of them: the aim onto him)
       // (the aim goes onto a man in the rifle's frame (shooting.js targetsOf: a clear line to him); one taken in from the
@@ -611,7 +670,10 @@ export const CQB_RULES = Object.freeze([
       // So the one round as the rung below takes it, Aim then Press (the Fire row), and with none, nothing here:
       // cqb-reload's "Reload." leads)
       if (variant === 'row' && !k.steps.some(s => s.id.startsWith('shot:') && !s.off)) {
-        if (!aimed && k.offered('aim')) variant = 'aim';
+        // (on safe, Fire struck "on safe": the thumb first, as below rung 2 (the hunt of v0.0.20, breach-5: the armoured man up and
+        // aimed at, one round left on safe, the magazine out: no line for 37 stops while Off safe was live, the leg passed on time))
+        if (k.b?.mode === 'safe' && k.offered('selector:semi')) variant = 'safe';
+        else if (!aimed && k.offered('aim')) variant = 'aim';
         else if (aimed && k.offered('fire')) variant = 'press';
         else return null;
       }
@@ -624,7 +686,7 @@ export const CQB_RULES = Object.freeze([
     },
     act: (ctx) => (ctx.variant === 'safe' ? actIf(ctx.k, 'selector:semi') : ctx.variant === 'aim' || ctx.variant === 'onto' ? aimOnto(ctx.k, ctx.key)
       : ctx.variant === 'hands' ? actIf(ctx.k, 'contact:challenge') : ctx.variant === 'handsOnto' ? (ctx.k.offered('aim') ? aimOnto(ctx.k, ctx.key) : actIf(ctx.k, 'posture:highReady')) : ctx.variant === 'hisNext' ? actIf(ctx.k, ctx.next)
-        : (ctx.variant === 'his' || ctx.variant === 'move') && !ctx.k.asking ? actIf(ctx.k, 'drill:carry') : null),
+        : ctx.variant === 'his' && !ctx.k.asking ? actIf(ctx.k, 'drill:carry') : ctx.variant === 'move' ? moveAct(ctx.k) : null),
     text: {
       safe1: ['{hold}. Off safe. Then aim.', '{hold}. Thumb it off first.', '{hold}. Safe off, then aim.', '{hold}. Off safe.'], safe2: ['{hold}. Off safe.', '{hold}. Thumb off.', 'Off safe.', '{hold}. Safe off.'], safe3: ['Off safe.', '{hold}. Off.', 'Thumb.', 'Safe off.'],
       aim1: ['{hold}. Aim. Then press.', '{hold}, in the room. Aim at him.', '{hold}. Get on him.', '{hold}. Aim first.'], aim2: ['{hold}. Aim.', 'On him.', '{hold}. On him.', 'Aim.'], aim3: ['On him.', 'Aim.', '{hold}.', 'Him.'],
@@ -632,10 +694,12 @@ export const CQB_RULES = Object.freeze([
       row1: ['{hold}. Pair.', '{hold}. Two in him.', '{hold}. Pair him.', '{hold}. Pair.'], row2: ['{hold}. Pair.', 'Pair.', '{hold}. Two in him.', 'Pair him.'], row3: ['Pair.', '{hold}. Pair.', 'Two in him.', 'Pair.'],
       move1: ['{hold}, inside. Get in and on him.', '{hold} in there. Move in to him.', 'In. {hold}, inside.', "Get in. He's in there."], move2: ['{hold}. In.', 'Get in.', 'In. On him.', 'In.'], move3: ['In.', 'Move.', 'Get in.', 'In.'],
       hands1: ["Can't see his hands. Challenge him.", 'Hands? Make him show you.', 'His hands. Challenge.', 'Show me your hands. Say it.'], hands2: ['Hands. Challenge.', 'Challenge him.', 'Hands?', 'Challenge.'], hands3: ['Hands.', 'Challenge.', 'Hands?', 'Show me.'],
-      his: ["{Hold}, {who}: your two's. Your corner.", "{Who}'s your two's. Trust him.", "That one's his. Carry on.", "Your two's man. Leave him to him."],
+      his: ["His man: {where}. Yours: your corner.", "{Who}'s your two's. Trust him.", "That one's his. Carry on.", "Your two's man. Leave him to him."],
       handsOnto: ["{Who}: hands not seen. Cover him.", "{Who}. His hands? On him.", "{Who}, hands unseen. Him first.", "Hands not seen: {who}. Cover him."],
-      hisNext: ["{Who}: your two's. Yours: {what}.", "{Who}'s your two's. {what}.", "That one's his. {what}.", "Your two's man. You: {what}."],
-      hisU: ["{Who}: your two's. Your corner.", "{Who}'s your two's. Carry on.", "That one's his. Carry on.", "Your two's man. Leave him to him."],
+      // (the next row's label its own sentence, never after "Yours:" (the play review: "Yours: Move to your point.",
+      // "Yours: Look: behind the door."))
+      hisNext: ["His man: {where}. {what}.", "{Who}'s your two's. {what}.", "That one's his. {what}.", "Your two's man. {what}."],
+      hisU: ["His man: {where}. Yours: your corner.", "{Who}'s your two's. Carry on.", "That one's his. Carry on.", "Your two's man. Leave him to him."],
       onto1: ["{Hold}'s still up: {who}. Get on him.", '{hold} up, {who}. On him.', "He's still in the fight: {who}. Aim.", '{Who}. Still up. On him.'], onto2: ['{Who}. On him.', '{hold}, still up. On him.', 'Still one up. On him.', '{Who}. Up.'], onto3: ['{Who}.', 'One up.', 'Him.', 'Still up.'],
     },
   },
@@ -690,7 +754,7 @@ export const CQB_RULES = Object.freeze([
     id: 'cqb-rifle-up', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'warn', short: 'Rifle up', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (!k?.choosing || !k.offered('weapon:rifle-up') || (k.T && facingOf(k.T, ms) >= 0.5 && (k.T.stoppedAtMs === null || k.T.stoppedAtMs === undefined) && k.T.face !== 'noshoot')) return null;
+      if (!k?.choosing || !k.offered('weapon:rifle-up') || manOn(k, ms)) return null;
       // (the rifle believed dry (its bolt locked, or its chamber empty with no magazine in) and Fix naming another way for the gun in
       // hand: Fix's line leads (v0.0.18's sweep, pingpong-v018: Rifle up onto a dry rifle, Transition back onto a P-12 whose
       // magazine was out, and again, with its press check never named)
@@ -698,7 +762,11 @@ export const CQB_RULES = Object.freeze([
       const rifleDry = !!rb && (!!rb.locked || !!rb.stoppage || (rb.chamber === 'empty' && rb.mag !== 'in'));
       const fix = k.steps.find(st => st.fix && !st.off)?.id ?? null;
       if (rifleDry && fix && fix !== 'weapon:rifle-up') return null;
-      return upKnown(k, ms).length ? null : { k, tier: k.tier, voice: k.voice };
+      // (never onto a rifle the planner finds no round for (no magazine of it reachable, the chamber empty): the pistol is the gun
+      // that fires, and Rifle up then cqb-reload's Transition went round for ever (the hunt of v0.0.20, breach-6, its save: the
+      // rifle's magazines all out of reach, 21 Rifle ups))
+      if (rifleDry && !planFor(state, k.pid, rifle, 'fire', { carry: 'hands', purpose: null }).path) return null;
+      return { k, tier: k.tier, voice: k.voice };
     },
     act: (ctx) => actIf(ctx.k, 'weapon:rifle-up'),
     text: { 1: ["He's down. Rifle up.", 'Pistol away. Rifle up.', 'Holster it. Clear the rifle.', 'Down. Rifle back up.'], 2: ['Rifle up.', 'Holster. Rifle.', 'Pistol away. Rifle.', 'Rifle back.'], 3: ['Rifle.', 'Rifle up.', 'Holster.', 'Rifle back.'] },
@@ -784,6 +852,11 @@ export const CQB_RULES = Object.freeze([
       // magazine with rounds, Charge on Condition 3, the look at the port, Up), then the reloads as before, so T is Fix and never a Top
       // up for ever over a locked bolt (the dead-end hunt of 2026-11-16: the bolt stayed locked on a magazine of 10 through six T))
       const fix = k.choosing ? k.steps.find(st => st.fix && !st.off)?.id ?? null : null;
+      // (Transition wherever the panel offers it: on a dry rifle only with a man known, facing and in the line within
+      // TRANSITION_NEAR_M (sidearm.js threatFacing), or with no round for the rifle anywhere. The hunt of v0.0.20's breach-6 loop was
+      // cqb-rifle-up's, bringing that rifle back up (its guard below); a gate here on manOn, built with it, was dropped by the review of
+      // the fixes (R3): no state of 36 honest lanes reached it, and where it could, the man it passed over was known, facing you in
+      // the line within 10 m, a man on you)
       const next = k.choosing ? firstOf(k, ['weapon:transition']) ?? (GUN_FIX.has(fix) ? fix : null) ?? firstOf(k, [...RELOAD_ACTS, 'up']) : null;
       // (a RELOAD on the P-12 at tier 1: the list's own words, its slide for the rifle's bolt (the hunt of v0.0.18))
       const w = reloadWords(next, k.b?.model) ?? (k.b?.model === 'p12' && k.shotTier === 1 ? 'rldP' : null);
@@ -821,11 +894,14 @@ export const CQB_RULES = Object.freeze([
       if (!h) return null;
       // (the far leg is not seen from the near one: the walk up to it first, then the look)
       const variant = hotRow(k, h) === 'move:far' ? 'far' : h.why === 'behind the door' ? 'door' : 'corner';
-      return { k, hot: h.id, variant, words: variant, voice: k.voice };
+      // (a far walk whose plan names it ("the back room", the twin's: A's chunks) in its own words)
+      const fw = variant === 'far' && k.plan.far?.words && k.plan.far.words !== 'the far leg' ? 'farNamed' : variant;
+      return { k, hot: h.id, variant, words: fw, voice: k.voice, where: k.plan.far?.words ?? 'the far leg', Where: cap(k.plan.far?.words ?? 'the far leg') };
     },
     act: (ctx) => actIf(ctx.k, ctx.variant === 'far' ? 'move:far' : `look:${ctx.hot}`),
     text: { door: ['Behind the door. Check it.', 'The door. Look behind it.', 'Behind the door.', 'Check behind the door.'], corner: ['Your corner. Look.', 'That corner. Check it.', 'Corner. Look at it.', 'You didn\'t look there.'],
-      far: ['The far leg. Walk up and look.', 'Round the bend. Go and see it.', 'There\'s more room past the bend. Walk it.', 'The far leg. You can\'t see it from here.'] },
+      far: ['The far leg. Walk up and look.', 'Round the bend. Go and see it.', 'There\'s more room past the bend. Walk it.', 'The far leg. You can\'t see it from here.'],
+      farNamed: ['{Where}. Walk up and look.', '{Where}. Go and see it.', 'There\'s more room through there: {where}. Walk it.', '{Where}. You can\'t see it from here.'] },
   },
   {
     // (the build sheet v0.0.20 item 1: a walk of yours held PIN_END_MS by a body handed back where it stands ('blocked', places/
@@ -856,7 +932,7 @@ export const CQB_RULES = Object.freeze([
   },
   {
     // (the build sheet v0.0.20 item 3 (drill.md item 1; FM 3-06.11 §3-22c(9)): your point is your limit of advance: you LIMIT_WARN_MS inside your #2's
-    // sector's wedge before he has swept the room (house-two.js maskTick, H.limit): back to your point (out of the mode, G first)
+    // sector's wedge before he has swept the room (combat/two.js maskTick, H.limit): back to your point (out of the mode, G first)
     id: 'cqb-limit', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'warn', short: 'His sector', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms), L = k?.R.house?.limit;
@@ -870,21 +946,22 @@ export const CQB_RULES = Object.freeze([
     id: 'cqb-stack', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'note', short: 'Stack', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (!k?.choosing || !k.here || k.inside || k.stacked || k.S?.flow || (k.here.rec && k.here.rec.state && k.here.rec.state !== 'ahead') || k.here.door === 'hall' && k.rung < 2) return null;
+      if (!k?.choosing || !k.here || k.inside || k.stacked || k.S?.flow || (k.here.rec && k.here.rec.state && k.here.rec.state !== 'ahead' && !offStack(k)) || k.here.door === 'hall' && k.rung < 2) return null;
       const want = BUNDLE_OF_RUNG[Math.min(4, k.rung)], row = bundleRow(k, want) ?? bundleRow(k, 'stack:up');
       if (!row) return null;
       // (one room a press: the next door is always the player's (COMBAT §25.19.2; "Clear the house" withdrawn in R4))
       // (from rung 3 this is the line at the stack, the room's one press: it names your corner (corner.js; the user,
       // 2026-11-15: "there is currently no indication at to where we're supposed to be looking"); below it cqb-door does)
-      return { k, row: row.id, variant: `r${Math.min(4, k.rung)}`, words: `r${Math.min(4, k.rung)}`, voice: k.voice, ms: (row.ms / 1000).toFixed(1), left: leftOf(k), corner: cornerOf1(k.plan, state) ?? 'left' };
+      const bw = bangWords(state, k, row.id);
+      return { k, row: row.id, variant: `r${Math.min(4, k.rung)}${bw.tag}`, words: `r${Math.min(4, k.rung)}`, voice: k.voice, ms: (row.ms / 1000).toFixed(1), left: leftOf(k), corner: cornerOf1(k.plan, state) ?? 'left', bang: bw.bang, brief: bw.brief };
     },
     act: (ctx) => actIf(ctx.k, ctx.row),
     text: {
       r0: ['Find the wall. Stack up on the door. {ms} s.', 'Get on the wall by the door.', 'Stack up on that door.', 'To the door. On the wall.'],
-      r1: ['Stack up, take point. Read the door.', 'Take point. Muzzle on the door.', 'Stack up. You\'re point.', 'Point. Read it, tell your two.'],
+      r1: ['Stack up, take point. Read the door.', 'Take point. Muzzle on the door.', 'Stack up. You\'re point.', 'You lead. Read the door, then tell your two.'],
       r2: ['Stack up, take point.', 'Take point. Read it.', 'Stack up. Point.', 'Up to the door. Point.'],
-      r3: ['Clear it. {ms} s. Your corner: {corner}.', 'This room. Clear it. Your corner: {corner}.', 'Room. Clear it. Your corner: {corner}.', 'Clear the room. Your corner: {corner}.'],
-      r4: ['Clear it. Your corner: {corner}.', 'Next room. Your corner: {corner}.', 'This one. Your corner: {corner}.', 'Room. Your corner: {corner}.'],
+      r3: ['Clear it{bang}.{brief} {ms} s. Your corner: {corner}.', 'This room. Clear it{bang}.{brief} Your corner: {corner}.', 'Room. Clear it{bang}.{brief} Your corner: {corner}.', 'Clear the room{bang}.{brief} Your corner: {corner}.'],
+      r4: ['Clear it{bang}.{brief} Your corner: {corner}.', 'Next room{bang}.{brief} Your corner: {corner}.', 'This one{bang}.{brief} Your corner: {corner}.', 'Room{bang}.{brief} Your corner: {corner}.'],
     },
   },
   {
@@ -967,14 +1044,14 @@ export const CQB_RULES = Object.freeze([
       const row = k.rung >= 2 ? bundleRow(k, k.rung >= 3 ? 'room:clear' : 'room:in') : null;
       // (below rung 3 this is the line at the stack: it names your corner once, the rule's (corner.js); from rung 3 cqb-stack did)
       const corner = cornerOf1(k.plan, state) ?? 'left';
-      if (row) return { k, id: row.id, variant: how, words: k.rung >= 3 ? 'clear' : 'in', voice: k.voice, corner };
+      if (row) { const bw = bangWords(state, k, row.id); return { k, id: row.id, variant: `${how}${bw.tag}`, words: k.rung >= 3 ? 'clear' : 'in', voice: k.voice, corner, bang: bw.bang, brief: bw.brief }; }
       return k.offered(id) ? { k, id, variant: how, words: how, voice: k.voice, corner } : null;
     },
     act: (ctx) => actIf(ctx.k, ctx.id),
     text: { push: ['Open it. Push. Your corner: {corner}.', 'Push it open. Your corner: {corner}.', 'The door. Push. Your corner: {corner}.', 'Open it. Your corner: {corner}.'],
       pull: ['Pull it open. Your corner: {corner}.', 'It opens to you. Pull. Your corner: {corner}.', 'Pull the door. Your corner: {corner}.', 'Open it. Pull. Your corner: {corner}.'],
       kick: ['Kick it. Your corner: {corner}.', 'Locked. Kick it. Your corner: {corner}.', 'Boot the door. Your corner: {corner}.', 'Kick it in. Your corner: {corner}.'],
-      in: ['Open, in. Your corner: {corner}.', 'Open it and in. Your corner: {corner}.', 'Door, in. Your corner: {corner}.', 'Go. Your corner: {corner}.'], clear: ['Clear it. Your corner: {corner}.', 'Open, clear it. Your corner: {corner}.', 'Room. Go. Your corner: {corner}.', 'Go. Your corner: {corner}.'] },
+      in: ['Open, in{bang}.{brief} Your corner: {corner}.', 'Open it and in{bang}.{brief} Your corner: {corner}.', 'Door, in{bang}.{brief} Your corner: {corner}.', 'Go{bang}.{brief} Your corner: {corner}.'], clear: ['Clear it{bang}.{brief} Your corner: {corner}.', 'Open, clear it{bang}.{brief} Your corner: {corner}.', 'Room. Go{bang}.{brief} Your corner: {corner}.', 'Go{bang}.{brief} Your corner: {corner}.'] },
   },
   {
     id: 'cqb-go', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'note', short: 'In', reach: null,
@@ -985,12 +1062,13 @@ export const CQB_RULES = Object.freeze([
       if (handDeviceOf(state, k.pid)) return null;
       if (k.rung < 2) return k.offered('leave') ? { k, variant: 'keys', words: 'keys', voice: k.voice, ...walkWords(k.plan) } : null;
       const row = bundleRow(k, k.rung >= 3 ? 'room:clear' : 'room:in');
-      return row ? { k, row: row.id, variant: 'enter', words: 'enter', voice: k.voice } : null;
+      const bw = row ? bangWords(state, k, row.id) : null;
+      return row ? { k, row: row.id, variant: `enter${bw.tag}`, words: 'enter', voice: k.voice, bang: bw.bang, brief: bw.brief } : null;
     },
     act: (ctx) => (ctx.variant === 'keys' ? actIf(ctx.k, 'leave') : actIf(ctx.k, ctx.row)),
     // (the side is named once, at the stack (cqb-door, corner.js); here the floor's mark says it, the words only "your corner")
     text: { keys: ["In. Your corner first. Don't stop in the door. X, then {keys}.", 'X. Then in, with the keys. Your corner first.', "Go. X, and walk it in, {keys}. Don't stop in the door.", 'X, then in. Your corner. Keep moving.'],
-      enter: ['In, your corner.', 'Enter. Your corner.', 'In. Take your corner.', 'Go. Corner.'] },
+      enter: ['In{bang}, your corner.{brief}', 'Enter{bang}. Your corner.{brief}', 'In{bang}. Take your corner.{brief}', 'Go{bang}. Corner.{brief}'] },
   },
   {
     id: 'cqb-carryon', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'note', short: 'Carry on', reach: null,
@@ -999,12 +1077,16 @@ export const CQB_RULES = Object.freeze([
       if (!k?.choosing || !k.offered('drill:carry') || k.asking || (k.S?.carry?.why === 'two' && twoAway(state, ms))) return null;
       if (k.T && facingOf(k.T, ms) >= 0.5 && (k.T.stoppedAtMs === null || k.T.stoppedAtMs === undefined) && k.T.face !== 'noshoot') return null;
       if (upKnown(k, ms).length) return null;
-      // (the variant, so the words' entry is read: 'two' was never said, instinct.js wordsOf needing one)
-      const words = k.S.carry?.why === 'two' ? 'two' : k.tier;
+      // (the words by why the drill stopped: "Down" only over a man bracketed down, as cqb-next's (the hunt of v0.0.20, breach-9: "He's
+      // down. Carry on." after a charge's misfire, nobody bracketed and no round fired on the leg); the variant, so the words' entry
+      // is read: 'two' was never said, instinct.js wordsOf needing one)
+      const down = !!k.T && k.T.stoppedAtMs !== null && k.T.stoppedAtMs !== undefined;
+      const words = k.S.carry?.why === 'two' ? 'two' : down ? k.tier : `on${k.tier}`;
       return { k, tier: k.tier, voice: k.voice, words, variant: String(words) };
     },
     act: (ctx) => actIf(ctx.k, 'drill:carry'),
     text: { 1: ['He\'s down. Carry on.', 'Down. Keep going.', 'Carry on. The room.', 'Down. Carry on.'], 2: ['Carry on.', 'Down. On.', 'Keep going.', 'On.'], 3: ['On.', 'Carry on.', 'Next.', 'Go on.'],
+      on1: ['Carry on.', 'Keep going. The room.', 'Carry on. The room.', 'On with it.'], on2: ['Carry on.', 'On.', 'Keep going.', 'On with it.'], on3: ['On.', 'Carry on.', 'Next.', 'Go on.'],
       two: ["He's on you. Carry on.", 'Your two is up. Go.', 'Two\'s with you. Carry on.', 'He\'s there. Go.'] },
   },
   {
@@ -1040,7 +1122,7 @@ export const CQB_RULES = Object.freeze([
       return row ? { k, row: row.id, tier: k.tier, voice: k.voice } : null;
     },
     act: (ctx) => actIf(ctx.k, ctx.row),
-    text: { 1: ['Now your point. Dominate the room.', 'Up to your point. Sweep your sector.', 'Dominate. Point, sector, call it.', 'In deeper. Your point, then your sector.'], 2: ['Dominate.', 'Your point. Your sector.', 'Dominate the room.', 'Point. Sector.'], 3: ['Dominate.', 'Point.', 'Sector.', 'Take the room.'] },
+    text: { 1: ['Now your point. Dominate the room.', 'Up to your point. Sweep your sector.', 'Dominate. Point, sector, call it.', 'In deeper. Your point, then your sector.'], 2: ['Dominate.', 'Your point. Your sector.', 'Dominate the room.', 'To your point. Then your sector.'], 3: ['Dominate.', 'Point.', 'Sector.', 'Take the room.'] },
   },
   {
     id: 'cqb-hall', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'note', short: 'The hall', reach: null,
@@ -1089,7 +1171,10 @@ export const CQB_RULES = Object.freeze([
       // (never over a man bracketed up and facing, the hostage card among them: his own line, his shot (as cqb-carryon))
       if (k.T && facingOf(k.T, ms) >= 0.5 && (k.T.stoppedAtMs === null || k.T.stoppedAtMs === undefined) && k.T.face !== 'noshoot') return null;
       const cov = coveredOf(k), look = k.inside && cov ? (k.plan?.hot ?? []).find(h => !cov[h.id] && k.offered(`look:${h.id}`)) : null;
-      const id = firstOf(k, ['drill:carry', 'move:point', look ? `look:${look.id}` : null, 'call:clear', 'move:hallEnd', 'leave']);
+      // (a corner not yet seen by hotRow, cqb-corner's and hisNext's one rule: the far leg's walk while it is offered, never its look
+      // from the near leg (the hunt of v0.0.20, breach-1: after Enter in room 3 T pressed "Look: the far leg" 452 times, nothing
+      // covered, the leg passed on time))
+      const id = firstOf(k, ['drill:carry', 'move:point', look ? hotRow(k, look) : null, 'call:clear', 'move:hallEnd', 'leave']);
       if (!id) return null;
       const row = k.steps.find(x => x.id === id), down = !!k.T && k.T.stoppedAtMs !== null && k.T.stoppedAtMs !== undefined;
       const what = id === 'leave' ? 'X, then the keys' : String(row?.label ?? id).replace(/\.$/, '');

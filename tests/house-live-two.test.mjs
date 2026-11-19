@@ -10,7 +10,7 @@ import { createGame } from './game.mjs';
 import { houseShot, liveTick } from '../src/sim/scenarios/shoothouse.js';
 import { houseHonestBot } from './bots/house.mjs';
 import { LATE_ROUND_MS } from './flawless-live.mjs';
-import { twoTick } from '../src/sim/scenarios/house-two.js';
+import { twoTick } from '../src/sim/combat/two.js';
 import { accountedOf, gateWhy, seenK, incoming, MAN_MEMORY_MS } from '../src/sim/combat/men.js';
 import { feltOf, bandN } from '../src/sim/combat/supp.js';
 import { takeInMs } from '../src/sim/combat/react.js';

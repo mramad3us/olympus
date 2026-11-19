@@ -18,9 +18,16 @@
 // 0.47 below), from 1,350 m/s at the burst, slowed in the area's air (ballVMs: env.js airAt's density, so the Wheel's 66 kPa
 // gives 880 m/s at 15 m, a UN hull's 101.3 kPa 701, Mars's thin air 1,345 and vacuum 1,350), its penetration 0.8 × (v/1350)²
 // mm RHAe (ballPenMm).
-// **Blast:** kPa = max(peakKPa(W, r, Pa) × (a clear line ? 1 : blast.js CORNER_SHADOW_K), the room's closed pressure
-// qspKPa(W, V) for a body in the burst's room), W the live twin's TNT; V the burst's room (burst.js burstRoom's volume: a G-13 in
-// room 1 13.7 kPa, room 2 10.0, the closet 153).
+// **Blast:** kPa = max(peakKPa(W, r, Pa) × blastLine's k (1 with a clear line, blast.js CORNER_SHADOW_K without), the room's
+// closed pressure qspKPa(W, V) for a body in the burst's room), W the live twin's TNT; V the burst's room (burst.js burstRoom's
+// volume: a G-13 in room 1 13.7 kPa, room 2 10.0, the closet 153).
+// v0.0.22 (the build sheet v0.0.22 item 7, R1 a): blastLine(state, area, from, body, { y, line }) → { clear, k } is the one reader
+// of fragLine's `wall` and `through` for a blast, read by this module's bodyRead and by burst.js burst for every live burst (the
+// G-11's and the charges' people and stands), so a grenade or a charge has one blast model, the practice read's: a body with no
+// line of sight to the burst (a wall or a closed leaf between: the stack on the wall beside the door, as drilled) takes
+// CORNER_SHADOW_K of the free field's peak; a body at or above the walls' height (places/plan.js WALL_H_M 2.8 m: the instructor on
+// the catwalk at y 3.0) is clear over them. Before it burst.js gave every person the free field's peak whatever stood between: the
+// boot recruit's G-11, short at room 1's foot on seed 1489397426, put 29.8 kPa on him round the jamb (14.9 with the line).
 // **Outcomes, per body:** 'down' at n ≥ FRAG_DOWN_N 3, or kPa ≥ BLAST_LUNG_KPA 200 with COMBAT §11.3's 30% (its stream);
 // 'wounded' at n ≥ 1; 'injured' (the eardrums) at kPa ≥ EARDRUM_KPA 34.5 (5 psi, to check; EARDRUM50_KPA 103 the half
 // rupture's 15 psi); 'stunned' at kPa ≥ blast.js STUN_KPA 20, U(2,000, 6,000) ms on stream 'house:stun' (stunMs). `out` is the
@@ -44,7 +51,7 @@ import { peakKPa, qspKPa, fragLambda, fragHits, FRAG_EXPOSURE, STUN_KPA, CORNER_
 import { pStop, pOfMaterial, WALLS } from '../arms/penetrate.js';
 import { airAt } from '../places/env.js';
 import { areaOf, openingOf, leafClosed } from '../places/model.js';
-import { planOf as placePlanOf, wallsOf, wallRect, leafRect } from '../places/plan.js';
+import { planOf as placePlanOf, wallsOf, wallRect, leafRect, WALL_H_M } from '../places/plan.js';
 import { facingOf } from '../arms/turners.js';
 import { clearLine, SEEN } from '../people/perception.js';
 import { sightGridOf } from '../places/sight.js';
@@ -120,6 +127,16 @@ export function fragLine(state, area, from, to, { vMs = BALL.v0Ms } = {}) {
   }
   return { keeps: q(1 - pass, 1e-4), wall: false, through };
 }
+/**
+ * The blast's line from a burst to a body (see the header): { clear, k }, k 1 with a line of sight and CORNER_SHADOW_K without
+ * (a wall, or a closed leaf, between); y the body's height over the floor (at or above WALL_H_M: clear over the walls); line a
+ * fragLine already read for the same two points (bodyRead's, so the practice read reads the walls once). Pure.
+ */
+export function blastLine(state, area, from, body, { y = 0, line = null } = {}) {
+  if ((y ?? 0) >= WALL_H_M) return { clear: true, k: 1 };
+  const L = line ?? fragLine(state, area, from, body), clear = !L.wall && !L.through.length;
+  return { clear, k: clear ? 1 : CORNER_SHADOW_K };
+}
 
 // (a body's exposure to the balls by its stance)
 const exposureOf = (stance) => FRAG_EXPOSURE[stance] ?? 1;
@@ -139,7 +156,7 @@ export function readBurst(state, { burst, model, x, z, atMs = state.clock.ms, ro
   const bodyRead = (key, bx, bz, stance, rid) => {
     const rM = Math.hypot(bx - x, bz - z), v = ballVMs(rM, air), line = fragLine(state, area, from, [bx, bz], { vMs: v });
     const lam = K ? fragLambda(K, rM, exposureOf(stance), line.keeps) : 0, n = lam > 0 ? fragHits(seed, burst, key, lam) : 0;
-    const clear = !line.wall && !line.through.length, peak = peakKPa(W, rM, Pa) * (clear ? 1 : CORNER_SHADOW_K);
+    const { clear, k } = blastLine(state, area, from, [bx, bz], { line }), peak = peakKPa(W, rM, Pa) * k;
     const kPa = Math.max(Number.isFinite(peak) ? peak : 10_000, inRoom(rid) ? kPaRoom : 0);
     const lung = kPa >= BLAST_LUNG_KPA && chance(stream(seed, 'house:lung', burst, key), BLAST_LUNG_P);
     return { rM: r3(rM), lam: q(lam, 1e-4), n, kPa: r1(kPa), out: outOf({ n, kPa, lung }), clear };

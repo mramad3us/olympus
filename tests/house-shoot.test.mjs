@@ -32,7 +32,12 @@ export const STANDARD_ROWS = Object.freeze({ 'private/48213': [20, 0, '0a6472b47
 // tierone [16, 3, '11d5e252c4cc67'] and sgt [18, 7, '1e909843bca3b0'])
 // (v0.0.21's fixer: the same X label; was 'private/48213': [20, 0, '17e68730c8d01b'], 'tierone/48213': [18, 3, '15024d1bcce693'],
 // 'sgt/1037': [20, 6, '15e26021ef9b6c'])
-export const STANDARD_ROWS_P12 = Object.freeze({ 'private/48213': [20, 0, '0a6472b4704993'], 'tierone/48213': [18, 3, '168f1b0d689dbd'], 'sgt/1037': [20, 6, '0b5dddfcf0b457'] });
+// (v0.0.22's C, FL22-1 (its build sheet item 1): the pauses after your own SHOW CLEAR while the tower waited on your #2's P-12 are gone,
+// his clear and the instructor's look at it passing behind the brief splash: the tier one 18 → 16, the sergeant 20 → 18, every pause
+// before them the same; the private's and every ~two:none lane's unchanged. Were 'tierone/48213': [18, 3, '15024d1bcce693'],
+// 'sgt/1037': [20, 6, '15e26021ef9b6c'])
+// (the v0.0.22 integration: both causes together, re-pinned on the merged tree)
+export const STANDARD_ROWS_P12 = Object.freeze({ 'private/48213': [20, 0, '0a6472b4704993'], 'tierone/48213': [16, 3, '07e2baf92015f4'], 'sgt/1037': [18, 6, '1120da1a425954'] });
 
 export default [
   {

@@ -35,9 +35,19 @@
 // focused one), which starts a qualification (onPick(tier, { qual: true, draw: 'drawn', par })): the drawn house, the standard kit,
 // the par chosen where it is the sheet's own or harder; a qualified sheet's line says so ("QUALIFIED" after its best). Hidden where
 // the house is not drawn (the ship rule: nothing of qualified shows unless the drawn house ships).
+// v0.0.22 (its build sheet §1 item 14, §0 items 19 to 21; the house lens's G3): where the scene names its houses (scenes.js layouts:
+// ['A', 'B', 'C']) and the sim has them (assemble.js HOUSE_LAYOUTS), the house row is "House: A · B · C · Drawn from the seed" (H
+// cycles it; A is the house as set, B and C the instructors' other two panel settings, carried as onPick(tier, { layout: 'B' })), and
+// under it, where the sim has a second room set (assemble.js ROOM_SETS.all) and the scene offers it (scenes.js rooms: ['a', 'all'], the
+// ship rule's switch, ['a'] until house-drawn8 is green: the A and D review), "Rooms: The three · All eight" (R cycles it; the scene's
+// HOUSE_ROOMS_DEFAULT first), live only on the drawn choice and carried with it (onPick(tier, { draw: 'drawn', rooms })). Without
+// them (A's exports not there, or a scene with no layouts) the row is v0.0.21's to the letter. Qualify draws as before (the page's
+// room default; a named house never qualifies: the build sheet §0 item 21).
 import { loadoutPage, loadoutWord } from './loadout.js';
 import { readRuns, bestsOf, bestWords, qualNext, PAR_ORDER } from './house-runs.js';
 import * as SCENES_DATA from '../../data/scenes.js';
+// (the named houses and the room sets read by name, so the rows stay v0.0.21's until the rooms' role exports them)
+import * as ASSEMBLE from '../../sim/scenes/assemble.js';
 
 /** The tiers on the picker, in its order, when the sim's PICKER_TIERS is not given. */
 export const PICKER_ORDER = Object.freeze(['recruit', 'private', 'sgt', 'raider', 'tierone']);
@@ -96,6 +106,19 @@ export function parWords(o, own = null, parMs = {}) {
 /** The house's choice on the picker: its words, and the default (scenes.js HOUSE_DRAW_DEFAULT, the ship rule's switch). */
 export const DRAW_WORDS = Object.freeze({ set: 'As set', drawn: 'Drawn from the seed' });
 export const drawDefaultOf = (scene) => (Array.isArray(scene?.draws) && scene.draws.includes(SCENES_DATA.HOUSE_DRAW_DEFAULT) ? SCENES_DATA.HOUSE_DRAW_DEFAULT : scene?.draws?.[0] ?? 'set');
+/** The named houses a scene offers on the picker: its layouts (scenes.js) the sim has (assemble.js HOUSE_LAYOUTS), A first; [] for none or A alone. */
+export function layoutsOf(scene, have = ASSEMBLE.HOUSE_LAYOUTS ?? { A: 'A' }) {
+  const L = Array.isArray(scene?.layouts) ? scene.layouts.filter(x => have?.[x] !== undefined) : [];
+  return L.length > 1 && L.includes('A') ? ['A', ...L.filter(x => x !== 'A')] : [];
+}
+/**
+ * The room sets a drawn house may take on the picker: ['a', 'all'] where the sim has the eight (assemble.js ROOM_SETS.all)
+ * and the scene offers them (scenes.js rooms holding 'all': the ship rule's switch, which the lead flips), else []. (The A and D
+ * review: with the sim's export alone, the merged tree showed "All eight" while house-drawn8 was red.)
+ */
+export const roomSetsOf = (sets = ASSEMBLE.ROOM_SETS ?? null, scene = null) => (sets?.all && Array.isArray(scene?.rooms) && scene.rooms.includes('all') ? ['a', 'all'] : []);
+/** The rooms row's words. */
+export const ROOMS_WORDS = Object.freeze({ a: 'The three', all: 'All eight' });
 /** Whether the scene's house can be drawn (scenes.js draws), so qualified shows (its ship rule). */
 export const drawsHouse = (scene) => Array.isArray(scene?.draws) && scene.draws.includes('drawn');
 /** The qualifications kept in this browser (house-runs.js), or {} with none or no storage. */
@@ -118,7 +141,8 @@ function houseBests(scene) {
 // (the card (the build sheet v0.0.20 §1 item 20): bests(tier) → the sheet's best lane and its GOs in words ("best 42.2 s ·
 // 3 GO", cards/house-runs.js bestWords, from the runs kept in this browser), after its line; nothing is locked. The shoot house's
 // own by default, read here from localStorage (every read in try and catch: none in a private window))
-export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, hard = null, parMs = {}, parOf = null, loadout = null, bests = houseBests(scene), quals = houseQuals(scene) }) {
+export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, hard = null, parMs = {}, parOf = null, loadout = null, bests = houseBests(scene), quals = houseQuals(scene),
+  layouts = ASSEMBLE.HOUSE_LAYOUTS ?? { A: 'A' }, roomSets = ASSEMBLE.ROOM_SETS ?? null, roomsDefault = SCENES_DATA.HOUSE_ROOMS_DEFAULT ?? 'a' }) {
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(globalThis.document.createElement(tag), props); for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };
   // (the scene's own list and default where it names them (scenes.js: sheets, sheet), else the sim's picker order)
   const rows = pickerRows(sheets, Array.isArray(scene?.sheets) ? scene.sheets : order, scene?.sheet ?? PICKER_DEFAULT, { hard, lead: leadsHard(scene) });
@@ -146,15 +170,34 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
   const kitText = () => { if (kitBtn) { kitBtn.textContent = `Kit: ${loadoutWord(kitCode)} ▸`; kitBtn.dataset.code = kitCode; } };
   kitText();
   // (the house, as set or drawn from the seed, where the scene draws it; its choice kept while the page stands)
-  const draws = drawsHouse(scene) ? scene.draws : [];
-  let drawAt = Math.max(0, draws.indexOf(drawDefaultOf(scene)));
-  const drawBtns = draws.map((d, i) => {
-    const b = el('button', { className: `item drawpick${i === drawAt ? ' on' : ''}`, type: 'button', textContent: DRAW_WORDS[d] ?? d });
-    b.dataset.draw = d;
-    b.onclick = () => { drawAt = i; for (const [j, x] of drawBtns.entries()) x.classList.toggle('on', j === drawAt); };
+  // (with named houses, A, B and C in the set's place (see the header): a choice is { draw } or { layout })
+  const draws = drawsHouse(scene) ? scene.draws : [], named = draws.length ? layoutsOf(scene, layouts) : [];
+  const houses = named.length ? [...named.map(l => ({ layout: l, draw: l === 'A' ? 'set' : null })), ...draws.filter(d => d !== 'set').map(d => ({ draw: d }))] : draws.map(d => ({ draw: d }));
+  const dflt = drawDefaultOf(scene);
+  let drawAt = Math.max(0, houses.findIndex(h => h.draw === dflt));
+  const sets = draws.includes('drawn') ? roomSetsOf(roomSets, scene) : [];
+  let roomsAt = Math.max(0, sets.indexOf(roomsDefault));
+  const roomBtns = sets.map((r, i) => {
+    const b = el('button', { className: `item roompick${i === roomsAt ? ' on' : ''}`, type: 'button', textContent: ROOMS_WORDS[r] ?? r });
+    b.dataset.rooms = r;
+    b.onclick = () => { if (b.disabled) return; roomsAt = i; for (const [j, x] of roomBtns.entries()) x.classList.toggle('on', j === roomsAt); };
     return b;
   });
-  const drawOf = () => (draws.length ? { draw: draws[drawAt] } : {});
+  const roomsLive = () => { const on = houses[drawAt]?.draw === 'drawn'; for (const b of roomBtns) { b.disabled = !on; b.classList.toggle('off', !on); } };
+  const drawBtns = houses.map((h, i) => {
+    const b = el('button', { className: `item drawpick${i === drawAt ? ' on' : ''}`, type: 'button', textContent: h.layout ?? DRAW_WORDS[h.draw] ?? h.draw, ...(h.layout ? { title: h.layout === 'A' ? 'House A: the house as set' : `House ${h.layout}: the instructors' panels set another way, its stands drawn from the seed` } : {}) });
+    if (h.draw) b.dataset.draw = h.draw;
+    if (h.layout) b.dataset.layout = h.layout;
+    b.onclick = () => { drawAt = i; for (const [j, x] of drawBtns.entries()) x.classList.toggle('on', j === drawAt); roomsLive(); };
+    return b;
+  });
+  roomsLive();
+  const drawOf = () => {
+    const h = houses[drawAt];
+    if (!h) return {};
+    if (h.layout && h.layout !== 'A') return { layout: h.layout };
+    return { draw: h.draw, ...(h.draw === 'drawn' && sets.length ? { rooms: sets[roomsAt] } : {}) };
+  };
   const buttons = rows.map((r, i) => {
     const best = bests ? bests(r.tier) : null, q = quals?.[r.tier] ? 'QUALIFIED' : null, line = [best, q].filter(Boolean).join(' · ') || null;
     const b = el('button', { className: `item sheetpick${r.focus ? ' lead' : ''}${q ? ' qualified' : ''}`, type: 'button', onclick: () => onPick?.(r.tier, { par: pars[parAt]?.id ?? null, ...(kitCode && kitCode !== 'standard' ? { loadout: kitCode } : {}), ...drawOf() }) }, el('kbd', { textContent: String(i + 1) }), r.label, small(r), line ? el('small', { className: 'best', textContent: line }) : null);
@@ -180,6 +223,7 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
     pars.length ? el('div', { className: 'pars' }, el('span', { className: 'parhead' }, el('kbd', { textContent: 'P' }), ' Par'), ...parBtns) : null,
     kitBtn,
     drawBtns.length ? el('div', { className: 'pars draws' }, el('span', { className: 'parhead' }, el('kbd', { textContent: 'H' }), ' House'), ...drawBtns) : null,
+    roomBtns.length ? el('div', { className: 'pars rooms' }, el('span', { className: 'parhead' }, el('kbd', { textContent: 'R' }), ' Rooms'), ...roomBtns) : null,
     qualBtn,
     el('hr'),
     el('button', { className: 'item small', type: 'button', onclick: () => onBack?.() }, 'Back'),
@@ -203,8 +247,12 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
     if (e.code === 'KeyP' && parBtns.length) { e.preventDefault(); parBtns[(parAt + 1) % parBtns.length].click(); }
     // (H cycles the house)
     if (e.code === 'KeyH' && drawBtns.length) { e.preventDefault(); drawBtns[(drawAt + 1) % drawBtns.length].click(); }
+    // (R cycles the rooms, on the drawn house only)
+    if (e.code === 'KeyR' && roomBtns.length && !roomBtns[0].disabled) { e.preventDefault(); roomBtns[(roomsAt + 1) % roomBtns.length].click(); }
   });
-  return { body, buttons, rows, pars: parBtns, get par() { return pars[parAt]?.id ?? null; }, get loadout() { return kitCode; }, kit: kitBtn, draws: drawBtns, get draw() { return draws[drawAt] ?? null; }, qual: qualBtn };
+  return { body, buttons, rows, pars: parBtns, get par() { return pars[parAt]?.id ?? null; }, get loadout() { return kitCode; }, kit: kitBtn, draws: drawBtns, get draw() { return houses[drawAt]?.draw ?? null; }, qual: qualBtn,
+    // (the named house chosen ('A', 'B', 'C', null on the drawn one or with none), the rooms' buttons and their choice, what the pick carries)
+    get layout() { return houses[drawAt]?.layout ?? null; }, rooms: roomBtns, get roomSet() { return sets.length ? sets[roomsAt] : null; }, get house() { return drawOf(); } };
 }
 
 const two = (ms) => (Number.isFinite(ms) ? (ms / 1000).toFixed(2) : '?');

@@ -201,6 +201,8 @@ export function createAudio({ profile = null, looks = {}, sound = null, shot = n
   // (a recipe is rendered a layer at a time, renderSteps: one taking longer than a frame's budget goes on the next frame)
   const toBake = [];
   let baking = null;
+  // (whose turn a frame is while lines baked ahead and sounds both wait: they alternate, bakeSome)
+  let bakeTurn = false;
   function bakeSome() {
     const t0 = perfNow();
     // (a step begun only where the last one's length still fits the frame's budget, so a slice ends near BAKE_FRAME_MS)
@@ -208,7 +210,13 @@ export function createAudio({ profile = null, looks = {}, sound = null, shot = n
     const room = () => perfNow() - t0 + stepMs < BAKE_FRAME_MS;
     // (0.0.20: a line said is baked first, one begun a frame at most)
     let begun = 0;
-    while ((voiceBaking || voiceQueue.length) && room()) {
+    // (the v0.0.22 integration: lines baked ahead (the fixed lines, the call-outs: queued at the back) and the sounds take the frames
+    // in turn while both wait, so v0.0.22's 91 more fixed lines of the house (house.js fixedLines) never starve a foot-fall or a report
+    // at the first key (audio-browser's walk heard nothing on the merged tree) and the tower's lines, first of them, are ready as
+    // before; a line said still goes first, every frame)
+    const soundsDue = !!baking || toBake.length > 0, aheadTurn = !soundsDue || (bakeTurn = !bakeTurn);
+    const voiceTurn = () => (voiceBaking ? !voiceBaking.ahead || aheadTurn : voiceQueue.length > 0 && (!voiceQueue[0].ahead || aheadTurn));
+    while (voiceTurn() && room()) {
       if (!voiceBaking) { if (begun++) break; const e = voiceQueue.shift(); voiceBaking = { ...e, it: lineGen(e.text, { voice: e.voice, register: e.register, set: e.set, sampleRate: Math.min(ctx.sampleRate, VOICE_RATE_HZ) }), t: 0 }; }
       const t1 = perfNow(), r = voiceBaking.it.next();
       stepMs = perfNow() - t1;
@@ -446,9 +454,12 @@ export function createAudio({ profile = null, looks = {}, sound = null, shot = n
   }
   function wantVoice(text, o, front = true) {
     const key = voiceKey(text, o);
+    // (a line said while it waits baked ahead goes to the front, as a line said first (the v0.0.22 integration))
+    if (front && voiceWaiting.has(key)) { const i = voiceQueue.findIndex(q => q.key === key); if (i > 0 || voiceQueue[i]?.ahead) { const [q] = voiceQueue.splice(i, 1); delete q.ahead; voiceQueue.unshift(q); } }
+    if (front && voiceBaking?.key === key) delete voiceBaking.ahead;
     if (voiceBufs.has(key) || voiceWaiting.has(key) || voiceBaking?.key === key) return key;
     voiceWaiting.set(key, []);
-    const e = { key, text, voice: o.voice, register: o.register, set: o.set };
+    const e = { key, text, voice: o.voice, register: o.register, set: o.set, ...(front ? {} : { ahead: true }) };
     if (front) voiceQueue.unshift(e); else voiceQueue.push(e);
     return key;
   }

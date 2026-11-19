@@ -15,9 +15,16 @@ import { gunOn } from '../src/sim/arms/shooting.js';
 import { playerId } from '../src/core/ids.js';
 import { HOUSE_CHIEF } from '../src/data/courses.js';
 import { barParts, barSpan } from '../src/ui/cards/house.js';
-import { hotWashOf } from '../src/sim/scenarios/shoothouse.js';
+import { hotWashOf, casualtyCause } from '../src/sim/scenarios/shoothouse.js';
+// (tests/flawless-end.mjs's endLane, loaded by the heavy cases only: the quick file's CPU stays its own)
+const endLaneOf = async () => (await import('./flawless-end.mjs')).endLane;
 
 const lane = (tier, seed, setup = 'go') => { const g = createGame({ scenario: 'test-shoothouse', seed, tier, setup }); const r = runHouse(g, houseHonestBot()); return { g, r, s: g.state, H: houseOf(g.state), rs: runSheetOf(g.state) }; };
+// (a lane run once for the quick cases that read it (the B and C review of 2026-11-16: the file at 2.9 to 3.4 s of CPU against its
+// quick budget, QUICK_FILE_CPU_S 3 s × k; the tier one on 101 and on 48213 each run twice). A case that changes what it reads puts
+// it back before it returns, so the next reader has the lane as played)
+const LANES = new Map();
+const laneOnce = (tier, seed) => { const k = `${tier}/${seed}`; if (!LANES.has(k)) LANES.set(k, lane(tier, seed)); return LANES.get(k); };
 const WATCH = /Watch on your corner/;
 
 export default [
@@ -39,7 +46,7 @@ export default [
   {
     name: 'the honest tier one\'s lane with no fault called and no par missed outside the click is "clean", and the dummy cleared at his own pace is no lesson (seeds 101 to 104; v0.0.19: clean on 0 of 20)',
     fn() {
-      const out = [101, 102, 103, 104].map(seed => { const { H, rs } = lane('tierone', seed); return { seed, one: rs.one.key, dummy: H.dummy.clickAtMs === null ? null : H.dummy.clearedAtMs - H.dummy.clickAtMs, ia: H.iaBookMs ?? null, clicks: [...H.rooms, H.hall].flatMap(L => L.contacts.filter(c => c.click).map(c => `${c.stand}:${c.parMet ? 'met' : 'missed'}:${c.click}`)) }; });
+      const out = [101, 102, 103, 104].map(seed => { const { H, rs } = laneOnce('tierone', seed); return { seed, one: rs.one.key, dummy: H.dummy.clickAtMs === null ? null : H.dummy.clearedAtMs - H.dummy.clickAtMs, ia: H.iaBookMs ?? null, clicks: [...H.rooms, H.hall].flatMap(L => L.contacts.filter(c => c.click).map(c => `${c.stand}:${c.parMet ? 'met' : 'missed'}:${c.click}`)) }; });
       for (const o of out) console.log(`      ${o.seed}: ${o.one}; the dummy cleared in ${o.dummy} ms against HANDS_K ${HANDS_K} × ${o.ia} ms; the click on ${o.clicks.join(', ') || 'no par'}`);
       assert(out.every(o => o.one === 'clean'), JSON.stringify(out));
     },
@@ -47,7 +54,7 @@ export default [
   {
     name: 'a stoppage of your own is the cause \'gun\', never the click; the dummy\'s set stoppage is not yours; with neither the larger excess of eyes and hands names it (parCauseOf on a lane\'s own contact)',
     fn() {
-      const { s, H } = lane('tierone', 48213);
+      const { s, H } = laneOnce('tierone', 48213);
       const L = H.rooms[0], c = L.contacts.find(x => x.by === 'me' && x.stand === '1a'), T = s.armoury.range.turners.find(t => t.key === c.key), from = c.seenMs;
       const R = s.armoury.range, keep = R.stoppage, d0 = { ...H.dummy };
       R.stoppage = { atMs: from + 200, kind: 'stovepipe', set: false, cleared: true };
@@ -67,12 +74,14 @@ export default [
   {
     name: 'the one thing scores a missed par by its cause, each its own advice in HOUSE_CHIEF.one, and v0.0.19 K\'s fault keys keep their weights over it (a frag into a family beats a par missed)',
     fn() {
-      const { s, H } = lane('tierone', 48213);
+      const { s, H } = laneOnce('tierone', 48213);
       const c = H.rooms[0].contacts.find(x => x.by === 'me' && x.stand === '1a');
+      const was = { parMet: c.parMet, cause: c.cause }, faults = H.rooms[0].faults.length;
       Object.assign(c, { parMet: false, cause: 'hands' });
       const a = runSheetOf(s).one;
       H.rooms[0].faults.push({ kind: 'fragged', atMs: c.seenMs });
       const b = runSheetOf(s).one;
+      Object.assign(c, was); H.rooms[0].faults.length = faults;
       const keys = PAR_CAUSES.filter(k => k !== 'click').map(k => `par:${k}`);
       console.log(`      a par missed on hands: ${a.key} "${a.text}"; with a frag into a family: ${b.key}; the lines ${keys.map(k => `${k} ${HOUSE_CHIEF.one[k]?.length ?? 0}`).join(', ')}`);
       assert(a.key === 'par:hands' && HOUSE_CHIEF.one['par:hands'].includes(a.text) && b.key === 'fragged' && keys.every(k => HOUSE_CHIEF.one[k]?.length >= 2), JSON.stringify({ a, b }));
@@ -81,7 +90,7 @@ export default [
   {
     name: 'the immediate action\'s book is the fill\'s after a save is loaded, whatever gun is in hand then (fails with it kept under a $ key, stripped from the save: the C and D review of 2026-11-16)',
     fn() {
-      const { g, s, H, rs } = lane('tierone', 101), fill = iaBookOf(s, H);
+      const { g, s, H, rs } = laneOnce('tierone', 101), fill = iaBookOf(s, H);
       const g2 = createGame({ scenario: 'test-shoothouse', seed: 101, tier: 'tierone' }), s2 = g2.load(g.save()), H2 = houseOf(s2);
       const loaded = iaBookOf(s2, H2), one2 = runSheetOf(s2).one;
       // (the gun in hand gone from the loaded state: a book recomputed from the hands would read 0, as one from the P-12 would read its own)
@@ -91,6 +100,46 @@ export default [
       s2.items[gid] = item;
       console.log(`      tier one 101: the book at the fill ${fill} ms, after a load ${loaded} ms, with no gun in hand ${handless} ms; the one thing ${rs.one.key} (${rs.one.score}), after the load ${one2.key} (${one2.score})`);
       assert(fill > 0 && loaded === fill && handless === fill && one2.key === rs.one.key && one2.score === rs.one.score, JSON.stringify({ fill, loaded, handless, one: [rs.one, one2] }));
+    },
+  },
+  // (v0.0.22, its build sheet's item 5 (FL22-5): the casualty's lesson by its cause, shoothouse.js casualtyCause, as a missed par's is)
+  {
+    name: 'the casualty\'s lesson names what killed you (heavy: house-cause is at its quick budget): the sergeant by T on 48213 live (live:fight,hide) at GO, clicked with the man inside TRANSITION_NEAR_M and the P-12 holstered, hears the click\'s ("the pistol, not the tap-rack"); the boot recruit by the keys on 48213 live by its record (unseen or slow); a strike of yours before his fatal one makes it \'fought\' (before: "Paint on the stack ends it. See him first, shoot first." for every casualty)',
+    heavy: true,
+    timeoutMs: 120_000,
+    async fn() {
+      const endLane = await endLaneOf();
+      const sg = endLane({ tier: 'sgt', seed: 48213, bot: 'T', opfor: 'live:fight,hide', setup: 'go' }), rc = endLane({ tier: 'recruit', seed: 48213, bot: 'keys', opfor: 'live', setup: 'go' });
+      const one = (r) => runSheetOf(r.$state).one, cause = (r) => casualtyCause(r.$state, houseOf(r.$state));
+      for (const r of [sg, rc]) console.log(`      ${r.cell}: ${r.end}; cause ${cause(r)}; the one thing ${one(r)?.key}: "${one(r)?.text}"`);
+      // (a hand-made 'fought': the recruit's own record with a round of yours on the man that killed him, before his fatal strike)
+      const s = rc.$state, H = houseOf(s), K = H.live.casualty, T = s.armoury.range.turners.find(x => x.key === K.by);
+      const was = T.hits;
+      T.hits = [...was, { shotId: 'x-test', part: 'torso', zone: 'A', ring: false, through: false, at: null, atMs: K.atMs - 500, by: 'me' }];
+      const fought = casualtyCause(s, H), foughtOne = runSheetOf(s).one;
+      T.hits = was;
+      console.log(`      the recruit's record with a hit of yours 0.5 s before the fatal strike: ${fought}; "${foughtOne?.text}"`);
+      assert(sg.end === 'casualty' && cause(sg) === 'click' && one(sg).key === 'casualty:click' && HOUSE_CHIEF.one['casualty:click'].includes(one(sg).text), JSON.stringify(one(sg)));
+      assert(rc.end === 'casualty' && ['unseen', 'slow'].includes(cause(rc)) && one(rc).key === (cause(rc) === 'slow' ? 'casualty' : 'casualty:unseen'), JSON.stringify([cause(rc), one(rc)]));
+      assert(fought === 'fought' && foughtOne.key === 'casualty:fought', JSON.stringify([fought, foughtOne]));
+    },
+  },
+  {
+    name: 'the casualty\'s causes over 8 seeds × the six sheets × the keys and T on the live lane (heavy): each casualty lane\'s one thing its cause\'s, none \'slow\' where the run sheet says YOURS … BEFORE HIS (the feel lens: 7 before)',
+    heavy: true,
+    timeoutMs: 900_000,
+    async fn() {
+      const endLane = await endLaneOf(), recs = [];
+      for (const tier of ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']) for (const bot of ['keys', 'T']) for (const seed of [48213, 1, 2, 3, 4, 5, 6, 7]) recs.push(endLane({ tier, seed, bot, opfor: 'live' }));
+      const cas = recs.filter(r => r.end === 'casualty'), counts = {}, bad = [];
+      for (const r of cas) {
+        const c = casualtyCause(r.$state, houseOf(r.$state)), rs = runSheetOf(r.$state);
+        counts[c] = (counts[c] ?? 0) + 1;
+        if (c === 'slow' && rs.rows.some(x => /YOURS [0-9.]+ S BEFORE HIS/.test(x.words))) bad.push(`${r.cell} slow with YOURS BEFORE HIS`);
+        if (rs.one.key !== (c === 'slow' ? 'casualty' : `casualty:${c}`)) bad.push(`${r.cell} the one thing ${rs.one.key} for ${c}`);
+      }
+      console.log(`      ${recs.length} lanes, ${cas.length} casualties; causes ${JSON.stringify(counts)}; slow where yours came first ${bad.filter(b => /YOURS/.test(b)).length}`);
+      assert(!bad.length, bad.join(' | '));
     },
   },
 ];

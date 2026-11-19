@@ -1,6 +1,7 @@
 // OLYMPUS tests: the kit's bots for "Stack and clear" (v0.0.18, the build sheet 0.0.18 §5.3; COMBAT §25.20): the honest or the keys bot with the kit's row pressed once a door, and the kit's fuzz.
 //
-// houseKitBot({ use: 'flash' | 'breach' | 'both', base }) is tests/bots/house.mjs's honest bot (base 'honest': T and the shot the line names) or its keys
+// houseKitBot({ use: 'flash' | 'breach' | 'both', base }) is tests/bots/house.mjs's honest bot (base 'honest': T and the shot the line names;
+// v0.0.22: base 'T', houseTBot, T as the page sends it, for the gauges' T kit lanes, flawless-blast.mjs) or its keys
 // bot (base 'keys': the recruit's and the private's walk) with one thing more, once at each door of the lane: from rung 2 the
 // variant rows set at each door ("No bang ⇄ Flash" to Flash for use 'flash'; "Push ⇄ Kick ⇄ …" to Charge, else Pry, for use 'breach'; from the
 // fixer of v0.0.18 a breach or a bang is chosen for its door alone, bundle.js variantHere), so
@@ -14,8 +15,11 @@
 // the player is told: F31), and a G-11 elsewhere where one is carried ('mixed'); 'cut' breaches by the BC-1 at the pull door its
 // hinges are for (room 2), the other doors T's own; 'shoot' shoots the closet's lock (the inner door's row), the lane's doors
 // T's own. `cook` ('2', '0' or null: the rung's default) sets the count's variant.
+// v0.0.22 (the build sheet v0.0.22 item 8, R1 b): a grenade handed back at your feet or short on you ("Get clear"), the kit bot
+// presses T on the DI's line (cqb.js cqb-grenade, "Grenade! Get clear.": Get clear, bundle.js move:clear), as a player who reads
+// it; mem.clears counts them. With `decline` it carries on the drill instead (Carry on; mem.declined), the tests' lane that keeps the fault.
 // The memory is plain data on the actor (the bots' rule), so it saves.
-import { houseHonestBot, houseKeysBot, houseFuzzBot } from './house.mjs';
+import { houseHonestBot, houseKeysBot, houseFuzzBot, houseTBot } from './house.mjs';
 import { stepAct } from './lib.mjs';
 import { stepsOf } from '../../src/sim/arms/shooting.js';
 import { houseNow } from '../../src/sim/scenarios/shoothouse.js';
@@ -23,6 +27,7 @@ import { rungOf } from '../../src/sim/skills/templates.js';
 import { doorNow, breachWays, swingOf, variantHere } from '../../src/sim/combat/bundle.js';
 import { kitHas } from '../../src/sim/combat/breach.js';
 import { hashInt } from '../../src/core/hash.js';
+import { instinctNow } from '../../src/sim/skills/instinct.js';
 
 /** The most variant presses at one door (a row cycles its ways: four at most), so a door the kit cannot work is left to T. */
 export const KIT_VARIANT_MAX = 6;
@@ -30,8 +35,8 @@ export const KIT_VARIANT_MAX = 6;
 /** The rung from which the kit bot throws a practice frag or concussion (see bangFor): the corporal's, Weapon handling 11. */
 export const FRAG_RUNG = 2;
 /** The kit bot (see the header). */
-export function houseKitBot({ use = 'flash', base = 'honest', cook = null } = {}) {
-  const inner = base === 'keys' ? houseKeysBot() : houseHonestBot();
+export function houseKitBot({ use = 'flash', base = 'honest', cook = null, decline = false } = {}) {
+  const inner = base === 'keys' ? houseKeysBot() : base === 'T' ? houseTBot() : houseHonestBot();
   // (v0.0.19: the bang a door gets by the use and the brief, and the way in by the use)
   const bangFor = (state, door, kinds) => {
     // (below the corporal no frag or concussion is thrown on the lane (my call, FRAG_RUNG): Weapon handling under 10 (the boot
@@ -49,6 +54,12 @@ export function houseKitBot({ use = 'flash', base = 'honest', cook = null } = {}
     const N = houseNow(state), S = state.stop;
     const lane = N && N.goAtMs !== null && !N.end;
     if (lane && S?.mode === 'stop' && S.phase === 'choose' && !S.reflex) {
+      // (v0.0.22: "Grenade! Get clear.": T, the DI's own row)
+      const line = instinctNow(state).line;
+      if (line?.id === 'cqb-grenade' && line.act) {
+        if (!decline) { mem.clears = (mem.clears ?? 0) + 1; return { act: [{ act: 'instinct', args: { id: line.id, act: line.act } }] }; }
+        if (stepsOf(state).some(r => r.id === 'drill:carry' && !r.off)) { mem.declined = (mem.declined ?? 0) + 1; return { act: [stepAct('drill:carry')] }; }
+      }
       const pid = state.player.id, here = doorNow(state, pid), door = here?.door ?? null;
       const rows = stepsOf(state), rung = rungOf(state, pid, 'room'), v = variantHere(state, pid);
       // (the closet's lock shot from room 2, once, on a shoot lane)

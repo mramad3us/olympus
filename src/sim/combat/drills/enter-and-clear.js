@@ -116,7 +116,7 @@ export const ENTER_AND_CLEAR = deepFreeze({
     clear: { k: 'call', ch: 'voice', say: 'clear', after: ['sector', 'farlook', 'inner'] },
     roomclear: { k: 'call', ch: 'voice', say: 'roomclear', slots: [1], after: ['clear'] },
     // (the build sheet v0.0.20 item 12: the last man marks, your #2 (slot 2): his Dominate's last beat arms it (the `markArm` kind, no time where he
-    // stands), and he makes it on the latch-side jamb as he passes the door's plane outward (house-two.js twoTick); yours only by the
+    // stands), and he makes it on the latch-side jamb as he passes the door's plane outward (combat/two.js twoTick); yours only by the
     // single, where he cannot (the `mark` kind))
     mark: { k: 'markArm', ch: 'hands', slots: [2], after: ['roomclear', 'clear'] },
     // (v0.0.19, the team's beats (see the header): your order (its end writes your #2's task), you to the give line; his walk to the

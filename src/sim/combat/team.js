@@ -2,7 +2,7 @@
 //
 // Until v0.0.19 the two numbers were one: a stand's T.slot was both the side of the room it stands in and the man whose it
 // is. This module is the one reader of "whose man" (ownerOf) and the one map between a role and a side at a door (sideOf,
-// roleAt), so the sites that decide ownership (contact.js, bundle.js, instinct/cqb.js, house-two.js) call it instead of
+// roleAt), so the sites that decide ownership (contact.js, bundle.js, instinct/cqb.js, combat/two.js) call it instead of
 // reading T.slot, and T.slot stays the side, the geometry (room.js manPlace writes it for a man by where he stands).
 //
 // The other side (FM 3-06.11 §3-29: "#2 moves in the direction opposite #1"): at your #2's cue, you past the threshold on his
@@ -82,7 +82,7 @@ export const TEAM_WORDS = Object.freeze({
   line: W('Line!', 0),
 
   // (the room (the build sheet's items 12, 17 and 18): leaving a room, the last man out, the far leg, the call-out ("{face},
-  // {place}!", the face he identified and the place in your frame: house-two.js twoTick). His status after "Room clear!" says his own
+  // {place}!", the face he identified and the place in your frame: combat/two.js twoTick). His status after "Room clear!" says his own
   // `up`, `reloading` or `gunDown`: no status word)
   out: W('Coming out!', 0),
   last: W('Last man.', 0),

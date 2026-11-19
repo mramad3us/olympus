@@ -112,12 +112,13 @@ export const N15_FINDING = H.p12Drop;
  * fail; the entries' persistence is the fixtures', not the lanes'; the heavy sweep looks wide).
  */
 // (v0.0.21, the build sheet §1 item 17: two of the seven on the house drawn from the seed, the count unchanged (house-fumble is frozen
-// in QUICK_SLOW): the boot recruit's fuzz from the hall and the private by the keys from room 3)
+// in QUICK_SLOW): the boot recruit's fuzz from the hall and the private by the keys from room 3; v0.0.22 (its build sheet item 14,
+// §0 item 32): the private's lane drawn from all eight rooms, the count unchanged)
 export const QUICK_LANES = Object.freeze([
   { tier: 'cpl', setup: null, seed: 1, bot: 'honest' },            // p12-unready, p12-sling, cond3-top-up, slung, cold-fix
   { tier: 'recruit', setup: 'hall', seed: 1, bot: 'fuzz', draw: 'drawn' },
   { tier: 'tierone', setup: 'hall', seed: 1, bot: 'fuzz' },
-  { tier: 'private', setup: 'room:3', seed: 1, bot: 'house', draw: 'drawn' },
+  { tier: 'private', setup: 'room:3', seed: 1, bot: 'house', draw: 'drawn', rooms: 'all' },
   { tier: 'sgt', setup: 'go', seed: 1, bot: 'house' },
   { tier: 'raider', setup: 'contact', seed: 1, bot: 'honest' },
   { tier: 'tierone', setup: 'room:2', seed: 1, bot: 'honest' },

@@ -18,6 +18,9 @@
 // v0.0.21 (the build sheet v0.0.21 §1 item 16, §0 item 27): on a drawn house the line names it after the seed, "… · seed 48213 ·
 // house Cn290pc.Ks206lc.En175pc|ftatn…|p0120… · …", so a score is read against the house it was given on (house: the code, or none on
 // the house as set: its line is v0.0.20's); the record kept gains `house`.
+// v0.0.22 (its build sheet §1 item 14): a named house says its letter before its code, "… · seed 48213 · lane B · house Wn280pc… · …"
+// (house.js namedLaneOf; the set and a drawn house as before).
+import { namedLaneOf } from './house.js';
 
 /** The storage key, and the most scores kept. */
 export const SCORES_KEY = 'olympus.scores', SCORES_MAX = 200;
@@ -37,8 +40,8 @@ export function playedWords(played = null) {
 /** The line to paste (ROADMAP §2.2's form). aspects: [[name, value]…] in the scene's order, or { name: value }; played: what was played (playedWords). */
 export function scoreLine({ version, scene, seed, aspects, star = false, note = '', played = null, house = null }) {
   const list = Array.isArray(aspects) ? aspects : Object.entries(aspects ?? {});
-  const said = String(note ?? '').replace(/\s+/g, ' ').trim();
-  return [`OLYMPUS v${version}`, scene, `seed ${seed}`, ...(house ? [`house ${house}`] : []), ...list.map(([k, v]) => `${k} ${snapScore(v)}`), ...playedWords(played), `★ ${star ? 'yes' : 'no'}`, `note: ${said || 'none'}`].join(' · ');
+  const said = String(note ?? '').replace(/\s+/g, ' ').trim(), lane = namedLaneOf(house);
+  return [`OLYMPUS v${version}`, scene, `seed ${seed}`, ...(lane ? [`lane ${lane}`] : []), ...(house ? [`house ${house}`] : []), ...list.map(([k, v]) => `${k} ${snapScore(v)}`), ...playedWords(played), `★ ${star ? 'yes' : 'no'}`, `note: ${said || 'none'}`].join(' · ');
 }
 
 /** The scores kept on a storage (localStorage, or anything with getItem): { v: 1, scores: [] }. */

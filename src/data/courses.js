@@ -181,6 +181,19 @@ export const COURSES = deepFreeze({
         'corner-b': { faces: [['noshoot', 100]], set: 'noshoot' },
         'ell-a': { faces: [['threat', 50], ['noshoot', 50]], set: 'threat', gapMs: [500, 1500] },
         'ell-b': { faces: [['hostage', 40], ['threat', 30], ['armoured', 30]], set: 'hostage' },
+        // (X4's other five rooms (its build sheet item 13; house lens G2; my calls, the lens's tables without its 'unknown' face
+        // and empty stand, which nothing scores yet): each room's 'a' stand turns on its door and is the live post's (chunks/x4.js
+        // posts), its 'b' at GO; the twin's 'b' is the back room's (the far walk finds him), the hostage's room by turns)
+        'wide-a': { faces: [['threat', 75], ['noshoot', 25]], set: 'threat', gapMs: [300, 1200] },
+        'wide-b': { faces: [['threat', 50], ['noshoot', 50]], set: 'noshoot' },
+        'deep-a': { faces: [['threat', 100]], set: 'threat', gapMs: [500, 1500] },
+        'deep-b': { faces: [['threat', 45], ['noshoot', 45], ['hostage', 10]], set: 'noshoot' },
+        'offset-a': { faces: [['armoured', 50], ['threat', 50]], set: 'armoured', gapMs: [300, 1200] },
+        'offset-b': { faces: [['noshoot', 100]], set: 'noshoot' },
+        'twin-a': { faces: [['threat', 50], ['noshoot', 50]], set: 'threat', gapMs: [500, 1500] },
+        'twin-b': { faces: [['threat', 75], ['hostage', 25]], set: 'threat' },
+        'small-a': { faces: [['threat', 100]], set: 'threat', gapMs: [300, 1200] },
+        'small-b': { faces: [['noshoot', 100]], set: 'noshoot' },
       },
     },
     gaps: { door: { 'w4.r2': [300, 1200], 'w4.r3': [500, 1500] }, doorOther: [300, 1200], zone: [1500, 3000] },
@@ -190,6 +203,10 @@ export const COURSES = deepFreeze({
     // words at once, the pass stallMoreMs after, 15 s to walk to its door), so the lane ends by laneMaxMs − laneKeepMs, 585 s, by
     // construction; laneMaxMs stays the net (the gauges' F14: the fuzz private on 1111 ran to 600 s on v0.0.20's integration))
     laneKeepMs: 15_000, legLastMs: 45_000,
+    // (SHOW CLEAR to the eye (its build sheet's item 1, FL22-1; COMBAT §25.10.4): the instructor walks the catwalk to the
+    // marine he inspects and calls a gun clear only with his eye within showClearM of the marine's chest (his eye at the catwalk's
+    // 3.0 m, the chest at 1.3 m: at most 1.8 m along) for showLookMs; the tower's "The lane is clear." washAfterMs after the last "Clear.")
+    showClearM: 2.5, showLookMs: 600, washAfterMs: 800,
     // (the rework's R6, COMBAT §25.19.6: the P-12 on every sheet from 2026-11-15, the Sergeant up before (arms/sidearm.js SIDEARM_TIERS), the house's ten frangible a magazine)
     sidearm: { model: 'p12', mags: [['had17', 10, 'frangible'], ['had17', 10, 'frangible']] },
     // (v0.0.19, "Stack and clear, live" (the build sheet v0.0.19 §1 L-house; COMBAT §25.18): the stands the role-players take, in
@@ -197,7 +214,9 @@ export const COURSES = deepFreeze({
     // at most, as the gate does (bundle.js CLEAR_HOLD_MS), before the stall's words; and the team's own words at a live man: your
     // number two's "Got him." when he covers a man down or with his hands up, a marine's "I'm hit!" at his casualty and the
     // other's "Man down!" (my calls)
-    opfor: { stands: ['2a', '3a'], got: ['Got him.', 'Got him. Covering.'], hit: ["I'm hit!", "I'm hit! I'm hit!"], manDown: ['Man down!', 'Man down! Man down!'] },
+    // (paintCallMs (FL22-2; my call): a man's strikes on one marine within it are called as one, when the last has landed: a
+    // pair's span at the role-players' cadence, so "Keep working." is never said over a strike the next round makes fatal)
+    opfor: { stands: ['2a', '3a'], got: ['Got him.', 'Got him. Covering.'], hit: ["I'm hit!", "I'm hit! I'm hit!"], manDown: ['Man down!', 'Man down! Man down!'], paintCallMs: 600 },
   },
   // (0.0.10: test-stress's course, on pairs.js's engine (see the header); src/sim/scenarios/stress.js)
   stress: {
@@ -435,7 +454,9 @@ export const STRESS_COACH = deepFreeze({
   breathe: ['Breathe. Box it: in, hold, out, hold.', 'Breathe. In, hold, out, hold.'],
 });
 
-/** The house course's sequence (see the header): the instructor's commands on the PA, { id, ready, say, short? }. */
+// (the wash's words on a lane cleared: one array, its `say` and its `sayEnd.clear`, so the pick is the same)
+const WASH_SAY = ['The lane is clear. Hot wash, in the booth.', 'The lane is clear. Into the booth: hot wash.'];
+/** The house course's sequence (see the header): the instructor's commands on the PA, { id, ready, say, short?, sayEnd? }. */
 export const SEQ_HOUSE = deepFreeze([
   { id: 'brief', ready: 'always', say: ["Lane A. Three rooms and the hall, you and your number two. Full G in the Wheel: your kit weighs what it weighs on Earth. On my GO you stack and clear. Threats down, no-shoots untouched. My timer, not your wounds.",
     "This is lane A: three rooms, then the hall, at one G. You and your number two clear it on my GO. Put the threats down and leave the no-shoots alone. I run the timer."] },
@@ -445,7 +466,10 @@ export const SEQ_HOUSE = deepFreeze([
   { id: 'go', ready: 'laneDone', say: ['GO!', 'GO, GO, GO!'] },
   { id: 'stop', ready: 'houseSafe', short: 'Stop. On safe.', say: ['Stop. On safe, finger off.', 'Stop, stop. Make safe.'] },
   { id: 'clear', ready: 'shown', say: ['UNLOAD, SHOW CLEAR.', 'UNLOAD, SHOW CLEAR to me.'] },
-  { id: 'wash', ready: 'washed', say: ['The lane is clear. Hot wash, in the booth.', 'The lane is clear. Into the booth: hot wash.'] },
+  // (FL22-3: the wash's words by how the lane ended (shoothouse.js houseCmdSay): `sayEnd.clear`, its `say` itself, on a lane
+  // cleared; `sayEnd.other` on one ended by a casualty, time, a dry rifle, a burst or its last leg passed by the stall or the due,
+  // which nobody cleared (the B and C review of 2026-11-16))
+  { id: 'wash', ready: 'washed', say: WASH_SAY, sayEnd: { clear: WASH_SAY, other: ['Weapons clear. Into the booth: hot wash.', 'Guns are clear. Hot wash, in the booth.'] } },
   { id: 'end', ready: 'never', say: ["That's your lane.", 'Done. Off the floor.'] },
 ]);
 /**
@@ -454,16 +478,22 @@ export const SEQ_HOUSE = deepFreeze([
  * record carries a draw); every other command the same object.
  */
 export const SEQ_HOUSE_DRAWN = deepFreeze(SEQ_HOUSE.map(c => (c.id === 'brief' ? { ...c, say: ['A new layout. Three rooms and the hall, you and your number two. Full G in the Wheel: your kit weighs what it weighs on Earth. On my GO you stack and clear. Threats down, no-shoots untouched. My timer, not your wounds.',
-  'The panels are moved: a lane you have not seen. Three rooms, then the hall, at one G. You and your number two clear it on my GO. Put the threats down and leave the no-shoots alone. I run the timer.'] }
+  'The panels are moved: a layout the instructors have set. Three rooms, then the hall, at one G. You and your number two clear it on my GO. Put the threats down and leave the no-shoots alone. I run the timer.'] }
   : c.id === 'standby' ? { ...c, say: ['Standby.', 'New layout. Standby.'] } : c)));
 /**
- * The house course's hot wash after a lane a casualty ended (the play review of 2026-11-16: "The lane is clear." over a
- * lane that ended on "CEASE FIRE! You are a casualty."): the wash's words without "clear", word for word as long (its spoken
- * length chains the tower), every other command the sequence's own. casualtySeqOf(seq): SEQ_HOUSE's or SEQ_HOUSE_DRAWN's.
+ * The house course's sequence on a named house, B or C (the play review of v0.0.22, 2026-11-17: the card, the paper and the timer
+ * said "LANE B" while the tower briefed "A new layout" and "The panels are moved: a lane you have not seen."): SEQ_HOUSE command for
+ * command, its brief's and standby's "Lane A" and "lane A" saying the lane's letter, word for word as long (the tower's chain times
+ * them), every other command the same object; one frozen sequence a letter, made once.
  */
-const WASH_CASUALTY = Object.freeze(['The lane is closed. Hot wash, in the booth.', 'The lane is closed. Into the booth: hot wash.']);
-export const SEQ_HOUSE_CASUALTY = deepFreeze(SEQ_HOUSE.map(c => (c.id === 'wash' ? { ...c, say: [...WASH_CASUALTY] } : c)));
-export const SEQ_HOUSE_DRAWN_CASUALTY = deepFreeze(SEQ_HOUSE_DRAWN.map(c => (c.id === 'wash' ? { ...c, say: [...WASH_CASUALTY] } : c)));
+const SEQ_HOUSE_NAMED = new Map();
+export function seqHouseNamed(letter) {
+  if (!SEQ_HOUSE_NAMED.has(letter)) {
+    const lane = (t) => t.replace(/\bLane A\b/g, `Lane ${letter}`).replace(/\blane A\b/g, `lane ${letter}`);
+    SEQ_HOUSE_NAMED.set(letter, deepFreeze(SEQ_HOUSE.map(c => (c.id === 'brief' || c.id === 'standby' ? { ...c, say: c.say.map(lane) } : c))));
+  }
+  return SEQ_HOUSE_NAMED.get(letter);
+}
 
 /** What the instructor says to a shooter the line waits on ("Shooter, back on your mark."), by what is lacking (shoothouse.js houseWant). */
 export const HOUSE_NUDGE = deepFreeze({ mag: 'a magazine in.', chamber: 'a round up: MAKE READY.', safe: 'on safe, finger off.', low: 'low ready.', out: 'out of it.',
@@ -491,10 +521,12 @@ export const HOUSE_CHIEF = deepFreeze({
   hostage: ['You hit the hostage!', 'Hostage hit! Head only, or hold.'],
   standing: ['He is still standing in there.', 'You left one up.'],
   door: ['That door was never held.', 'You left a door at your back.'],
+  // (the hunt of v0.0.20, breach-4: an inner door opened and never looked into, the room called clear over it)
+  doorOpen: ['You opened that door and never looked in.', 'An open door nobody looked through is a man at your back.'],
   stall: ['Move on.', 'Move. You are clearing, not visiting.'],
   // (his acknowledgement of your number two's rifle shown clear at UNLOAD, SHOW CLEAR (COMBAT §25.19.5))
   twoClear: ['Number two, clear.', 'Number two: clear.'],
-  // (your #2's guns still loaded at the end of his SHOW CLEAR: the instructor clears them himself (house-two.js twoShown))
+  // (your #2's guns still loaded at the end of his SHOW CLEAR: the instructor clears them himself (combat/two.js twoShown))
   twoTaken: ["Number two, that's still loaded. Give it here.", "Number two: still loaded. I've cleared it."],
   time: ['Time. On to the next.', 'Time on that room. Next door.'],
   par: ['He fired first.', 'Too slow. He fired first.'],
@@ -511,7 +543,9 @@ export const HOUSE_CHIEF = deepFreeze({
   intel: ['Intelligence: {rooms}, hostiles only. Anywhere else, assume a family.', 'Hostiles only in {rooms}. Every other door could be a family.'],
   intelNone: ['No room in this house is hostiles only. Assume a family behind every door.', 'Nothing here is hostiles only. Families behind every door.'],
   practice: ["Practice frags count as live in my book. I'll tell you what they would have done.", 'Those are practice grenades. I score them as the real thing.'],
-  fragGood: ['Good frag. {list} down.', 'That frag did its work: {list}.'],
+  // (the men it put down counted, never named by their stands ("Good frag. 1a and 1b down.", the stand shorthand FL22-6 set
+  // out to remove; house-kit.js menWords))
+  fragGood: ['Good frag: {list} down.', 'That frag did its work: {list} down.'],
   fragged: ['You fragged a room with a {who} in it.', '{who} in there. You never frag a family.'],
   burst: ['Cease fire! You were in the room when it went.', "CEASE FIRE! In the room at the burst. You'd be dead."],
   stackBlast: ['Too close. The stack took that blast.', 'On the wall before it goes.'],
@@ -528,14 +562,22 @@ export const HOUSE_CHIEF = deepFreeze({
   // (the live lane's (v0.0.19, COMBAT §25.18): a live man ruled out at his room's "Clear!", covered; paint on you or your number
   // two ({part} chest or head), the casualty's cease fire with you or him hit, a round on a man whose hands you saw up, a room
   // reopened by a man seen up after its "Clear!" ({Room}: "Room 3"), a man down or with his hands up left uncovered at "Clear!")
-  out: ["He's out.", 'That one is out.'],
+  // (FL22-6: said to the man, the umpire's words in force on force (question 3's default); was "He's out.", "That one is out.")
+  out: ['You, out. Sit down where you are.', 'You are out. Sit down.'],
   paint: ['Paint, {part}. Keep working.', 'You took paint, {part}. Keep working.'],
   // (a strike the carrier's soft panel stopped, as the live round's would-have rates it (combat/would.js))
   // (a round of yours a role-player's soft panel stopped, once a man (shoothouse.js liveShot))
   hisPanel: ['His panel took that one.', 'That one hit his panel.'],
   paintStopped: ['Paint, {part}. Your panel took it. Keep working.', 'Paint on the panel. Keep working.'],
+  // (the hunt of v0.0.20's T3: a strike on your number two is said as his, never as yours ("You took paint" for his was the DI's of v0.0.20))
+  paintTwo: ['Paint on your two, {part}. Keep working.', 'Your number two took paint, {part}. Keep working.'],
+  paintStoppedTwo: ['Paint on your two, {part}. His panel took it. Keep working.', 'Paint on his panel. Keep working.'],
   casualty: ['Cease fire! Cease fire! You are hit.', 'CEASE FIRE! You are a casualty.'],
   twoDown: ['Cease fire! Cease fire! Your number two is hit.', 'CEASE FIRE! Your number two is a casualty.'],
+  // (a wound rated not fatal that bleeds its man into shock later in the lane (combat/would.js wouldTick): the instructor's ruling
+  // at that tick, before the cease fire's (the hunt of v0.0.20, bleed-shock))
+  bled: ["That wound has bled you into shock. You're down.", 'You have lost too much blood. You are down.'],
+  twoBled: ['Your number two has bled into shock. He is down.', 'Your number two has lost too much blood. He is down.'],
   surrendered: ['His hands were up! You never shoot a man who gave up.', 'He gave up, and you shot him. Hands up means stop.'],
   // (the review of v0.0.19's fixer: the tower moved on past MAKE READY with the P-12's round not up; he racks it, as the coach clears a rifle never shown)
   // (your number two's P-12 short of its round at MAKE READY's move-on, racked by the instructor (shoothouse.js twoMoveOn))
@@ -545,6 +587,10 @@ export const HOUSE_CHIEF = deepFreeze({
   uncovered: ['Cover your man!', 'Cover him! He is still armed.'],
   // (the line of fire (the build sheet v0.0.20 item 3): a round of your number two's held MASK_FAULT_MS or more by you on his line)
   masked: ['You walked into his line!', 'You were in his line! Hold your point.'],
+  // (two strikes on one marine within COURSES.house.opfor.paintCallMs, called as one (FL22-2: shoothouse.js liveTick's paint held))
+  paintTwice: ['Paint, {part}, two. Keep working.', 'Two on you, {part}. Keep working.'],
+  // (the same two strikes on your number two, in his words (the v0.0.22 integration: the hunt of v0.0.20's T3 met C's held call))
+  paintTwiceTwo: ['Paint on your two, {part}, two. Keep working.', 'Two on your number two, {part}. Keep working.'],
 
   // (the card (the build sheet v0.0.20 §1 item 20): the instructor's verdict at the hot wash's end, against your sheet's
   // standard (shoothouse.js houseVerdict): GO, or NO-GO and its first reason ({why}, in his words: VERDICT_WHY)
@@ -571,6 +617,9 @@ export const HOUSE_CHIEF = deepFreeze({
     clean: ['Clean lane. Again, faster.', 'Clean. Now do it again, and quicker.'],
     // (the play review: a lane ended before any room was run (Esc, End the scene, at GO) has nothing to wash)
     unplayed: ['No room run, so nothing to wash. Again, from the top.', 'Not one room cleared. From the top.'],
+    // (the hunt of v0.0.20, P3: a lane set up ("Again from room 2") with nothing to fault is a room drilled, not a lane run: never "Clean
+    // lane" beside its NO-GO; the drill's lesson is the lane it left out)
+    setup: ['Clean. Now run it from GO, the walk to the door with it.', 'That was clean. Now the whole lane, from the top.'],
     fragged: ['You fragged a room with a family in it. The brief told you which rooms were hostiles only.', 'Frags go only where the brief says hostiles only. Everywhere else, a stun or nothing.'],
     burst: ['You were in the room when your grenade went. On the wall until it goes, then in.', 'Wait for the bang. In the room at the burst, you are dead.'],
     burstFeet: ['A grenade dropped at the stack\'s feet: the whole stack clear of it, down the wall, and down.', 'A dropped grenade: everyone clear of it and down. Nobody stands over it.'],
@@ -580,10 +629,23 @@ export const HOUSE_CHIEF = deepFreeze({
     through: ['Your breach round went into the room. Muzzle on the lock, forty-five down and in.', 'Angle the breach round down and in, so it ends in the floor.'],
 
     casualty: ['You took paint and it stopped there. Win the first second: on him before he is on you.', 'Paint on the stack ends it. See him first, shoot first.'],
+    // (the hunt of v0.0.20's T4: your number two the casualty, never "You took paint": by whose sector the man who shot him stood in
+    // ('casualty:two' his own corner's, 'casualty:two:yours' yours); and paint on him alone short of a casualty ('paint:two'))
+    'casualty:two': ['Your two took paint and it stopped there. In on his heels, so he never fights his corner alone.', 'Your number two went down in his own corner. Through the door together, and call what you see for him.'],
+    'casualty:two:yours': ['Your two took paint from your man. Yours first: on him before he is on either of you.', 'The man in your sector shot your number two. Your corner is yours to kill, before he picks one of you.'],
+    'paint:two': ['Your two took paint. In on his heels and call what you see, so he is never alone with a man.', 'Paint on your number two. Together through the door, and his man is called before he shoots.'],
+    // (a casualty a wound bled down later (shoothouse.js oneThing, would.js wouldTick): the wound first, and then the minutes worked on it)
+    'casualty:bled': ['You took a wound and worked on until the blood ran out. Win the first second, and finish the house before a wound can.', 'A wound keeps bleeding while you work. See him first, shoot first, and keep the lane short.'],
     surrendered: ['You shot a man with his hands up. Read the hands every time, even mid-fight.', 'His hands were up. Stop on the hands.'],
     uncovered: ['A man down is still armed until someone covers him. Cover, then call.', 'Down is not out. Cover him before you call it.'],
     // (the play review: paint on the stack short of the casualty, the lane gone on (the user's answer of 2026-11-16))
     paint: ['You took paint. See him first, and be on him before he is on you.', 'Paint on the stack. Win the first second: see him first, shoot first.'],
+    // (the casualty's lesson by its cause (FL22-5; shoothouse.js casualtyCause): a stoppage with him inside the pistol's
+    // distance while the DI offered "Transition: pistol" ('click'), a hit of yours he fought through ('fought'), his fatal round before
+    // your take-in of him ended ('unseen'); `casualty` itself the rest, slow off the sighting)
+    'casualty:click': ['A click with him that close: the pistol, not the tap-rack.', 'That close, a click means the pistol. Then the rifle.'],
+    'casualty:fought': ['One hit is not a stop. Rounds until he is down.', 'You hit him, and he was still in it. Keep on him until he is down.'],
+    'casualty:unseen': ['He was on the door before you saw him. Through it fast and off its line.', 'He had the door before your eyes did. Through it fast, off its line.'],
     reopened: ['You called a room clear with a man in it. Find every man before the call.', 'He was still in there. Clear means every man accounted for.'],
     // (the cause of a missed par (the build sheet v0.0.20 §1 item 4; shoothouse.js parCauseOf): the par's line by why it was
     // missed, each the advice for that cause. 'par:click' is never said (it scores 0: a par missed only inside the instructor's dummy is
@@ -619,4 +681,5 @@ export const ROOM_PAR_K = deepFreeze({ room: [1.5, 1.3], hall: [1.0, 1.4] }), RO
 export const VERDICT_WHY = deepFreeze({
   setup: 'a lane set up is no lane', casualty: 'a casualty', hostage: 'the hostage', noshoot: 'a no-shoot', stopped: 'the safety stop', muzzle: 'your muzzle',
   standing: 'a threat left standing', passed: 'a room not cleared', pars: 'too many pars missed', lane: 'over the lane\'s par', time: 'the lane ran out of time',
+  burst: 'the cease fire at the burst',
 });

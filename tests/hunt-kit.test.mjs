@@ -5,7 +5,8 @@
 // instructor makes it safe with a fault (kit-3); no throw or cook through a shut door (kit-4); a charge on the leaf strikes the
 // door's other ways in and T finishes the breach (kit-6); the bracket on a man out of the frame is no aim, T's "In." carries on
 // (kit-7); a kick that held is kicked again by a row T can press, and never named over another way (kit-8); #1 tells a pried pull
-// door "Opens out" (kit-1); a G-11 burst on the stack past BREACH_SAFE_KPA is a fault (kit-9); a G-11 thrown from inside room 1 lands
+// door "Opens out" (kit-1); a G-11 burst on the stack past BREACH_SAFE_KPA is a fault (kit-9; v0.0.22: where the stack's line to it
+// is clear, the jamb halving it as the blast's line has it, so its two cases moved to lanes where the line is clear); a G-11 thrown from inside room 1 lands
 // in it, the #2 under STUN_KPA (kit-5, gone in v0.0.19, pinned here for the G-11 as tests/throw.test.mjs pins it for the G-9P).
 // The review of those fixes added: T never "finishes" a practice frag or concussion into a room the brief did not call hostiles only;
 // a charge on the leaf strikes the drill's rows that open it another way, not the door's singles only, and the cycle offers none;
@@ -19,9 +20,10 @@ import { houseKitBot } from './bots/kit.mjs';
 import { stepsOf } from '../src/sim/arms/shooting.js';
 import { instinctNow } from '../src/sim/skills/instinct.js';
 import { houseNow } from '../src/sim/scenarios/shoothouse.js';
-import { handDeviceOf, MISFIRE_WAIT_MS } from '../src/sim/arms/devices.js';
+import { handDeviceOf, liveDevices, MISFIRE_WAIT_MS } from '../src/sim/arms/devices.js';
+import * as KIT from '../src/sim/arms/kit.js';
 import { doAction } from '../src/sim/arms/firearms.js';
-import { openingState, setOpening } from '../src/sim/places/model.js';
+import { openingState, setOpening, openingOf } from '../src/sim/places/model.js';
 import { STUN_KPA, BREACH_SAFE_KPA } from '../src/sim/arms/blast.js';
 import { drawStands } from '../src/sim/scenarios/shoothouse.js';
 import { entryOptions } from '../src/sim/combat/breach.js';
@@ -197,14 +199,28 @@ export default [
     },
   },
   {
-    name: 'a G-11 burst on the stack past BREACH_SAFE_KPA is a fault, "STACK IN THE BLAST 30 KPA": the boot recruit\'s own short flash at room 1 (seed 1489397426, the kit bot by the keys) (the hunt of v0.0.18, kit-9: 29.8 kPa and a 2.4 s stun, no mark)',
+    // (v0.0.22, R1 a, the blast's line (practice.js blastLine): the hunt's lane, the boot recruit's own short flash at room 1 on
+    // 1489397426, now puts 14.9 kPa on him round the jamb, no mark and no fault (blast-line's case 1). The fault is pinned on the same
+    // lane with the grenade laid in the open doorway, 1.05 m from him with his line to it clear)
+    name: 'a G-11 burst on the stack past BREACH_SAFE_KPA is a fault, "STACK IN THE BLAST 33 KPA", where the stack\'s line to it is clear: the boot recruit\'s short flash at room 1 (seed 1489397426, the kit bot by the keys) laid in the open doorway; where it lay, round the jamb, 14.9 kPa and no mark (rewritten in v0.0.22 for the blast\'s line, R1 a: before it the jamb counted nothing, 29.8 kPa and the fault on the lane as thrown; the hunt of v0.0.18, kit-9)',
     timeoutMs: 60_000,
     fn() {
-      const g = createGame({ scenario: 'test-shoothouse', seed: 1489397426, tier: 'recruit', setup: 'go', loadout: 'flash' }), pid = g.state.player.id, H = g.state.armoury.range.house;
-      runHouse(g, houseKitBot({ use: 'flash', base: 'keys' }), { maxMs: 60_000 });
-      const B = H.bursts?.[0], L0 = H.rooms[0];
-      console.log(`      the burst ${B?.model} at (${B?.x}, ${B?.z}), ${B?.kPa?.[pid]} kPa on you; room 1 faults ${JSON.stringify(L0.faults.map(f => f.kind))}, marks ${JSON.stringify(L0.kit)}`);
-      assert(B?.model === 'g11' && B.kPa[pid] > 27.6 && L0.faults.some(f => f.kind === 'blast') && L0.kit.some(m => /^STACK IN THE BLAST \d+ KPA$/.test(m)), JSON.stringify({ B, faults: L0.faults, kit: L0.kit }));
+      const out = {};
+      for (const lay of [false, true]) {
+        const g = createGame({ scenario: 'test-shoothouse', seed: 1489397426, tier: 'recruit', setup: 'go', loadout: 'flash' }), pid = g.state.player.id, H = g.state.armoury.range.house;
+        let laid = false;
+        runHouse(g, houseKitBot({ use: 'flash', base: 'keys' }), { maxMs: 20_000, each: (game) => {
+          const st = game.state, d = lay && !laid ? liveDevices(st).find(x => x.kind === 'grenade') : null;
+          if (!d) return;
+          const o = openingOf('o:w4:r1'), mid = o.axis === 'x' ? [(o.a + o.b) / 2, o.at] : [o.at, (o.a + o.b) / 2];
+          KIT.move(st, d.id, { ground: { area: st.places.live.area, x: mid[0], z: mid[1] } }); laid = true;
+        } });
+        const B = H.bursts?.[0], L0 = H.rooms[0];
+        out[lay ? 'doorway' : 'jamb'] = { model: B?.model, at: [B?.x, B?.z], kPa: B?.kPa?.[pid], faults: L0.faults.map(f => f.kind), marks: (L0.kit ?? []).filter(m => /^STACK /.test(m)) };
+      }
+      console.log(`      round the jamb (as thrown): ${JSON.stringify(out.jamb)}; laid in the doorway: ${JSON.stringify(out.doorway)}`);
+      assert(out.jamb.model === 'g11' && out.jamb.kPa < STUN_KPA && !out.jamb.faults.includes('blast') && !out.jamb.marks.length, JSON.stringify(out.jamb));
+      assert(out.doorway.model === 'g11' && out.doorway.kPa > BREACH_SAFE_KPA && out.doorway.faults.includes('blast') && out.doorway.marks.some(m => /^STACK IN THE BLAST \d+ KPA$/.test(m)), JSON.stringify(out.doorway));
     },
   },
   {
@@ -350,18 +366,22 @@ export default [
     },
   },
   {
-    name: 'a G-11 that stuns the stack under the fault\'s line is a mark, "STACK STUNNED n KPA", no fault: the boot recruit\'s flashes on seeds 1074 (26.8 kPa) and 1148 (21.8), over STUN_KPA 20 and under BREACH_SAFE_KPA 27.6 (the review of the hunt fixes, finding 4: stunned U(2, 6) s, and the card said nothing)',
+    // (v0.0.22, R1 a: the review's two seeds, 1074 and 1148, are shielded now (the stack round room 1's jamb, 13.4 and 10.9 kPa: no
+    // stun, no mark); the mark is pinned where the line is clear, room 2's corner door on 48224, its hand-back declined (R1 b: taken, 5.2 kPa))
+    name: 'a G-11 that stuns the stack under the fault\'s line is a mark, "STACK STUNNED n KPA", no fault: the boot recruit\'s flash short at room 2 on seed 48224, its hand-back ("Grenade short! Get clear.") declined, 22.5 kPa with his line to it clear through the corner door, over STUN_KPA 20 and under BREACH_SAFE_KPA 27.6; on 1074 and 1148 the jamb stands between, under STUN_KPA and no mark (rewritten in v0.0.22 for the blast\'s line and Get clear, R1 a and b: 26.8 and 21.8 kPa on 1074 and 1148 before, and 48224\'s Get clear taken is 5.2; the review of the hunt fixes, finding 4)',
     timeoutMs: 120_000,
     fn() {
       const out = [];
-      for (const seed of [1074, 1148]) {
+      for (const [seed, maxMs, decline] of [[48224, 45_000, true], [1074, 20_000, false], [1148, 20_000, false]]) {
         const g = createGame({ scenario: 'test-shoothouse', seed, tier: 'recruit', setup: 'go', loadout: 'flash' }), pid = g.state.player.id, H = g.state.armoury.range.house;
-        runHouse(g, houseKitBot({ use: 'flash', base: 'keys' }), { maxMs: 8 * 60_000 });
-        const B = (H.bursts ?? []).find(b => (b.kPa?.[pid] ?? 0) >= STUN_KPA), legs = [...H.rooms, H.hall];
-        out.push({ seed, kPa: B?.kPa?.[pid], marks: legs.flatMap(x => (x.kit ?? []).filter(m => /^STACK /.test(m))), blast: legs.flatMap(x => x.faults).filter(f => f.kind === 'blast').length });
+        runHouse(g, houseKitBot({ use: 'flash', base: 'keys', decline }), { maxMs });
+        const B = (H.bursts ?? []).reduce((w, b) => ((b.kPa?.[pid] ?? 0) > (w?.kPa?.[pid] ?? -1) ? b : w), null), legs = [...H.rooms, H.hall];
+        out.push({ seed, room: B?.room, kPa: B?.kPa?.[pid], marks: legs.flatMap(x => (x.kit ?? []).filter(m => /^STACK /.test(m))), blast: legs.flatMap(x => x.faults).filter(f => f.kind === 'blast').length });
       }
-      console.log(`      ${out.map(o => `${o.seed}: ${o.kPa} kPa, marks ${JSON.stringify(o.marks)}, blast faults ${o.blast}`).join('; ')}`);
-      assert(out.every(o => o.kPa >= STUN_KPA && o.kPa <= BREACH_SAFE_KPA && o.marks.includes(`STACK STUNNED ${Math.round(o.kPa)} KPA`) && !o.blast), JSON.stringify(out));
+      console.log(`      ${out.map(o => `${o.seed}: ${o.kPa} kPa (${o.room}), marks ${JSON.stringify(o.marks)}, blast faults ${o.blast}`).join('; ')}`);
+      const [m, ...shielded] = out;
+      assert(m.kPa >= STUN_KPA && m.kPa <= BREACH_SAFE_KPA && m.marks.includes(`STACK STUNNED ${Math.round(m.kPa)} KPA`) && !m.blast, JSON.stringify(m));
+      assert(shielded.every(o => o.kPa < STUN_KPA && !o.marks.length && !o.blast), JSON.stringify(shielded));
     },
   },
 ];

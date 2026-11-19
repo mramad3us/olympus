@@ -14,7 +14,7 @@ import { gunField, beliefOf } from '../src/sim/arms/firearms.js';
 import { legsOf } from '../src/sim/combat/bundle.js';
 import { kitMassKg, sparesOf } from '../src/sim/arms/kit.js';
 import { houseWant } from '../src/sim/scenarios/shoothouse.js';
-import { twoLacks } from '../src/sim/scenarios/house-two.js';
+import { twoLacks } from '../src/sim/combat/two.js';
 
 const P12 = 'standard~two:p12', NONE = 'standard~two:none';
 const two = (s) => s.armoury.range.house.two;

@@ -19,7 +19,35 @@
 // hostage) = 3.65 s"); six aspects (pause, drill, team, panel, shots, feel); and the session's sheets side by side, a row a leg and a
 // column a sheet (houseGrid, "Bang"'s gridTable form: each cell the leg's time against its par and its marks in the run sheet's own
 // words).
+// v0.0.22 (its build sheet §1 item 14; the house lens's G3): a named house's word on the paper, "LANE B" (namedLaneOf: assemble.js
+// laneWordOf's 'B' or 'C' for the lane's code; null as set and on a drawn house, whose paper says "NEW LAYOUT" as before): the run
+// sheet's title and its card's "NEW LAYOUT" say the lane's letter; "Again with a new seed" keeps it (againHouseOf).
 
+// (the rooms' role's laneWordOf read by name, so the paper is v0.0.21's until it is exported)
+import * as ASSEMBLE from '../../sim/scenes/assemble.js';
+/** A named house's letter for a lane's code: 'B' or 'C' (assemble.js laneWordOf), else null (the set, a drawn house, no code). */
+export function namedLaneOf(code, laneWordOf = ASSEMBLE.laneWordOf ?? null) {
+  if (!code || typeof laneWordOf !== 'function') return null;
+  let w = null;
+  try { w = laneWordOf(code); } catch { w = null; }
+  return w === 'B' || w === 'C' ? w : null;
+}
+/**
+ * The house the end card's "Again" plays (main.js openHouseEnd): { same, code (the lane's drawn code, or null as set), lane
+ * (namedLaneOf's letter), rooms (the drawn house's room set, R.house.draw.rooms) } → playScene's house options. The same seed keeps
+ * the house's code (v0.0.21); a new seed keeps a named house with a new cast ({ layout: 'B' }: its targets are drawn from the seed),
+ * draws a drawn house afresh on the same rooms ({ draw: 'drawn', rooms }), and leaves the set as set ({}). The A and D review
+ * (2026-11-16): "Again with a new seed" after layout B passed { draw: 'drawn' } and played a three-room house drawn whole.
+ */
+export function againHouseOf({ same = false, code = null, lane = null, rooms = null, plans = null } = {}) {
+  // (the reviews of 2026-11-17: the same seed keeps the drawn house's room set with its code (`pool`, debug.js
+  // houseChoice), so "Again" then "Again with a new seed" still draws from the eight; and every Again keeps the plans' source, so a
+  // &plans=derived lane replays on its own plans and is offered its own ghost (ghostKeyOf keys on it))
+  const keep = plans === 'derived' ? { plans } : {};
+  if (same) return code ? { draw: 'drawn', house: code, ...(rooms === 'all' ? { pool: rooms } : {}), ...keep } : keep;
+  if (lane) return { layout: lane, ...keep };
+  return code ? { draw: 'drawn', ...(rooms ? { rooms } : {}), ...keep } : keep;
+}
 /** A missed par's cause in the hot wash's words (shoothouse.js PAR_CAUSES). */
 export const CAUSE_WORDS = Object.freeze({ click: 'the click', gun: 'your gun', unready: 'rifle not up', eyes: 'seen late', hands: 'slow hands', feet: 'planted first' });
 /** Two places of seconds, as every paper says them. */
@@ -78,7 +106,7 @@ export function rowParts(words) {
  * The run sheet as the instructor's paper: an element ({ className 'runsheet' }) whose data-text is every line in order (the
  * card's line first, then each room's), or null. rs: runSheetOf(state) ({ rows: [{ room, words }], card, one?, spinLine?, practised? }).
  */
-export function runSheetEl(rs, { doc = globalThis.document, bars = null } = {}) {
+export function runSheetEl(rs, { doc = globalThis.document, bars = null, lane = null } = {}) {
   if (!rs || !doc) return null;
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(doc.createElement(tag), props); for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };
   // (the play review: each room's missed par says its cause, "BASIC MISSED (SEEN LATE)", from the hot wash's bars
@@ -90,9 +118,10 @@ export function runSheetEl(rs, { doc = globalThis.document, bars = null } = {}) 
       ...p.marks.map(m => el('span', { className: `rs-mark${m.fault ? ' fault' : ''}`, textContent: why && / MISSED$/.test(m.text) ? `${m.text} (${why.toUpperCase()})` : m.text })));
   });
   const would = Array.isArray(rs.would) ? rs.would : [];
-  const card = typeof rs.card === 'string' ? rs.card : rs.card?.words ?? rs.card?.text ?? null, one = typeof rs.one === 'string' ? rs.one : rs.one?.text ?? null;
+  // (a named house's letter where the card says NEW LAYOUT)
+  const card0 = typeof rs.card === 'string' ? rs.card : rs.card?.words ?? rs.card?.text ?? null, card = lane && card0 ? card0.replace(/\bNEW LAYOUT\b/, `LANE ${lane}`) : card0, one = typeof rs.one === 'string' ? rs.one : rs.one?.text ?? null;
   const body = el('div', { className: 'runsheet' },
-    el('div', { className: 'rs-title' }, el('span', { textContent: 'RUN SHEET' }), el('span', { className: 'rs-lane', textContent: rs.lane ? `LANE ${rs.lane}` : 'THE WHEEL · HOUSE 1' })),
+    el('div', { className: 'rs-title' }, el('span', { textContent: 'RUN SHEET' }), el('span', { className: 'rs-lane', textContent: lane ? `LANE ${lane} · THE WHEEL · HOUSE 1` : rs.lane ? `LANE ${rs.lane}` : 'THE WHEEL · HOUSE 1' })),
     card ? el('p', { className: 'rs-card', textContent: card }) : null,
     ...rows,
     // (the team's row under the rooms', its marks split as a room's are)
@@ -189,9 +218,10 @@ export function houseAspects(hn, { fmt = two } = {}) {
   const w = (v) => (typeof v === 'string' ? v : v?.words ?? v?.text ?? null);
   const pause = (p) => (!p?.n ? 'no contact taken in' : `${p.n} taken in, ${fmt(p.minMs)}${p.maxMs !== p.minMs ? ` to ${fmt(p.maxMs)}` : ''} s${Number.isFinite(p.firstMinMs) ? ` · the first round ${two(p.firstMinMs)} s from the sighting at the quickest` : ''}`);
   const drill = (d) => {
-    const legs = (d?.legs ?? []).filter(l => Number.isFinite(l.ms));
+    // (each leg named by its place in the lane before the untimed ones go (a room a setup cleared has none): the hunt of v0.0.20, P3)
+    const legs = (d?.legs ?? []).map((l, i) => ({ ...l, word: i < 3 ? `room ${i + 1}` : 'hall' })).filter(l => Number.isFinite(l.ms));
     const how = (l) => { const h = l.how ?? {}; const ks = Object.entries(h).filter(([, n]) => n > 0).map(([k, n]) => `${k} ${n}`); return ks.length ? ` (${ks.join(', ')})` : ''; };
-    return `${legs.map((l, i) => `${i < 3 ? `room ${i + 1}` : 'hall'} ${two(l.ms)} s, ${l.presses ?? 0} press${l.presses === 1 ? '' : 'es'}${how(l)}`).join(' · ')}${Number.isFinite(d?.presses) ? ` · ${d.presses} presses in all` : ''}`;
+    return `${legs.map(l => `${l.word} ${two(l.ms)} s, ${l.presses ?? 0} press${l.presses === 1 ? '' : 'es'}${how(l)}`).join(' · ')}${Number.isFinite(d?.presses) ? ` · ${d.presses} presses in all` : ''}`;
   };
   const shots = (sh) => {
     const z = ZONE_WORDS.filter(([k]) => Number(sh?.zones?.[k]) > 0).map(([k, word]) => `${sh.zones[k]} ${word}`);
@@ -223,7 +253,8 @@ export function houseGrid(runs) {
     if (V.setup) return { text: 'SET UP', late: false, fault: false };
     const t = Number.isFinite(V.ms) ? `${two(V.ms)}${Number.isFinite(V.parMs) ? ` / ${(V.parMs / 1000).toFixed(1)}` : ''}` : '–';
     const marks = [...new Set((V.faults ?? []).map(f => f.kind))].map(k => FAULT_GRID[k] ?? String(k).toUpperCase());
-    const missed = Number(V.parMissed) > 0;
+    // (a live man's first round before the stack's is FIRED FIRST too, as on the card (shoothouse.js cardOf; the hunt of v0.0.20, par-met-first))
+    const missed = Number(V.parMissed) > 0 || (V.live?.gapMs ?? 0) > 0;
     return { text: [V.state === 'passed' ? 'PASSED' : t, missed ? 'FIRED FIRST' : null, ...marks].filter(Boolean).join(' · '), late: Number.isFinite(V.ms) && Number.isFinite(V.parMs) && V.ms > V.parMs, fault: missed || marks.length > 0 || V.state === 'passed' };
   };
   return { cols: list.map(r => r.label), rows: Array.from({ length: n }, (_, k) => ({ word: list.find(r => r.legs[k])?.legs[k]?.word ?? WORDS[k] ?? `LEG ${k + 1}`, cells: list.map(r => cell(r.legs[k])) })), now: list.findIndex(r => r.now) };

@@ -778,7 +778,10 @@ export function gaugeOf(recs) {
     // so a small change to a door's openS or a sheet's pace could fail one seed with no real regression))
     const worst = cued.filter(x => Number.isFinite(x.lagMs)).reduce((m, x) => (!m || x.lagMs > m.lagMs ? x : m), null);
     const margin = worst ? `; the margin ${s2((TWO_CUE_MS - worst.lagMs) / 1000)} s, set by ${worst.bot} ${worst.tier} ${worst.seed} ${worst.door.replace(/^o:w4:/, '')}` : '';
-    add('F25', "the #2 in on his cue", cued.length > 0 && !late.length, `${cued.length} rooms cued (honest and keys): late or out ${late.length}${late.length ? ` (${late.slice(0, 4).map(x => `${x.bot} ${x.tier} ${x.seed} ${x.door}: ${x.out ? 'OUT' : `${s2(x.lagMs / 1000)} s`}`).join('; ')})` : ''}; from the cue to his threshold p50 ${s2(quantile(lags, 0.5) / 1000)} s, p95 ${s2(quantile(lags, 0.95) / 1000)} s, max ${s2(Math.max(0, ...lags) / 1000)} s (${byRoom})${margin}${fuzz}`, `within ${TWO_CUE_MS / 1000} s of his cue, every room, never out`); }
+    // (v0.0.22 B, F25's clause (the build sheet v0.0.22 §8, R2): a cue held by a live grenade is timed from its burst (tests/cqb-gauges.mjs
+    // entry: E.live), counted here; said only where there is one, so a lane with no grenade prints its line as before)
+    const live = [...H, ...F].filter(x => x.live).length, held = live ? `; held by a live grenade ${live}` : '';
+    add('F25', "the #2 in on his cue", cued.length > 0 && !late.length, `${cued.length} rooms cued (honest and keys): late or out ${late.length}${late.length ? ` (${late.slice(0, 4).map(x => `${x.bot} ${x.tier} ${x.seed} ${x.door}: ${x.out ? 'OUT' : `${s2(x.lagMs / 1000)} s`}`).join('; ')})` : ''}; from the cue to his threshold p50 ${s2(quantile(lags, 0.5) / 1000)} s, p95 ${s2(quantile(lags, 0.95) / 1000)} s, max ${s2(Math.max(0, ...lags) / 1000)} s (${byRoom})${margin}${held}${fuzz}`, `within ${TWO_CUE_MS / 1000} s of his cue, every room, never out`); }
   // F26
   { const hon = recs.filter(r => r.bot !== 'fuzz'), fz = recs.filter(r => r.bot === 'fuzz'), sum = (rs, k) => rs.reduce((a, r) => a + (r.leaf?.[k] ?? 0), 0);
     const me = sum(hon, 'me'), two = sum(hon, 'two'), swings = sum(recs, 'swings'), what = hon.flatMap(r => (r.leaf?.what ?? []).map(w => `${r.tier} ${r.seed}: ${w}`));

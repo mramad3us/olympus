@@ -379,6 +379,8 @@ Files listed with a domain are proposals made by that domain's section, adopted 
 
 **As built in v0.0.21 (new homes).** `src/core/reads.js` (the read scope: the step panel and the body read once a moment, the held second, the lazy run sheet), `src/sim/scenes/assemble.js` (the one seam through which the house, drawn or set, is read: `houseSpecOf`, `planSetOf`, `plansOfArea`, `houseCodeOf`), `src/data/chunks/x4.js`, `src/sim/combat/op.js` (the operation off the range: `opOf`, `openOp`, `closeOp`, `sessionOf`), `src/sim/combat/two.js` (the #2's brain, moved from `scenarios/house-two.js`, now a shim, reaching the lane through `op.js`'s host), `src/sim/skills/drills.js` (`drillRep`) and `src/data/places/house-light.js`. `places/model.js` gains `resetCaches` and the registry of generated areas. `syntax` holds `READS_HOME`, `OP_HOME` (the held modules reach the range's records only through `op.js`, 18 aliased reads moved) and "combat imports no scenario".
 
+**As built in v0.0.22.** `combat/derive.js` derives a plan from the walls, and `scenes/assemble.js` memoises its `derivedSetOf` by layout record and `postsOf` by spec; the held strip (`atlas.js` `heldStrip`) is baked for the lane's kit at the brief's cut, and the ghosts' traces live in the page (`ui/cards/house-ghosts.js`), never in the sim (`syntax` scans it). The engine's `bakeSome` bakes lines queued ahead (the fixed lines and the call-outs) at the back while the sounds take the frames in turn; a line said goes first, and one already waiting is moved to the front.
+
 #### 2.3.1 The id table
 
 The sections wrote the same things several ways: the player as `me`, `p0` and `p:player`; a person as `p12`, `p:0042` and `p-sgt-okafor`; a unit as `2/4-E-2-1`, `u-1-2-E-2-4`, `1/2/E/2/4` and `E/2/1`; a fixture as `f:e1:rack:07` and `fx:mess:t14:s3`; a gun as `r7#p.3` beside items as `i:9921`. This table is the one grammar (my call); owners rewrite their samples to it (correction 16).
@@ -536,6 +538,8 @@ Then the loop moves the clock (`ms += 50`, `tick += 1`). Then come the periodic 
 **The paths budget, measured** (v0.0.2): a blocked A* in the test rooms runs about 0.34 µs an expansion (2,320 in 0.78 ms), so `PATH_NODES_TICK` 8,000 is about 2.7 ms of solving, against this table's 0.60 ms for the layer; six "locked" requests to the office made one tick of 4.4 ms (9,228 expansions). The budget is in work units and stays so (correction 7); what changes with the measure is the number. **Until `mess-noon` measures it (0.0.9)**, the 8,000 stands, and `game-tick` prints the paths layer's worst tick beside it; if the busiest area's mean passes 0.60 ms, `PATH_NODES_TICK` comes down toward 1,800 (0.6 ms at the measured rate), and the hierarchy's door-to-door legs (PLACES §2.2) carry the rest (my call).
 
 **The sum** is 1.83 ms mean in the busiest area. The minute boundary adds the slow step (§3.4) to one tick in 1,200. Quiet areas (the squad bay at night, a range lane) are expected near 0.3 ms.
+
+A tick whose stop-motion hold an act releases takes the player's tween start at the player layer, where the body stands at the pause (game.js; the hunt of v0.0.20: the original drew a walk the loaded game did not and the two split one tick on; BODY §16.8).
 
 ### 3.2 Staggering and work units
 
@@ -1589,6 +1593,8 @@ Every tool kills the server it starts.
 
 ---
 
+**As built in v0.0.22.** `tools/derive-plans.mjs` proposes the chunks' room plans from their walls (`--write` commits them as `derived@1`); `chunks-fresh` fails when a committed plan is not the deriver's.
+
 ## 15. Debug mode and overlays
 
 ### 15.1 Turning it on
@@ -1662,6 +1668,8 @@ Every tool kills the server it starts.
 v0.0.2's `&prop=` (the figure's proportion, chibi or soldier) is gone with the soldier figure (VIEWS §2.3, v0.0.3).
 
 **v0.0.21's** are `&draw=set|drawn` (test-shoothouse's house; none is the scene's default, 'set'), `&house=<code>` (a drawn house's code: the layout part alone, `Cn290pc.Ks206lc.En175pc`, its cast then drawn from `&seed`, or whole with `|f…|p…`; implies drawn; `debug.js` checks the form, `assemble.js parseHouse` the content, and the page's toast says what is played: `houseUrlNote`), `&doors=fixed` (the chunks' authored swings, every door closed), `&houselight=b|c` (FL-9's candidates, `src/data/places/house-light.js`; runtime only, `state.$houseLight`, never saved; none or `a` is today's) and `__olympus.fog(on)` (the handle's member for the catwalk view); `?bench=house-kit`, `house-live` and `house-stop` (§16.1), `?play=test-shoothouse&house=…&draw=drawn&seed=48213` for a drawn lane. `createGame({ draw, house, doors })` take them in node; `tests/game.mjs withHouse`.
+
+**As built in v0.0.22 (the house's options).** `readParams` gains `rooms` (`ROOMS_URL` a, all), `layout` (`LAYOUTS_URL` A, B, C, either case) and `plans` (`PLANS_URL` derived), null when absent, and `houseChoice({ draw, house, rooms, layout, pool }, { roomsDefault, drawable })` is the one precedence for the page and the tests: `&layout` beats `&house`, `&rooms` and `&draw` (A passes nothing); `&house` beats `&rooms`; `&rooms=all` alone means drawn and with `&draw=set` is dropped; it returns `{ opts, dropped }`, the losers' toasts ("One house a lane: layout B."; on the live lane "This lane is played as set: no other house yet."). `createGame` takes `rooms`, `layout`, `plans`, `pool` and throws on an unknown house option.
 
 ### 15.4 Overlays
 

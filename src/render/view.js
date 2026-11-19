@@ -105,6 +105,10 @@
 //     wet head read whole, never a checkered shape (the integrator's shots m3-03, m3-04);
 //   - the alert's beacon in hall-2 (people's alertNow): lit, a red pool, while the horn sounds; the bay
 //     stays dark.
+// v0.0.22 (its build sheet §1 item 17; the residuals lens's R3): a device in the hands (look.js heldLook: a G-11, the halligan, the ram,
+// a charge, a thrown grenade until its flight's first moment) is drawn as a card over the figure at its fist (atlas.js heldStrip,
+// render/figures.js), keyed outside the look; standing, the body takes the held band's frame for it and its beat (poses.js
+// heldFrameOf, the slung-in-front carry's stance sheet, baked before GO with the cards of the shapes it carries); walking, its walk.
 // 0.0.5 (the build sheet 0.0.5 §2.3), the rifle and the range:
 //   - a figure with a rifle (the arms role's gunLook, src/sim/arms/look.js: the stage reads the arms only
 //     there) is drawn in its rifle's frame when it is not walking (poses.js rifleFrame: the carry and the
@@ -205,7 +209,7 @@ import { playerActor } from '../core/ids.js';
 import { STRIDE_WRAP_M } from '../data/body/gait.js';
 import { planOf } from '../sim/places/plan.js';
 import * as ARMS from '../sim/arms/look.js';
-import { rifleFrame, gaitCarryOf, RIFLE_BANDS, GAIT_CARRIES, STANCE_BANDS, STANCE_CARRIES, POOL_OF } from '../art/figures/poses.js';
+import { rifleFrame, gaitCarryOf, RIFLE_BANDS, GAIT_CARRIES, STANCE_BANDS, STANCE_CARRIES, POOL_OF, HELD_BAND, HELD_CARRY, heldFrameOf } from '../art/figures/poses.js';
 import { createGaitView } from './gait-view.js';
 import { CYCLE } from '../data/body/gait.js';
 import { FLASH_LIT_M, FLASH_LIGHT } from './figures.js';
@@ -604,9 +608,12 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     // (the twin: the same look with the magazine the other way, whose sheet the figures draw while this one's band paints;
     // the sibs: the same look with each other gait carry, whose sheets hold the same carry-free frames (the rework's R2))
     // (R8: an armed mover in a stance, the stance sheet in the carry held: the glide, Assault and the beats, VIEWS §3.10.8)
-    const sc = gl && a.moveStance && STANCE_CARRIES.includes(gl.carry) ? gl.carry : null;
+    // (a device in the hands (look.js heldLook, outside the look's key: the card over the figure, atlas.js heldStrip), the
+    // held band's frames from the slung-in-front carry's stance sheet (poses.js HELD_BAND))
+    const held = gl && typeof ARMS.heldLook === 'function' ? ARMS.heldLook(state, a, msA) : null;
+    const sc = held && a.moveStance ? HELD_CARRY : gl && a.moveStance && STANCE_CARRIES.includes(gl.carry) ? gl.carry : null;
     return { gl, kit, look: armedLook(look, v), twin: gl ? armedLook(look, { ...v, magOut: !v.magOut }) : null, sibs: gl ? GAIT_CARRIES.filter(c => c !== carry).map(c => armedLook(look, { ...v, carry: c })) : null,
-      stance: sc ? armedLook(look, { ...v, carry: sc, sheet: 'stance' }) : null };
+      stance: sc ? armedLook(look, { ...v, carry: sc, sheet: 'stance' }) : null, held };
   }
 
   // (a figure's frame from its transition (people's poseAt) or its activity's part, else null: the gait's;
@@ -922,7 +929,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
           gv = gaitView.draw({
             id: a.id, ms: fxMs, tickMs: ms, free: true, simFace: face, yawRad: Number.isFinite(a.bodyRad) ? a.bodyRad : walking0 ? travelRad : NaN,
             turnsByYaw: walking0 || (inHand && !!a.moveStance), walking: walking0 && !!band, travelRad, stride, gp: gpA, stepM, vMs, band,
-            sheet: !!arms.stance && (band === 'combat' || band === 'assault' || !walking0), kick: (gl?.kick ?? 0) > 0, aimed: gl?.carry === 'aim',
+            sheet: !!arms.stance && !arms.held && (band === 'combat' || band === 'assault' || !walking0), kick: (gl?.kick ?? 0) > 0, aimed: gl?.carry === 'aim',
             beat: gl?.beat ?? null, action: Array.isArray(gl?.action?.frame) ? null : gl?.action?.frame ?? null, pistol: gl?.pistol ?? null, gMs2, cycle: fig.cycle ?? CYCLE,
           });
           face = gv.face;
@@ -977,6 +984,14 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
           if ((fig.y ?? 0) < -0.05 && !p.frame) { p.y = fig.y; p.seat = fig.y; p.floorY = fig.y; }
           // (standing on a height: the range officer on the tower's deck; the blob on the deck under them)
           if (!p.y && (fig.posture ?? 'stand') === 'stand' && (fig.y ?? 0) > 0.05) { p.y = fig.y; p.seat = fig.y; p.floorY = fig.y; }
+        }
+        // (a device in the hands: standing, the held band's frame for it and its beat (the base sheet's idle while that band
+        // paints); walking, the base sheet's walk, never the slung-in-front stance sheet's glide; the card over either, at the fist)
+        if (arms.held) {
+          const hf = gv && !walking0 ? heldFrameOf(arms.held, gl?.beat ?? null) : null;
+          if (hf) { p.frame = hf; p.fallback = 'idle0'; }
+          else if (p.frame && POOL_OF[BAND_OF[p.frame]] === 'stance') p.frame = p.fallback ?? 'idle0';
+          p.held = { shape: arms.held.shape, colour: arms.held.colour };
         }
         if (hidden) p.hidden = true;
         if (!hidden) people.push(p);
@@ -1133,8 +1148,10 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     const s = stage.stats;
     Object.assign(stats, {
       calls: s.calls.total, triangles: s.triangles, programs: s.programs, cpuMs: s.cpuMs, viewMs: now() - t0,
-      uploads: uploads ? { n: up.n, bytes: up.bytes } : { n: figures.stats.lastFrame.uploads, bytes: figures.stats.lastFrame.bytes },
-      people: { drawn: figures.stats.drawn, lying: figures.stats.lying ?? 0, remembered: people.reduce((n, p) => n + (p.remembered ? 1 : 0), 0) }, deferred: figures.stats.deferred + figures.stats.fallback,
+      uploads: uploads ? { n: up.n, bytes: up.bytes, key: up.key ?? null } : { n: figures.stats.lastFrame.uploads, bytes: figures.stats.lastFrame.bytes },
+      people: { drawn: figures.stats.drawn, lying: figures.stats.lying ?? 0, remembered: people.reduce((n, p) => n + (p.remembered ? 1 : 0), 0) },
+      // (the device in the hands: the cards drawn, the figures holding one with none drawn (all behind the body), the strip, its late bakes, and who held what in which frame)
+      held: { drawn: figures.stats.heldDrawn ?? 0, none: figures.stats.heldNone ?? 0, strip: figures.stats.held ?? null, late: figures.stats.heldLate ?? 0, who: people.filter(p => p.held).map(p => ({ id: p.id, ...p.held, frame: p.drawnFrame ?? p.frame ?? null, face: p.face })) }, deferred: figures.stats.deferred + figures.stats.fallback,
       lamps: { table: lighting.stats.table, slots: stage.lights.slots.filter(p => p[0].intensity > 0).length, overflow: lighting.stats.overflow, fills: lighting.stats.fills },
       res: [stage.W, stage.H], camera: { x: stage.cam.at.x, z: stage.cam.at.z }, gpu: s.passes, frames: stats.frames + 1,
       you: you ? { x: you.x, z: you.z, stride: you.stride, gait: you.gait } : null, light,
@@ -1178,7 +1195,17 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         // up before GO and never paint mid-lane)
         if (a.moveStance) for (const c of STANCE_CARRIES) {
           const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: c, magOut: arms.gl.mag === false, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, sheet: 'stance' }));
-          (c === arms.gl.carry ? jobs : twins).push(() => figures.prepare(keyOf(L), L, { bands: STANCE_BANDS, own }));
+          (c === arms.gl.carry ? jobs : twins).push(() => figures.prepare(keyOf(L), L, { bands: STANCE_BANDS.filter(b => b !== HELD_BAND), own }));
+        }
+        // (a mover who carries a device: the held band in the slung-in-front carry's stance sheet, and the cards of the shapes
+        // he carries, baked here behind the cut (the brief's splash), so a device in the hands never paints mid-lane)
+        const shapes = a.moveStance && typeof ARMS.heldShapesOf === 'function' ? ARMS.heldShapesOf(state, a.who) : [];
+        if (shapes.length) {
+          for (const magOut of [arms.gl.mag === false, arms.gl.mag !== false]) {
+            const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: HELD_CARRY, magOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, sheet: 'stance' }));
+            twins.push(() => figures.prepare(keyOf(L), L, { bands: [HELD_BAND], own }));
+          }
+          figures.prepareHeld?.(shapes);
         }
         if (own) ownLook = { state, want: arms.look, shown: arms.look, asked: false };
         // (v0.0.19: a role-player (an actor with a hands flag) may give up: his look with his rifle on the floor, the arms band's

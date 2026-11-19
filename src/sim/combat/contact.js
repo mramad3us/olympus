@@ -545,7 +545,7 @@ const identWords = (last, key) => `${IDENT_WORDS[last.ident?.[key] ?? 'unseen']}
  * A man your #2 called out to you (the build sheet v0.0.20 item 18; drill.md D5): the one write of your mind's told record,
  * state.mind.contact.told[key] = { atMs, bearingRad (from you as he called), face (what he identified, or null), at: [x, z] (the
  * place he named, as he saw it) }, read by react.js expectOf, which takes a man within corner.js TOLD_DEG of the place inside TOLD_MS
- * as expected ('sector'). Called from house-two.js twoTick only; identify is not touched. Holds no id (ids-check). Returns the record.
+ * as expected ('sector'). Called from combat/two.js twoTick only; identify is not touched. Holds no id (ids-check). Returns the record.
  */
 export function tell(state, pid, key, { atMs = state.clock.ms, bearingRad, face = null, at = null } = {}) {
   if (!state.mind || pid !== playerActor(state)?.who) return null;
