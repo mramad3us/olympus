@@ -28,6 +28,7 @@ import { areaOf } from '../places/model.js';
 import { lanePlanOf } from '../combat/room.js';
 import { rangeOf } from './handling.js';
 import { playerId } from '../../core/ids.js';
+import { WRECK_LEGS } from '../../data/courses.js';
 
 /** The legs' words on the plan's scrubber. */
 const LEG_WORD = Object.freeze(['ROOM 1', 'ROOM 2', 'ROOM 3', 'THE HALL']);
@@ -75,7 +76,8 @@ export function debriefOf(state) {
   const zoneOf = (T, key) => (T?.hits ?? []).find(h => h.shotId === key) ?? null;
   const stands = R.turners.map(T => ({ key: T.key, stand: T.stand, room: T.room, x: T.x, z: T.z, face: T.face, holds: T.holds, down: T.stoppedAtMs !== null, downAtMs: T.stoppedAtMs,
     awayAtMs: T.awayAtMs, turnAtMs: T.turnAtMs, hits: (T.hits ?? []).map(h => ({ zone: h.zone, part: h.part, by: h.by, atMs: h.atMs, shotId: h.shotId })) }));
-  const legs = [...H.rooms, H.hall];
+  // (a lane with no hall (the Wreck's four compartments, H.hall null) has its rooms alone)
+  const legs = [...H.rooms, ...(H.hall ? [H.hall] : [])];
   const events = [];
   const put = (e, who) => { const p = who ? placeAt(tr, who, e.atMs) : null; events.push({ ...e, x: e.x ?? p?.x ?? null, z: e.z ?? p?.z ?? null }); };
   const whoOf = (by) => (by === 'two' ? 'two' : 'me');
@@ -100,7 +102,8 @@ export function debriefOf(state) {
     walls, doors, stands, tracks, events, from: tr?.ms?.[0] ?? null, goAtMs: H.goAtMs, endAtMs: H.end?.atMs ?? null, me: playerId(state), tier: H.tier,
     // (the house and the setup, for the ghost's key)
     code: codeOf(state), setup: houseSetupOf(H),
-    legs: legs.map((L, k) => ({ k, word: LEG_WORD[k] ?? `LEG ${k + 1}`, room: L.room, door: L.door, fromMs: L.fromMs, clearAtMs: L.clearAtMs, parMs: L.parMs ?? null, state: L.state })),
+    // (the Wreck's legs by their own words, "CELL 2", "THE HOLD": v0.0.25's fixer, the play review's "ROOM 1 / … / THE HALL" there)
+    legs: legs.map((L, k) => ({ k, word: (H.ship === 'wreck' ? WRECK_LEGS[k]?.word : LEG_WORD[k]) ?? `LEG ${k + 1}`, room: L.room, door: L.door, fromMs: L.fromMs, clearAtMs: L.clearAtMs, parMs: L.parMs ?? null, state: L.state })),
     hot: legs.flatMap((L, k) => (plan.plans[L.door]?.hot ?? []).map(h => ({ leg: k, id: h.id, x: h.x, z: h.z, covered: !!L.covered?.[h.id] }))),
   };
 }

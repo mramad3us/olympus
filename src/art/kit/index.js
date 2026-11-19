@@ -1,7 +1,7 @@
 // OLYMPUS art: the kit, every piece by kind. place() puts one into an area; KINDS lists them; FOOTPRINTS sizes them.
 //
 // A piece is { kind, x, z, face = 'down', make, look, seed } (tradecraft's furniture() spec, plus make):
-// kind names the maker (quarters.js, mess.js, head.js, training.js, ship.js, signs.js, range.js), make a way of
+// kind names the maker (quarters.js, mess.js, head.js, training.js, ship.js, signs.js, range.js, from v0.0.25 wreck.js), make a way of
 // building it (a steel rack or a modular one), look its state (made or unmade, open or shut, lit or not),
 // seed the cosmetic choices a look leaves open (which blanket, which dents), so a bay of fifteen racks
 // isn't one rack fifteen times ("at least three kinds of everything": the user, tradecraft, carried
@@ -23,6 +23,7 @@ import * as ship from './ship.js';
 import * as signs from './signs.js';
 import * as structure from './structure.js';
 import * as range from './range.js';
+import * as wreck from './wreck.js';
 
 /** Footprints by kind: w across, d deep, h tall (metres), and the makes each kind has. */
 export const FOOTPRINTS = Object.freeze({
@@ -71,7 +72,7 @@ export const FOOTPRINTS = Object.freeze({
   stairs: { w: 1.2, d: 4.8, h: 3.4, makes: ['concrete', 'steel'] },
   stairsWell: { w: 1.2, d: 4.8, h: 1.0, makes: ['rail', 'wall'] },
   lampPost: { w: 0.25, d: 0.25, h: 4.0, makes: ['sodium', 'flood'] },
-  doorLeaf: { w: 1.0, d: 0.045, h: 2.1, makes: ['interior', 'ext', 'office'] },
+  doorLeaf: { w: 1.0, d: 0.045, h: 2.1, makes: ['interior', 'ext', 'office', 'hatch'] },
   // (0.0.5: the KD range's 25 m bay and its tower, pieces of the ground that are not the catalogue's fixtures;
   // equal to the range's own kinds, src/data/places/range.js RANGE_KINDS, pinned by places-validate)
   kdTower: { w: 4.0, d: 4.0, h: 9.0, makes: ['open', 'cab'] },
@@ -99,6 +100,14 @@ export const FOOTPRINTS = Object.freeze({
   kdBang: { w: 0.05, d: 0.05, h: 0.12, makes: ['olive', 'spent'] },
   // (0.0.6: the PX barber's pole on its stand, equal to places' catalogue, src/sim/places/fixtures.js)
   barberPole: { w: 0.36, d: 0.36, h: 2.2, makes: ['pole', 'lit'] },
+  // (the Wreck's pieces, src/art/kit/wreck.js; equal to places' catalogue, src/sim/places/fixtures.js: the scuttle by its
+  // mounting (in the deck, under the deckhead), the 1MC's speaker, the hold's cargo and the brig's couch rack, deck to deckhead)
+  scuttle: { w: 0.8, d: 0.8, h: 0.1, makes: ['deck', 'deckhead'] },
+  speaker: { w: 0.2, d: 0.2, h: 0.1, makes: ['onemc', 'horn'] },
+  cargo: { w: 1.2, d: 1.2, h: 2.2, makes: ['lashed', 'netted'] },
+  berthRack: { w: 0.95, d: 2.05, h: 2.2, makes: ['grey', 'steel'] },
+  // (a bulkhead hatch's coaming, the sill under its leaf, laid by the area's job where an opening's leaf is a hatch: src/art/jobs.js)
+  coaming: { w: 0.8, d: 0.16, h: 0.3, makes: ['yellow', 'grey'] },
 });
 
 const MAKERS = {
@@ -116,6 +125,7 @@ const MAKERS = {
   kdTower: range.kdTower, kdMat: range.kdMat, kdFrame: range.kdFrame, rangeSign: range.rangeSign, berm: range.berm, rangeFence: range.rangeFence,
   kdCarrier: range.kdCarrier, kdParapet: range.kdParapet, kdPits: range.kdPits, kdBerm: range.kdBerm, kdFlag: range.kdFlag, kdPoint: range.kdPoint,
   kdLineBoard: range.kdLineBoard, kdCanopy: range.kdCanopy, rangeShack: range.rangeShack, kdTurner: range.kdTurner, kdPaint: range.kdPaint, kdBang: range.kdBang,
+  scuttle: wreck.scuttle, speaker: wreck.speaker, cargo: wreck.cargo, berthRack: wreck.berthRack, coaming: wreck.coaming,
 };
 /** Every kind the kit builds. */
 export const KINDS = Object.freeze(Object.keys(MAKERS));

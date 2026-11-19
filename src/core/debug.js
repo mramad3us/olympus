@@ -112,7 +112,10 @@ export const SETUPS = Object.freeze(['hot', 'bench', 'mixed', 'confirm', 's200',
   // before it cleared by the tier one's plan on the same draws, and room 1 at the sighting with the private's window open)
   'go', 'room:2', 'room:3', 'hall', 'contact',
   // (test-anchors', "Anchor before you fire": station k's command given, the stations before it set up (scenarios/anchors.js ANCHORS_SETUPS))
-  's1', 's2', 's3', 's4', 's5']);
+  's1', 's2', 's3', 's4', 's5',
+  // (test-zerocqb's, "Hold to hold" (scenarios/shoothouse.js WRECK_SETUPS, with 'go'): stacked on the trunk with both cells
+  // cleared, on the hold's deckhead after the transit, at the yard tug's warning)
+  'trunk', 'hold', 'tug']);
 /** test-shoothouse's pars by the URL (&par=: the build sheet 0.0.12 §4's PAR_MS names); else null, the sheet's own (PAR_OF_TIER). */
 export const PARS_URL = Object.freeze(['basic', 'advanced', 'operator']);
 /** test-shoothouse's role-players by the URL (&opfor=: 0.0.19, "Stack and clear, live"): 'none', 'live', or 'live:' and two cards (fight, give, hide); else null, none. */
@@ -245,6 +248,18 @@ export function houseChoice({ draw = null, house = null, rooms = null, layout = 
   if (rooms === 'all' && draw === 'set') { dropped.push('All eight rooms are a drawn house\'s: the house as set instead.'); return { opts: { draw }, dropped }; }
   const eight = rooms === 'all' || (!rooms && draw === 'drawn' && roomsDefault === 'all');
   return { opts: { ...(eight ? { draw: 'drawn', rooms: 'all' } : draw ? { draw } : {}) }, dropped };
+}
+
+/**
+ * A ship's lane (v0.0.25: a scene with `ship`, the Wreck's "Hold to hold") is shot as set with the standard kit: the URL's house, layout,
+ * rooms, draw, code, role-players and any kit but the standard are dropped, and said once (main.js's toasts). Returns { dropped }: the
+ * words, or none. `loadout` is the URL's (null or a code); a scene without `ship` drops nothing here (houseChoice is its).
+ */
+export const SHIP_DROPPED = 'The Wreck is shot as set, with the standard kit.';
+export function shipChoice(rec, { draw = null, house = null, rooms = null, layout = null, opfor = null, loadout = null } = {}) {
+  if (!rec?.ship) return { dropped: [] };
+  const asked = !!(draw || house || rooms || layout || (opfor && opfor !== 'none') || (loadout && loadout !== 'standard'));
+  return { dropped: asked ? [SHIP_DROPPED] : [] };
 }
 
 // ('<x>,<z>' as two finite numbers, else null)

@@ -65,13 +65,21 @@
 // 0.0.17: your corner shown (houseLook's aid, shoothouse.js cornerAidLook; the rule src/sim/combat/corner.js): your corner's
 // bracket and your point's ring, your #2's dotted and grey, from the read of the door; your sector's wedge from your entry; each
 // thinned as it fades (range-items.js cornerAidPixels).
+// v0.0.25 (the build sheet items 7 and 8, §3.4; PC§3.3): the Wreck's boards on every face. A house stand with onFace (src/data/
+// faces.js: the deckhead, a bulkhead; absent the deck) is drawn by range-items.js boardPixels: turned by its face about its centre
+// (the deckhead's hangs head down), a pop-up (`pop`) rising from flat on its face by its facingK (popupPixels, P-a); on the deckhead
+// its footprint dashed on the deck below (overheadPixels, K-b); its stand's box set on its face (buildHouse: a post from the deckhead
+// down, an arm from the bulkhead); a lane with no catwalk (the Wreck's: the cadre in the Shed's gallery) builds none. houseLook's
+// anchors (look.js rangeLook's, where the house is a ship's) are drawn as the void range's: a hand on a hold, the lanyard, the brace's
+// arm (anchorPixels). stats.house.faces lists each board drawn with its face and its turn (F130).
 // What is drawn is culled to the views given (the frame, and the far window's while it is open), so a flag 300 m
 // off costs nothing until the window looks at it.
 import { PX_PER_M } from './scale.js';
 import { createPixels } from './decals.js';
 import { holePixel, flagPixels, brassPixels, flashPixels, dustPixels, tracePixels, PALE, DARK, PUFF_MS, FLAG_HOIST_MS, FLAG_PART,
-  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, sparkPixels, turnerAt, ownPointPixels, cornerPixels, CORNER_LIT_Y_M, leafArcPixels, cornerAidPixels, floorRiflePixels, paintPuffPixels, jambMarks, JAMB_DRAWN_AS } from './range-items.js';
+  kdFaceAt, kdHolePixel, spotterPixels, diskPixels, missFlagPixels, sleevePixels, tilePixels, bermDustPixels, poleUp, turnerPixels, boardPixels, overheadPixels, sparkPixels, turnerAt, ownPointPixels, cornerPixels, CORNER_LIT_Y_M, leafArcPixels, cornerAidPixels, floorRiflePixels, paintPuffPixels, jambMarks, JAMB_DRAWN_AS, stationPixels } from './range-items.js';
 import { createCollector, buildAreaData } from '../art/jobs.js';
+import { quarterOf, stageTurnOf } from '../data/faces.js';
 import { areaFromJob, newPart } from './batch.js';
 import { paintKdFace, facePx } from '../art/kit/range.js';
 import { LINE_FLAGS, LINE_FLAG } from '../data/places/range.js';
@@ -104,7 +112,8 @@ export function anchorPixels(A, ppm) {
   const h = A.hold;
   if (!h) return out;
   const hy = h.kind === 'padEye' ? 0.02 : 1.0;
-  for (const [dx, dz] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) out.push({ x: h.x + dx * P, y: hy, z: h.z + dz * P, c: ANCHOR_C.hold });
+  // (the brace's arm ('buddy', the Wreck's: the #2's hand on your harness) has no hold to light, only the arm)
+  if (A.kind !== 'buddy') for (const [dx, dz] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) out.push({ x: h.x + dx * P, y: hy, z: h.z + dz * P, c: ANCHOR_C.hold });
   const from = { x: A.x, y: by + (A.kind === 'lanyard' ? 0.9 : 1.1), z: A.z }, to = { x: h.x, y: hy, z: h.z };
   const L = Math.hypot(to.x - from.x, to.y - from.y, to.z - from.z), n = Math.max(1, Math.ceil(L * ppm));
   for (let i = 1; i < n; i++) { const t = i / n; out.push({ x: from.x + (to.x - from.x) * t, y: from.y + (to.y - from.y) * t, z: from.z + (to.z - from.z) * t, c: A.kind === 'lanyard' ? ANCHOR_C.strap : ANCHOR_C.arm }); }
@@ -155,10 +164,10 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
   let house = null;
   // (the house's spec from the sim's look, look.house.spec: shoothouse.js houseLook through scenes/assemble.js houseSpecOf)
   function buildHouse(H) {
-    const col = createCollector({ ppm, part: newPart }), cw = H.catwalk, y = cw.y, half = cw.widthM / 2;
+    const col = createCollector({ ppm, part: newPart }), cw = H.catwalk ?? { path: [], y: 0, widthM: 0 }, y = cw.y, half = cw.widthM / 2;
     const box = (x0, x1, y0, y1, z0, z1, c) => col.box({ x0, x1, y0, y1, z0, z1, faces: { front: c, back: c, sides: c, top: c } });
     col.prop({ id: 'house:catwalk', kind: 'catwalk', pivot: [0, 0] });
-    // (each leg of the walk: two stringers on its edges, posts, the handrail a metre up)
+    // (each leg of the walk: two stringers on its edges, posts, the handrail a metre up; v0.0.25: none where the lane has no catwalk)
     for (let i = 1; i < cw.path.length; i++) {
       const [ax, az] = cw.path[i - 1], [bx, bz] = cw.path[i], alongX = Math.abs(bx - ax) >= Math.abs(bz - az);
       const lo = alongX ? Math.min(ax, bx) : Math.min(az, bz), hi = alongX ? Math.max(ax, bx) : Math.max(az, bz), mid = alongX ? az : ax;
@@ -173,7 +182,7 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
       }
     }
     // (the stairs: treads from the top down to the foot, each a step lower)
-    const st = cw.stairs;
+    const st = H.catwalk ? cw.stairs : null;
     if (st) {
       const n = Math.max(2, Math.round(y / 0.2)), [tx, tz] = st.top, [fx, fz] = st.foot, sh = st.widthM / 2;
       for (let k = 0; k < n; k++) {
@@ -187,6 +196,16 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
     col.prop({ id: 'house:stands', kind: 'stands', pivot: [0, 0] });
     const footY = (H.face?.centreY ?? 1.35) - (H.face?.hM ?? 0.76) / 2;
     for (const t of H.stands ?? []) {
+      // (a stand on another face (see the header): from the deckhead a post down to the board's top and its plate overhead;
+      // from a bulkhead an arm out to the board's middle; the deck's as before)
+      const q = quarterOf(t.onFace), half = (H.face?.hM ?? 0.76) / 2, cy = t.y ?? H.face?.centreY ?? 1.35, ceil = H.ceilingM ?? 2.2;
+      if (t.onFace === 'deckhead') { box(t.x - 0.03, t.x + 0.03, cy + half, ceil, t.z - 0.03, t.z + 0.03, STAND_C); box(t.x - 0.18, t.x + 0.18, ceil - 0.04, ceil, t.z - 0.12, t.z + 0.12, STAND_C); continue; }
+      if (q || (t.onFace && t.onFace !== 'deck')) {
+        const wall = { port: [-1, 0], starboard: [1, 0], dorsal: [0, -1], ventral: [0, 1] }[t.onFace] ?? [0, 0], arm = Number.isFinite(t.armM) ? t.armM : 0.9;
+        const [ex, ez] = [t.x + wall[0] * arm, t.z + wall[1] * arm];
+        box(Math.min(t.x, ex) - 0.03, Math.max(t.x, ex) + 0.03, cy - 0.03, cy + 0.03, Math.min(t.z, ez) - 0.03, Math.max(t.z, ez) + 0.03, STAND_C);
+        continue;
+      }
       box(t.x - 0.03, t.x + 0.03, 0, footY, t.z - 0.03, t.z + 0.03, STAND_C);
       box(t.x - 0.18, t.x + 0.18, 0, 0.04, t.z - 0.12, t.z + 0.12, STAND_C);
     }
@@ -275,10 +294,20 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
           for (const q of cornerPixels(c, ppm)) { const y = CORNER_LIT_Y_M; if (over.set(no, { ...q, y, color: q.c, tint: known || !tintOf ? [1, 1, 1] : tintOf(q.x, q.z), part: 0, noLine: true, ...(known ? { light: true } : {}) })) { no++; hs.lit++; hs.pixels++; } }
         }
         const hung = new Set((look.pairs?.turners ?? []).map(t => t.key));
+        hs.faces = [];
         for (const t of HS.stands ?? []) {
           if (!t || hung.has(t.key) || !t.face || !inViews(views, t.x, t.z)) continue;
           hs.stands++;
-          for (const p of turnerPixels(t, ms, ppm, look.gMs2)) { put(p, p.part, p.noLine); hs.pixels++; }
+          // (by its face (boardPixels: the deck's list untouched), its footprint overhead (K-b))
+          for (const p of boardPixels(t, ms, ppm, look.gMs2)) { put(p, p.part, p.noLine); hs.pixels++; }
+          for (const p of overheadPixels(t, ppm)) { put(p, 0, true); hs.pixels++; }
+          if (t.onFace || t.pop) { const st = stageTurnOf(t.onFace); hs.faces.push({ key: t.key, stand: t.stand, onFace: t.onFace ?? 'deck', quarter: st.quarter, flip: st.flip, pop: !!t.pop, riseK: t.pop ? Math.round((t.facingK ?? 0) * 1000) / 1000 : null }); }
+        }
+        // (the anchors of a ship's lane (look.js rangeLook's), as the void range's)
+        hs.anchors = 0;
+        for (const A of HS.anchors ?? []) {
+          if (!inViews(views, A.x, A.z)) continue;
+          for (const q of anchorPixels(A, ppm)) if (over.set(no, { ...q, color: q.c, tint: tintOf ? tintOf(q.x, q.z) : [1, 1, 1], part: 0, noLine: true })) { no++; hs.anchors++; hs.pixels++; }
         }
         // (v0.0.19: a rifle a role-player dropped, on the floor or falling to it; the paint's puff where a marking round struck)
         hs.floor = 0; hs.paint = 0;
@@ -365,6 +394,10 @@ export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
           if (!inViews(views, A.x, A.z)) continue;
           for (const q of anchorPixels(A, ppm)) if (over.set(no, { ...q, color: q.c, tint: tintOf ? tintOf(q.x, q.z) : [1, 1, 1], part: 0, noLine: true })) { no++; ps.anchors++; ps.pixels++; }
         }
+        // (the station's ring at its mark and the dotted line to its turner while its command stands, unlit so it reads in the
+        // well's shadows (anchors.js anchorsLook's station))
+        ps.station = 0;
+        if (PR.station) for (const q of stationPixels(PR.station, ppm)) if (over.set(no, { ...q, color: q.c, tint: [1, 1, 1], part: 0, noLine: true })) { no++; ps.station++; ps.pixels++; }
         stats.pairs = ps;
       } else stats.pairs = null;
     } else { hot = false; sinceMs = null; fromK = 0; seen = false; holesSeen.clear(); if (faces) faces.built.group.visible = false; if (house) house.built.group.visible = false; stats.kd = null; stats.pairs = null; stats.house = null; }

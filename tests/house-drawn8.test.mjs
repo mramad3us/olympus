@@ -25,6 +25,9 @@ export default [
   {
     name: 'a hundred eight-room houses by the honest tier one and sergeant and the keys private and recruit: F1 to F26 as on drawn lanes, F63 to F66 against the set on the same seeds, F76 printed, F77 enforced, every lane to its card; each room\'s means printed',
     heavy: true,
+    // (v0.0.25's stage 0: a gate, run on GATES=1 only (tests/run.mjs; the lead's quiet heavy run and the round that switches the
+    // drawn or eight-room default), its rows kept in house-done; every other run names it among the gates not run)
+    gate: true,
     timeoutMs: 90 * 60_000,
     fn() {
       const seeds = seedsOf(Number(process.env.DRAWN_SEEDS) || DRAWN_SEEDS), drawn = [], set = [];
@@ -48,6 +51,9 @@ export default [
   {
     name: 'the kit on eight-room houses: frag, conc, cut and mixed on ten seeds by the honest kit bot, every sheet, F1 to F33, every lane to its card',
     heavy: true,
+    // (v0.0.25's stage 0: a gate, run on GATES=1 only (tests/run.mjs; the lead's quiet heavy run and the round that switches the
+    // drawn or eight-room default), its rows kept in house-done; every other run names it among the gates not run)
+    gate: true,
     timeoutMs: 90 * 60_000,
     fn() {
       const recs = withHouse({ draw: 'drawn', rooms: 'all' }, () => kitLanes({ uses: ['frag', 'conc', 'cut', 'mixed'], seeds: seedsOf(10), print: false })).map(r => ({ ...r, code: drawnCodeOf(r.seed, { rooms: 'all' }) }));

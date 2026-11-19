@@ -32,6 +32,10 @@
 // for its words' share of the line's hold (pageAt), "…" at a page's end where more follows and at the next one's start. The box
 // still never grows.
 //
+// v0.0.25's fixer (the play review of "Hold to hold"): a speaker's line said on the tick of a long one of his (over CHAIN_WORDS 12
+// words, which shows alone) waits for it (the queue's waitS), so the cadre's two lines of the brief's tick both read; on a ship (the Wreck: R.house.ship) there is no tower, and
+// the cadre's commands are headed as his own words where he stands; a line heard at a place (the fact's `at`, your #2's "Got you."
+// at the scuttle on your deck) is as far as that place, never as its speaker in the plan, 58 m off on the other deck.
 // lineOf(fact, state) and standingLine(state) are the pure part (the ui tests read them in node), createRadio(parent) the DOM.
 import { playerId } from '../../core/ids.js';
 import { standingCmd, rangeOf } from '../../sim/scenarios/handling.js';
@@ -64,10 +68,14 @@ export function lineOf(fact, state = null) {
   let head;
   // (ROADMAP "anywhere" step 6: a speaker that is no person, the ship's 1MC (gravity.js), says its own name)
   if (fact.speaker && !fact.who) head = `◉ ${String(fact.speaker).toUpperCase()}`;
-  else if (fact.kind === 'pa') head = `◉ TOWER${who ? ` · ${who}` : ''}`;
+  // (no tower on a ship, the Wreck's cadre's commands are his own word where he stands, the play review's "TOWER ·
+  // SSGT BARROS" in the Wreck)
+  else if (fact.kind === 'pa' && !state?.armoury?.range?.house?.ship) head = `◉ TOWER${who ? ` · ${who}` : ''}`;
   else if (fact.kind === 'radio') head = `◉ ${who || 'NET'}${UNIT_WORD(p) ? ` · ${UNIT_WORD(p)}` : ''}`;
   else {
-    const where = whereOf(state, fact.who);
+    // (a line heard at a place other than its speaker's (its `at`: your #2's "Got you." at the scuttle while he is 58 m off in the
+    // plan, on the other deck) is as far as that place, the fixer of v0.0.25's play review)
+    const where = fact.at && Number.isFinite(fact.at.x) ? whereAt(state, fact.at) : whereOf(state, fact.who);
     head = `◉ ${who || 'SOMEONE'}${where ? ` · ${where}` : ''}`;
   }
   return { head, text: String(fact.text), kind: fact.kind ?? 'speech', who: fact.who ?? null, atMs: state?.clock?.ms ?? null, holdS: Number.isFinite(fact.durMs) && fact.durMs > 0 ? Math.max(holdS(fact.text), fact.durMs / 1000) : holdS(fact.text) };
@@ -99,9 +107,14 @@ export function boxLines(lines, standing = null) {
 }
 // (where a speaker stands from you: "BESIDE YOU" within BESIDE_M, else the metres)
 function whereOf(state, who) {
-  const list = state?.actors?.list ?? [], me = list.find(a => a.id === state?.player?.actor), them = list.find(a => a.who === who);
-  if (!me || !them) return '';
-  const d = Math.hypot(them.x - me.x, them.z - me.z);
+  const list = state?.actors?.list ?? [], them = list.find(a => a.who === who);
+  return them ? whereAt(state, them) : '';
+}
+// (where a place is from you, the same words)
+function whereAt(state, at) {
+  const me = (state?.actors?.list ?? []).find(a => a.id === state?.player?.actor);
+  if (!me || !at) return '';
+  const d = Math.hypot(at.x - me.x, at.z - me.z);
   return d <= BESIDE_M ? 'BESIDE YOU' : `${Math.round(d)} M`;
 }
 
@@ -134,14 +147,28 @@ export function pageAt(pages, elapsedS, holdS) {
 /** A page as the box shows it: "…" where text comes before it and where more follows. */
 export const pageText = (pages, i) => `${i > 0 ? '… ' : ''}${pages[i] ?? ''}${i < pages.length - 1 ? ' …' : ''}`;
 
+/** A line of more words than this said on a tick holds back a line of the same speaker's said with it (createRadioQueue; v0.0.25's fixer). */
+export const CHAIN_WORDS = 12;
+const wordsOf = (t) => String(t ?? '').trim().split(/\s+/).filter(Boolean).length;
 /** The box's lines over time, without the DOM: { push(line), frame(dtS, running), lines }. */
 export function createRadioQueue({ max = RADIO_LINES } = {}) {
   let lines = [];
   return {
-    push(line) { if (!line) return; lines.push({ ...line, leftS: line.holdS }); while (lines.length > max) lines.shift(); },
-    frame(dtS, running = true) { if (running) for (const l of lines) l.leftS -= Math.max(0, Math.min(dtS, 0.25)); lines = lines.filter(l => l.leftS > 0); },
+    // (a speaker's line said on the tick of a long one of his (over CHAIN_WORDS: it wraps to the box's two rows and shows alone) waits
+    // for it (waitS), so it never puts the long one out of the box before it is read: v0.0.25's fixer, the play review's "the brief's
+    // first line is never shown"; short lines of one tick, the coach's dope and his wind call, still read together)
+    push(line) {
+      if (!line) return;
+      const prev = lines.at(-1), chained = prev && line.atMs !== null && prev.atMs === line.atMs && prev.who === line.who && prev.head === line.head && wordsOf(prev.text) > CHAIN_WORDS;
+      lines.push({ ...line, leftS: line.holdS, waitS: chained ? (prev.waitS ?? 0) + prev.holdS : 0 });
+      while (lines.length > max + lines.filter(l => l.waitS > 0).length) lines.shift();
+    },
+    frame(dtS, running = true) {
+      if (running) for (const l of lines) { const d = Math.max(0, Math.min(dtS, 0.25)); if (l.waitS > 0) l.waitS = Math.max(0, l.waitS - d); else l.leftS -= d; }
+      lines = lines.filter(l => l.leftS > 0);
+    },
     clear() { lines = []; },
-    get lines() { return lines; },
+    get lines() { return lines.filter(l => !(l.waitS > 0)); },
   };
 }
 

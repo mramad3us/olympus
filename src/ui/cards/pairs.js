@@ -123,13 +123,15 @@ export const ROOMS_WORDS = Object.freeze({ a: 'The three', all: 'All eight' });
 /** Whether the scene's house can be drawn (scenes.js draws), so qualified shows (its ship rule). */
 export const drawsHouse = (scene) => Array.isArray(scene?.draws) && scene.draws.includes('drawn');
 /** The qualifications kept in this browser (house-runs.js), or {} with none or no storage. */
+// (gated on the scene's course, the house's (the Wreck is the house's course on its own scenario, test-zerocqb), never on the
+// scenario's name; a house scene that never draws has no qualification to show (drawsHouse))
 function houseQuals(scene) {
-  if (scene?.scenario !== 'test-shoothouse') return {};
+  if (scene?.course !== 'house') return {};
   try { return readRuns(globalThis.localStorage).quals ?? {}; } catch { return {}; }
 }
 /** The shoot house's bests on the picker (house-runs.js), or null off it or with no storage. */
 function houseBests(scene) {
-  if (scene?.scenario !== 'test-shoothouse') return null;
+  if (scene?.course !== 'house') return null;
   let by = null;
   try { by = bestsOf(readRuns(globalThis.localStorage).runs, { scene: scene.id }); } catch { by = null; }
   return by ? (tier) => bestWords(by[tier]) : null;
@@ -166,7 +168,8 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
   parText();
   // (v0.0.18: the shoot house's loadout, one for every sheet (cards/loadout.js): "Kit: Standard ▸" opens its screen in the picker's
   // place, Kit up comes back with the code, carried into the lane with the sheet; loadout: main.js's { code, save, preview, wh })
-  let kitCode = loadout && scene?.scenario === 'test-shoothouse' ? (loadout.code ?? 'standard') : null;
+  // (the house's course with a kit to choose: not the Wreck's, shot with the standard kit (scenes.js `ship`))
+  let kitCode = loadout && scene?.course === 'house' && !scene.ship ? (loadout.code ?? 'standard') : null;
   const kitBtn = kitCode !== null ? el('button', { className: 'item small kitpick', type: 'button' }, '') : null;
   const kitText = () => { if (kitBtn) { kitBtn.textContent = `Kit: ${loadoutWord(kitCode)} ▸`; kitBtn.dataset.code = kitCode; } };
   kitText();

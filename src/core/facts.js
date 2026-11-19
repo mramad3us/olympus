@@ -38,6 +38,7 @@
 // The 0.0.12 sheet (§2.5) adds the shoot house's house (the lane: GO, a room stacked, opened, entered and cleared, a par's tone,
 // a fault, a stall, the stop, the hot wash, the end), COMBAT's bundle (a drill's bundle: its start, each beat, a seam, a halt,
 // its end) and BODY's gait (a movement stance changed: Relaxed, Combat, Assault).
+// The v0.0.25 sheet (§3.1) adds PLACES' hatch (a deck change through the Wreck's trunk: src/sim/places/hatch.js crossHatch).
 
 const fact = (owner, payload) => Object.freeze({ owner, payload });
 
@@ -65,6 +66,8 @@ export const FACTS = Object.freeze({
   'chunk-out': fact('PLACES', '{ site, area, i, j }'),
   'path-done': fact('PLACES', '{ reqId, who, ok, lengthM, reason }: a path request answered'),
   door: fact('PLACES', "{ id, area, x, z, state: 'open' | 'closed', kind, who }: a door turned (x, z its middle in its area's frame)"),
+  // (the Wreck: a deck change through the trunk, src/sim/places/hatch.js crossHatch, its one writer; the view's cut)
+  hatch: fact('PLACES', "{ phase: 'cross', id, who: [pid], from, to, dx, dz, atMs }: bodies taken through a deck hatch (from and to the decks, dx and dz the offset in the area's plan)"),
   // (ROADMAP "anywhere" step 6: a ship's gravity event, src/sim/places/gravity.js)
   grav: fact('PLACES', "{ phase: 'warn' | 'onset' | 'hold' | 'end' | 'thrown', i, kind, toG, atMs, who?, what?, vMs?, first?, injuries? }: a gravity event's phase, or what its onset did to a body (thrown)"),
   sound: fact('VIEWS (audio), PEOPLE (hearing)', '{ kind, x, y, z, area, db, src }'),

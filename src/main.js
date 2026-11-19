@@ -201,7 +201,7 @@ import { createLoop } from './core/loop.js';
 import { createInput } from './core/input.js';
 import { fromJSON, toJSON } from './core/state.js';
 import * as store from './core/store.js';
-import { createDebugHandle, installDebug, readParams, houseChoice } from './core/debug.js';
+import { createDebugHandle, installDebug, readParams, houseChoice, shipChoice } from './core/debug.js';
 import { MIN_MS, HOUR_MS, TICK_MS, durationText, isHeld } from './core/clock.js';
 import { BUILT } from './core/reads.js';
 import { hitDollCount } from './art/doll/hitcard.js';
@@ -221,6 +221,8 @@ import { bodyOf } from './sim/body/body.js';
 import { stagesOf, stripOf, wordsOf, cuesOf } from './sim/body/cues.js';
 import { lookFor, indoorsNow } from './sim/people/figure.js';
 import { areaOf, generatedIds } from './sim/places/model.js';
+import { planOf as placePlanOf, roomAt as placeRoomAt } from './sim/places/plan.js';
+import * as FOOTING from './sim/body/footing.js';
 import { siteDayOf } from './sim/jobs.js';
 import { heldLayouts } from './sim/scenes/assemble.js';
 import { timeAt, siteAt, isPreset } from './sim/places/env.js';
@@ -290,6 +292,7 @@ import { inventoryCard } from './ui/cards/inventory.js';
 import { createAudio } from './ui/audio/engine.js';
 import { createSteps, createTicks } from './ui/hud/steps.js';
 import { createRadio } from './ui/hud/radio.js';
+import { shipWords, shipText } from './ui/ship-words.js';
 import { createPaper, paperModel, faceModel } from './ui/hud/paper.js';
 import { createTimer, timerModel } from './ui/hud/timer.js';
 import { aspectLines, againTiers, runLine, bangLines } from './ui/cards/pairs.js';
@@ -693,7 +696,9 @@ const boot = createBoot({ cb: {
   }),
   // (the hidden rolls only in debug, once the scene is over: tradecraft's)
   logLines: () => logLines(loop.state, { over: !!settings.debug && !!scene?.ended }),
-  scenes: () => SCENE_IDS.map(id => SCENES[id]),                    // (the built scenes: a stub's spec, ROADMAP "anywhere" step 4, waits for its layout)
+  // (the built scenes: a stub's spec, ROADMAP "anywhere" step 4, waits for its layout; v0.0.25: a scene with `menu: false` is played by its
+  // URL only until its ship rule is met (scenes.js test-zerocqb), the Tests menu leaving it out)
+  scenes: () => SCENE_IDS.map(id => SCENES[id]).filter(rec => rec.menu !== false),
   playScene: (scene, { tier = null, par = null, loadout = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, qual = false, again = false } = {}) => (qual ? qualFirst(scene, tier, par) : playScene(scene, { tier, par, loadout, draw, house, doors, rooms, layout, plans, again })),
   // (0.0.18: the shoot house's loadout screen (cards/loadout.js): the code this browser kept (olympus.loadout, a convenience the sim
   // never reads), kept again on Kit up, and the screen's numbers from a fill of the lane with the code (loadout.js loadoutView))
@@ -870,6 +875,15 @@ bus.on('area-enter', ({ area: id } = {}) => {
   holdCut(Promise.all([view.setArea(area, meAt(loop.state)), people]), area.id).then(() => prepareAround(area));
 });
 
+// (the build sheet v0.0.25 §0 item 14: a deck change inside one area (places/hatch.js crossHatch's fact 'hatch', the Wreck's trunk)
+// posts no area-enter, so no cut: when your eyes go through, the view's deck wipe (X-a), the camera with you, the deck in from the
+// trunk's far end; the area already built, nothing sent; a teammate's own crossing changes nothing on the stage)
+bus.on('hatch', (f = {}) => {
+  if (!loop.state || !view.deckWipe) return;
+  const meId = loop.state.player?.id, carried = f.pids ?? f.who ?? null;
+  if (Array.isArray(carried) && !carried.includes(meId) && !carried.includes(playerActor(loop.state)?.id)) return;
+  Promise.resolve().then(() => { const me = loop.state ? playerActor(loop.state) : null, to = f.to?.at ?? f.at ?? null; if (me) view.deckWipe(Array.isArray(to) ? { x: to[0], z: to[1] } : to && Number.isFinite(to.x) ? to : { x: me.x, z: me.z }); });
+});
 // (the areas a portal or a stair leads to from here, built into the view's cache one at a time while play runs)
 let preparing = Promise.resolve();
 function prepareAround(area) {
@@ -1012,14 +1026,21 @@ bus.on('skip-end', (e) => {
 bus.on('door', (f) => { try { audio.door(f, loop.state); } catch (e) { broke(e, 'the sound'); } });
 // (the weapon mode's facts: the voices to the radio box and the tower's chime, the steps' ticks and clicks, the shot's report, the range's faults and strings)
 bus.on('say', (f) => {
-  radio.say(f, loop.state);
+  radio.say(f?.text ? { ...f, text: shipWords(String(f.text), loop.state) } : f, loop.state);
   // (who speaks, for his line's bubble over his head (speakerHud): v0.0.24, every line in every scene, the user's "text bubble only";
   // a loudspeaker's line at the fact's `at`; a speaker with no body and no place (a ship's 1MC: { who: null, speaker: '1MC' }) at the
   // top of the picture, his name before his words)
   const by = f?.who ?? (f?.speaker ? `pa:${f.speaker}` : null);
   if (loop.state && by && f.text) {
-    const at = f.at && Number.isFinite(f.at.x) ? f.at : f.who ? null : 'top';
-    speech.push({ who: by, text: f.who ? String(f.text) : `${f.speaker}: ${f.text}`, atMs: loop.state.clock.ms, spokenMs: spokenMs(f.text), ...(at ? { at } : {}) });
+    // (the build sheet v0.0.25 item 11: a line whose speaker has no body on the stage (the 1MC's, who null; the cadre's from the Shed's
+    // gallery) at the speaker fixture of your compartment where the place has them (the area's `speakers`, the Wreck's), else as before)
+    const off = !f.who || !(loop.state.actors?.list ?? []).some(a => a.who === f.who);
+    const at = f.at && Number.isFinite(f.at.x) ? f.at : (off ? speakerAt(loop.state) : null) ?? (f.who ? null : 'top');
+    // (a bodiless speaker's name before its words only at the picture's top, where nothing else says who; at its loudspeaker the
+    // bubble is the speaker's (v0.0.25's fixer: the play review's "1MC: BRACE …" under the radio box's "1MC")); on the Wreck a hatch's
+    // words for a door's (shipWords)
+    const said = shipWords(f.who || at !== 'top' ? String(f.text) : `${f.speaker}: ${f.text}`, loop.state);
+    speech.push({ who: by, text: said, atMs: loop.state.clock.ms, spokenMs: spokenMs(f.text), ...(at ? { at } : {}) });
     if (speech.length > SPEECH_KEPT) speech.splice(0, speech.length - SPEECH_KEPT);
   }
   // (0.0.10: the coach's "Bang!" is a shout, captioned (VIEWS §11.4): the radio box has his words, the toast what it sounded like)
@@ -1110,7 +1131,7 @@ async function reportProblem() {
 
 // ---- what is said: lines at the top left, 16 s of play each, three at most (src/ui/hud/toasts.js) ----
 const TONES = { '': 'note', note: 'note', warn: 'warn', bad: 'bad', urgent: 'urgent', calm: 'calm' };
-function toast(text, kind = '') { return toasts.push(text, TONES[kind] ?? 'note'); }
+function toast(text, kind = '') { return toasts.push(shipWords(text, loop?.state), TONES[kind] ?? 'note'); }
 // (an error in a tick, a frame or a listener: told once, the game carries on; Esc, then Report a problem)
 const told = new Set();
 function broke(e, where = 'tick') {
@@ -1671,7 +1692,7 @@ function openHouseEnd(rec, seed) {
   try {
     const said = new Set([...(rs?.rows ?? []).map(r => r.words), ...(rs?.would ?? []), typeof rs?.one === 'string' ? rs.one : rs?.one?.text, rs?.team?.words, verdict?.words].filter(Boolean));
     const stand = new Map((hn?.turners ?? []).map(T => [T.key, T.stand]));
-    const sheetEl = runSheetEl(rs, { bars: hw?.bars ?? null, lane }), washEl = hotWashEl(hw, { fmt: takeInWords, skip: said, nameOf: (k) => stand.get(k) ?? k });
+    const sheetEl = runSheetEl(rs, { bars: hw?.bars ?? null, lane, place: houseScene.onWreck?.(s) ? 'THE WRECK · DECKS 5 AND 6' : null }), washEl = hotWashEl(hw, { fmt: takeInWords, skip: said, nameOf: (k) => stand.get(k) ?? k });
     // (the plan view: the debrief's model; a stand clicked opens its truth card in the slot under the plan)
     const d = debriefOf(s), slot = document.createElement('div');
     slot.className = 'plan-truth';
@@ -1739,6 +1760,8 @@ function openHouseEnd(rec, seed) {
     score: () => openScore(),
     title: leave(() => quitToTitle()),
   } });
+  // (on the Wreck, the card's door words as a hatch's: "DOOR LEFT", the plan's and the sheet's (ui/ship-words.js; v0.0.25's fixer))
+  try { shipText(body, s); } catch (e) { broke(e, 'the words'); }
   boot.openCard('end', body, lines);
   // (the v0.0.24 integration: the truth row closes itself where, open, it would make the side column scroll (ui-hunt-page's P1, the
   // hunt of v0.0.20: "nothing scrolled or cut"; the sergeant's live card at 1280 × 720 scrolled 89 px with it open), and stays open
@@ -1794,6 +1817,27 @@ function exportRun(rec, s) {
 // review: s.$shot was read here and written nowhere, so no score line said it)
 const playedNow = (s) => (s?.armoury?.range?.course === 'house' ? { panel: s.$panel ? String(s.$panel).toUpperCase() : null, walk: s.$cycle ?? null, look: s.$look ?? null, shot: audio.shot ?? null } : null);
 
+/**
+ * v0.0.25 (the build sheet item 11, §3.4): the loudspeaker of your compartment, { x, y, z }, or null where the live area has none: the
+ * area's `speakers` ([{ room, x, y, z }], the Wreck's 1MC on every compartment's deckhead), the one in the room you stand in, else the
+ * nearest to you in the plan (a passage's, the next compartment's: the decks are sixty metres apart, so never the other deck's).
+ */
+function speakerAt(s) {
+  const id = s?.places?.live?.area, me = s ? playerActor(s) : null;
+  let area = null;
+  try { area = id ? areaOf(id) : null; } catch { area = null; }
+  const list = area?.speakers ?? [];
+  if (!list.length || !me) return null;
+  const room = area.rooms?.length ? placeRoomAt(placePlanOf(area), me.x, me.z)?.id ?? null : null;
+  const sp = list.find(q => room && q.room === room) ?? list.reduce((b, q) => (Math.hypot(q.x - me.x, q.z - me.z) < Math.hypot(b.x - me.x, b.z - me.z) ? q : b), list[0]);
+  return { x: sp.x, y: sp.y ?? 2.1, z: sp.z };
+}
+/** v0.0.25: the height of the top of a person as drawn, for his bubble (footing.js bodySpanOf's far end off the deck: a man on the deckhead's boots at 2.2 m; on the deck the 1.8 m every scene had). */
+function headHeightOf(s, a) {
+  if (!a?.onFace || a.onFace === 'deck') return 1.8;
+  const span = typeof FOOTING.bodySpanOf === 'function' ? FOOTING.bodySpanOf(s, a) : null;
+  return (Array.isArray(span) ? Math.max(span[0], span[1]) : (Number.isFinite(a.floatY) ? a.floatY + 1.0 : 2.2)) + 0.05;
+}
 /** The says heard (the 'say' facts: who, text, atMs, spokenMs, at?), for the speakers' bubbles; the newest SPEECH_KEPT, this state's only. */
 const speech = [], SPEECH_KEPT = 24;
 let speechOf = null;
@@ -1823,7 +1867,10 @@ function speakerHud(s, { hidden = false } = {}) {
   const topY = Math.max(0, ...ui.filter(q => q.y < stage.H / 3).map(q => q.y + q.h)) + 2;
   const headOf = (m) => {
     if (m.at === 'top') return { x: stage.W / 2 - 5, y: topY + 48, w: 10, h: 0 };
-    const a = byWho.get(m.who), p = a ? [a.x, 1.8, a.z] : m.at ? [m.at.x, m.at.y ?? 2.2, m.at.z] : null;
+    // (a person's top as drawn, headHeightOf: on the deckhead his boots, the bubble over the man drawn head down)
+    // (a line heard somewhere other than at its speaker, its `at` (v0.0.25's review of E, A and B: your #2's "Got you." and "Through."
+    // at the scuttle on your deck, he 58 m off in the plan), is placed there; no shipped line carries both a speaker on the stage and an `at`)
+    const a = byWho.get(m.who), p = m.at && m.at !== 'top' ? [m.at.x, m.at.y ?? 2.2, m.at.z] : a ? [a.x, headHeightOf(s, a), a.z] : null;
     if (!p) return null;
     const [hx, hy] = stage.cam.project(p[0], p[1], p[2]);
     return { x: hx - 0.3 * PX_PER_M, y: hy, w: 0.6 * PX_PER_M, h: 0.4 * PX_PER_M };
@@ -2042,6 +2089,8 @@ function render(alpha, s, info) {
   // (who speaks, over his head: after every other part of the HUD is written this frame, the hit card, the radio box and the line
   // among them, so a bubble is placed clear of what the frame shows (the fixer of v0.0.24's reviews: a bubble under the hit card, one
   // a pixel into the radio box, and a forced layout between the HUD's writes))
+  // (on a ship, the HUD's door words said as a hatch's: the panel, the line, the plates (ui/ship-words.js; v0.0.25's fixer))
+  try { shipText(hud, s); } catch (e) { broke(e, 'the words'); }
   speakerHud(s, { hidden: inSplash || !!boot.card });
   report.hud = { watch: faces, gline: gText, offer: line, line, plate: instinct.plate, toasts: toasts.lines, splash: splashText, steps: weapon.steps, reflex: weapon.reflex, paper: weapon.paper, plaque: weapon.plaque, radio: voices, weapon: weapon.on, far: weapon.far,
     terms: termsPlate.hidden ? '' : termsPlate.dataset.text ?? '', timer, contact, lead, froze, chaos: view.stats.chaos ?? null, hit,
@@ -2647,7 +2696,8 @@ async function bench(name) {
       // (0.0.10: a frame at a blank of the din counts as at a bang: the stress-din bench's no frame over 25 ms at a blank)
       bang: [lastBurst, lastBlank].some(b => b && Number.isFinite(b.atMs) && loop.state && loop.state.clock.ms - b.atMs >= 0 && loop.state.clock.ms - b.atMs < BANG_FRAMES_MS),
       // (the build sheet §1 item 22: the sim's busiest tick since the warm, the UI's ms, the programs linked and the upload queue's biggest job this frame)
-      tickMax: loop.stats.tickMsMax ?? 0, uiMs: report.frame?.uiMs ?? 0, links: report.gl?.last?.links ?? 0, upKey: uploads.stats.last?.key ?? null }),
+      // (a figure's band sent whole outside the queue named by its look and band (render/figures.js lastFrame.bands))
+      tickMax: loop.stats.tickMsMax ?? 0, uiMs: report.frame?.uiMs ?? 0, links: report.gl?.last?.links ?? 0, upKey: uploads.stats.last?.key ?? (view.figures?.stats?.lastFrame?.bands?.join(' ') || null) }),
     onWarm: () => { loop.stats.tickMsMax = 0; },
     onLeft: (left) => { benchLead = `Bench: ${name}, ${left} s left`; },
   });
@@ -2888,11 +2938,13 @@ const loadoutParam = params.loadout && !loadoutOf(params.loadout).error ? codeOf
 // (a &house= code not played as written (assemble.js houseUrlNote, read from the house the scene plays, once it is made:
 // the code review of 2026-11-16 found the toast said "Its rooms as given" on &draw=set, the live lane and every other scene, and a
 // malformed code dropped silently; a code that &layout dropped is not judged here: its toast is houseChoice's)
-const houseSay = () => { if (!params.houseAsked || params.layout || !drawableOf(recURL)) return; let note = null; try { const s = loop?.state, played = s?.armoury?.range?.course === 'house' ? houseCodeOf(s) : null; note = houseUrlNote(params.houseAsked, played, params.seed ?? 48213); } catch (e) { broke(e, 'the house\'s code'); } if (note) toast(note, 'warn'); };
+const houseSay = () => { if (!params.houseAsked || params.layout || !drawableOf(recURL) || recURL?.ship) return; let note = null; try { const s = loop?.state, played = s?.armoury?.range?.course === 'house' ? houseCodeOf(s) : null; note = houseUrlNote(params.houseAsked, played, params.seed ?? 48213); } catch (e) { broke(e, 'the house\'s code'); } if (note) toast(note, 'warn'); };
 // (&layout, &house, &rooms and &draw as one choice (houseChoice): a loser dropped with its toast)
 // (and on a scene played as set from the page, the live lane until F80 is met, any other house dropped with its words (drawableOf))
 const recURL = params.play ? SCENE_IDS.map(id => SCENES[id]).find(x => x.id === params.play || x.scenario === params.play) ?? null : null;
-const houseURL = houseChoice({ draw: params.draw, house: params.house, rooms: params.rooms, layout: params.layout }, { roomsDefault: SCENES_DATA.HOUSE_ROOMS_DEFAULT ?? 'a', drawable: drawableOf(recURL) });
+// (a ship's lane (the Wreck) is shot as set with the standard kit: its own one toast in place of houseChoice's (shipChoice))
+const houseURL = recURL?.ship ? shipChoice(recURL, { draw: params.draw, house: params.houseAsked, rooms: params.rooms, layout: params.layout, opfor: params.opfor, loadout: params.loadout })
+  : houseChoice({ draw: params.draw, house: params.house, rooms: params.rooms, layout: params.layout }, { roomsDefault: SCENES_DATA.HOUSE_ROOMS_DEFAULT ?? 'a', drawable: drawableOf(recURL) });
 const sayEnv = () => { if (envUnknown) toast(`No environment '${envUnknown}': the site's own instead.`, 'warn'); if (gravUnknown) toast(`No gravity event '${gravUnknown}': none instead.`, 'warn'); if (lookUnknown) toast(`No look '${lookUnknown}': the game's instead.`, 'warn'); if (loadoutUnknown) toast(`No loadout '${loadoutUnknown}': the standard instead.`, 'warn');
   for (const t of houseURL.dropped) toast(t, 'warn');
   houseSay(); };

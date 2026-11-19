@@ -31,6 +31,9 @@
 // CRACK_M 3 m a near miss, cracking while supersonic in air (§2.7). Every draw on stream('pen', seed, rngKey).
 // It never writes the body: it returns the hits (hitOf: WEAPONS §8.7's record, its w from woundFactor) and the
 // caller hands each to BODY's applyHit. holeArea() sizes every hole a round makes (WEAPONS §8.6), for later readers.
+// v0.0.25 (its build sheet §1 B, §3.2): a body's height span is src/sim/body/footing.js spanFrameOf's, the one helper: on the deck its
+// floor (actor.y) and SPAN_M[stance] as built, lifted by its float over FLOAT_Y_M while it floats, and mirrored from the ceiling on the
+// deckhead, head down (a hit at chest height on a man standing on the deckhead takes his chest; the part read from the span's top).
 // Pure.
 import { stream, range, chance } from '../../core/rng.js';
 import { playerActor } from '../../core/ids.js';
@@ -40,6 +43,7 @@ import { boreTable, airOf, envOfPlace, woundFactor } from './ballistics.js';
 import { SPAN_M } from './carry.js';
 import { faceUpAt } from './pits.js';
 import { armShareOf } from '../body/wounds.js';
+import { spanFrameOf } from '../body/footing.js';
 
 /** WEAPONS §8.5's materials: { word, pPerMm, hard }; stopsAll: earth that no small arm crosses. */
 export const MATERIALS = Object.freeze({
@@ -352,16 +356,17 @@ export function traceRound(state, { shooterId = null, from, yawRad = 0, pitchRad
       if (a0 * a1 < 0) u = a0 / (a0 - a1);
       const px = hx + u * (fx2 - hx), pz = hz + u * (fz2 - hz), d = Math.abs(crossAt(px, pz)), s = (px - from.x) * cx + (pz - from.z) * cz;
       if (s <= 0 || s >= endS) continue;
-      const y = yAt(s) - (a.y ?? 0), span = SPAN_M.prone, vOff = y > span[1] ? y - span[1] : y < span[0] ? span[0] - y : 0;
+      const y = yAt(s) - spanFrameOf(state, a).base, span = SPAN_M.prone, vOff = y > span[1] ? y - span[1] : y < span[0] ? span[0] - y : 0;
       if (d <= STRAY_M && !vOff) events.push({ s, kind: 'body', who: a.who, d, part: u < PRONE_HEAD_TO ? 'head' : u < PRONE_TORSO_TO ? 'torso' : 'legs' });
       else if (Math.hypot(d, vOff) <= CRACK_M) near.push({ s, who: a.who, passM: Math.hypot(d, vOff) });
       continue;
     }
     const s = (a.x - from.x) * cx + (a.z - from.z) * cz;
     if (s <= 0 || s >= endS) continue;
-    const d = Math.abs((a.x - from.x) * cz - (a.z - from.z) * cx), y = yAt(s) - (a.y ?? 0), span = SPAN_M[stance] ?? SPAN_M.stand;
+    const Fr = spanFrameOf(state, a), d = Math.abs((a.x - from.x) * cz - (a.z - from.z) * cx), y = yAt(s) - Fr.base, span = Fr.span;
     const vOff = y > span[1] ? y - span[1] : y < span[0] ? span[0] - y : 0;
-    if (d <= STRAY_M && !vOff) { const k = (y - span[0]) / (span[1] - span[0]); events.push({ s, kind: 'body', who: a.who, d, part: k < LEGS_TO ? 'legs' : k < TORSO_TO ? 'torso' : 'head' }); }
+    // (head down on the deckhead: the part read from the span's top (see the header))
+    if (d <= STRAY_M && !vOff) { const k0 = (y - span[0]) / (span[1] - span[0]), k = Fr.inv ? 1 - k0 : k0; events.push({ s, kind: 'body', who: a.who, d, part: k < LEGS_TO ? 'legs' : k < TORSO_TO ? 'torso' : 'head' }); }
     else if (Math.hypot(d, vOff) <= CRACK_M) near.push({ s, who: a.who, passM: Math.hypot(d, vOff) });
   }
   events.sort((a, b) => a.s - b.s);

@@ -27,9 +27,14 @@
 //     then a figure's card standing on the mattress at the head end (src/render/view.js);
 //   - curtainK (0..1): the curtain part drawn, from the aisle side (CURTAIN_MS: a curtain closing after a
 //     sleeper lies down is seen closing), in CURTAIN_STEPS steps so a berth is a few cells, not one a frame.
+// v0.0.25's burn polish (the user's score of test-burn, 2026-11-19: "No straped in animation, we just linger next to the bunk"):
+//   - straps: a marine strapped into his rack (o.straps; test-burn's Strap in, actor.strapped) lies on top of the made rack in his
+//     utilities (the Valles pattern at pixel scale, outfits.js valles), his arms at his sides, boots at the foot, with the rack's
+//     three straps across him, at the chest, the hips and the knees: dark webbing over the body and the blanket from rail to rail,
+//     a lit buckle at the middle of each, a ring at each rail (STRAP_C; my calls: no source draws a transport's rack harness).
 // Pure.
 import { tone, hash3, mixHex } from '../tone.js';
-import { SKIN, HAIR, cutOf, SIDES_K } from './outfits.js';
+import { SKIN, HAIR, cutOf, SIDES_K, valles } from './outfits.js';
 
 /** The racks' blankets (the kit's: src/art/kit/quarters.js), and the curtains' fabric. */
 export const BLANKETS = Object.freeze({ olive: 0x4c633d, grey: 0x625854, tan: 0x96694f, red: 0x6e272f });
@@ -42,7 +47,11 @@ export const BREATH_HZ = 0.2, CURTAIN_STEPS = 4;
 
 const colourOf = (v, table, dflt) => (typeof v === 'number' ? v : table[v] ?? dflt);
 /** The name of a sleeper's painting (what the cells are cached by). */
-export const sleeperKey = (o) => `sleeper:${o.blanket ?? 'olive'}:${o.skin ?? 'tan'}:${cutOf(o.hair?.style)}${o.hair?.step || ''}:${o.hair?.color ?? 'dark'}:${o.curtain ?? '-'}:${(o.seed ?? 0) % 4}:${o.breath ? 1 : 0}:${o.up ? 'u' : ''}:${curtainStep(o)}`;
+export const sleeperKey = (o) => `sleeper:${o.blanket ?? 'olive'}:${o.skin ?? 'tan'}:${cutOf(o.hair?.style)}${o.hair?.step || ''}:${o.hair?.color ?? 'dark'}:${o.curtain ?? '-'}:${(o.seed ?? 0) % 4}:${o.breath ? 1 : 0}:${o.up ? 'u' : ''}:${curtainStep(o)}${o.straps ? ':s' : ''}`;
+/** The rack's straps' webbing, its lit edge, the buckle and the rings at the rails (see the header). */
+export const STRAP_C = Object.freeze({ web: 0x23252b, lit: 0x3d4049, buckle: 0xb9bcc4, ring: 0x8a909c });
+/** Where the three straps cross a berth, as shares of its length from the head: the chest, the hips and the knees. */
+export const STRAP_AT = Object.freeze([0.3, 0.52, 0.74]);
 /** A man's top on the pillow, its radius as a share of the head's (0.0.6: high and tight the smallest patch; the shaved head none). */
 export const CAP_K = Object.freeze({ highTight: 0.42, lowReg: 0.58, medReg: 0.74, shaved: 0 });
 /** The curtain's step (0..CURTAIN_STEPS) for a berth: CURTAIN_STEPS when drawn and no curtainK is given. */
@@ -52,6 +61,7 @@ export const curtainStep = (o) => (!o.curtain ? 0 : o.curtainK === undefined || 
 export function paintSleeper(px, w, h, o = {}) {
   const ppm = o.ppm ?? 16, k = ppm / 16, seed = o.seed ?? 0, cs = curtainStep(o);
   if (cs >= CURTAIN_STEPS) { curtainTop(px, w, h, colourOf(o.curtain, CURTAINS, CURTAINS.olive), seed, k); return; }
+  if (o.straps) { strappedIn(px, w, h, o, ppm, k, seed); return; }
   if (o.up) { sleeperUp(px, w, h, o, ppm, k, seed); }
   else sleeperDown(px, w, h, o, ppm, k, seed);
   // (a curtain part drawn: its fabric over the berth from the aisle side, the rest still open)
@@ -130,6 +140,45 @@ function sleeperDown(px, w, h, o, ppm, k, seed) {
   // (out of regulation, pinned-up hair works loose: stray pixels at the temples)
   if ((style === 'bun' || style === 'braid') && step >= 3) { px(Math.round(hcx - rx) - 1, Math.round(hcy - ry * 0.1), 1, 1, hair); px(Math.round(hcx + rx), Math.round(hcy), 1, 1, hair); }
   px(Math.round(hcx - rx), Math.round(hcy + ry) + 2, Math.round(rx * 2), 1, tone(PILLOW, -0.07));   // (the pillow's dent under the head)
+}
+
+/** A marine strapped in on the made rack in utilities, the straps across him (see the header). */
+function strappedIn(px, w, h, o, ppm, k, seed) {
+  const b = colourOf(o.blanket, BLANKETS, BLANKETS.olive), skin = colourOf(o.skin, SKIN, SKIN.tan), hair = colourOf(o.hair?.color, HAIR, HAIR.dark);
+  const pillow = Math.max(4, Math.round(0.34 * ppm)), cx = w / 2;
+  // (the made rack: the blanket flat and tucked, its fold at the head, the pillow)
+  for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) px(i, j, 1, 1, (i + 2 * j) % 5 === 0 ? tone(b, -0.03) : b);
+  px(0, pillow + 1, w, Math.max(2, Math.round(0.08 * ppm)), SHEET);
+  px(0, 0, w, pillow + 1, PILLOW); px(0, pillow, w, 1, tone(LINEN, -0.05));
+  // (the body on top in its utilities: the shoulders and the chest, the arms at the sides, the legs, the boots at the foot)
+  const top = Math.round(pillow * 0.75), foot = h - Math.max(3, Math.round(0.16 * ppm));
+  const halfAt = (t) => w * (t < 0.08 ? 0.3 : t < 0.42 ? 0.36 : t < 0.55 ? 0.3 : 0.24 - (t - 0.55) * 0.12);
+  for (let j = top; j < foot; j++) {
+    const t = (j - top) / Math.max(1, foot - top), half = halfAt(t), l = Math.round(cx - half), r = Math.round(cx + half);
+    for (let i = l; i <= r; i++) px(i, j, 1, 1, tone(valles(i, j, ppm, seed + 7), i === l ? 0.06 : i === r ? -0.12 : 0));
+    if (t > 0.42) px(Math.round(cx), j, 1, 1, tone(valles(Math.round(cx), j, ppm, seed + 7), -0.16));   // (between the legs)
+    if (t > 0.06 && t < 0.42) { px(l - 1, j, 1, 1, 0x1a1214); px(r + 1, j, 1, 1, 0x1a1214); }   // (the arms' outer edge, inked)
+  }
+  for (const sx of [-1, 1]) px(Math.round(cx + sx * w * 0.13 - (sx < 0 ? w * 0.1 : 0)), foot, Math.round(w * 0.1), Math.max(2, Math.round(0.12 * ppm)), 0x6b4a32);   // (the boots)
+  // (the head on the pillow, face up: hair round the crown, the face below)
+  const rx = Math.max(2.6, 0.15 * ppm), ry = Math.max(2.6, 0.14 * ppm), hcy = Math.min(pillow * 0.5, ry + 1);
+  for (let j = Math.floor(hcy - ry) - 1; j <= Math.ceil(hcy + ry) + 1; j++) for (let i = Math.floor(cx - rx) - 1; i <= Math.ceil(cx + rx) + 1; i++) {
+    const a = (i + 0.5 - cx) / rx, c = (j + 0.5 - hcy) / ry, d = a * a + c * c;
+    if (d > 1) { const a2 = (i + 0.5 - cx) / (rx + 1), c2 = (j + 0.5 - hcy) / (ry + 1); if (a2 * a2 + c2 * c2 <= 1) px(i, j, 1, 1, 0x1a1214); continue; }
+    px(i, j, 1, 1, c < -0.2 ? hair : c > 0.62 ? tone(skin, -0.08) : skin);
+  }
+  const ey = Math.round(hcy + ry * 0.2), ex = Math.max(1, Math.round(rx * 0.42));
+  px(Math.round(cx) - ex, ey, 1, 1, 0x1a1214); px(Math.round(cx) + ex - 1, ey, 1, 1, 0x1a1214);   // (eyes open: awake, strapped in)
+  // (the three straps, rail to rail across the body and the blanket, a lit buckle in the middle and a ring at each rail)
+  const sw = Math.max(2, Math.round(0.08 * ppm));
+  for (const at of STRAP_AT) {
+    const y = Math.round(top + (foot - top) * at);
+    px(0, y, w, sw, STRAP_C.web); px(0, y, w, 1, STRAP_C.lit);
+    const bw = Math.max(2, Math.round(0.1 * ppm));
+    px(Math.round(cx - bw / 2), y - 1, bw, sw + 2, STRAP_C.buckle); px(Math.round(cx - bw / 2) + 1, y, Math.max(1, bw - 2), sw, tone(STRAP_C.buckle, -0.3));
+    px(0, y - 1, 1, sw + 2, STRAP_C.ring); px(w - 1, y - 1, 1, sw + 2, STRAP_C.ring);
+  }
+  void k;
 }
 
 /** A drawn curtain over a berth: the fabric hanging in folds from its rail at the head, its hem at the foot. */

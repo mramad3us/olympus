@@ -14,7 +14,7 @@
 // the hall's leg its gate) with `into`, the sign of the room's side of it (from the threshold). Plans are kept
 // in state.$rooms by layout and door (runtime, never saved: rebuilt on a load from the frozen data), so a tick
 // reads, never builds. lanePlanOf(state) is the session's lane: { lane, area, order, plans } (the layout is
-// the house record's, state.armoury.range.house.lane, else A). roomOfDoor and doorOfRoom map a plan's door to
+// the house record's, state.armoury.range.house.lane, else A), built once a plan set and frozen (v0.0.25). roomOfDoor and doorOfRoom map a plan's door to
 // its room and any of its rooms (room 3's far leg too) back to the plan's key.
 //
 // The geometry the scene's rules and the bundles read, each a closed form of the plan and a point:
@@ -62,8 +62,8 @@ const RAD = Math.PI / 180;
 const LAYERS = Object.freeze({ stand: 'stand', kneel: 'crouch', crouch: 'crouch', prone: 'prone', lie: 'prone' });
 const inRect = (r, x, z, e = 1e-9) => x >= r[0] - e && x <= r[2] + e && z >= r[1] - e && z <= r[3] + e;
 
-/** The layout a session runs: the house record's lane, else A. */
-export const layoutOf = (state) => opOf(state)?.lane ?? DEFAULT_LAYOUT;
+/** The layout a session runs: the house record's lane, else 'W' on the Wreck (v0.0.25: a record that says `ship: 'wreck'`), else A. */
+export const layoutOf = (state) => { const op = opOf(state); return op?.lane ?? (op?.ship === 'wreck' ? 'W' : DEFAULT_LAYOUT); };
 
 // (a plan's data with what the place gives it: its rects and its plane, see the header)
 function derive(L, layout, key, P) {
@@ -111,11 +111,21 @@ export function roomPlanOf(state, doorId, layout = layoutOf(state)) {
   return (C[doorId] ??= derive(L, layout, doorId, L.plans[doorId]));
 }
 
-/** The session's lane: { lane, area, order, plans: { key: plan } } (see the header). */
+// (the build sheet v0.0.25's stage 0, §2 step 2 and §3.0 (the carried lens's CA§3.2): the lane built once a plan set and frozen,
+// kept beside roomPlanOf's cache of the same state and layout (the object state.$rooms[layout], a WeakMap's key, so nothing is
+// written into the state and a save never sees it) by the plan set's record: a new plan set (the fill's drawn or derived house,
+// which also drops state.$rooms) builds anew. It was 3.7% of a warm lane's CPU, a new object and its plans' map at every call;
+// frozen, a caller that wrote into it would throw (ES modules are strict), never mutate the next caller's lane)
+const LANES = new WeakMap();
+/** The session's lane: { lane, area, order, plans: { key: plan } } (see the header), frozen; the same object while the plan set holds. */
 export function lanePlanOf(state, layout = layoutOf(state)) {
   const L = planSetOf(state, layout);
   if (!L) throw new Error(`room: no layout '${layout}' (${Object.keys(X4_PLANS).join(', ')})`);
-  return { lane: L.lane, area: L.area, order: [...L.order], plans: Object.fromEntries(L.order.map(k => [k, roomPlanOf(state, k, layout)])) };
+  const C = state ? ((state.$rooms ??= {})[layout] ??= {}) : null, kept = C && LANES.get(C);
+  if (kept && kept.L === L) return kept.lane;
+  const lane = Object.freeze({ lane: L.lane, area: L.area, order: Object.freeze([...L.order]), plans: Object.freeze(Object.fromEntries(L.order.map(k => [k, roomPlanOf(state, k, layout)]))) });
+  if (C) LANES.set(C, { L, lane });
+  return lane;
 }
 
 /**
@@ -177,6 +187,10 @@ export function inFunnel(plan, x, z) {
 /** In the room (see the header): in one of the plan's rooms and more than THRESHOLD_M past its plane. */
 export function pastThreshold(plan, x, z) {
   if (!plan) return false;
+  // (a compartment entered through a deck hatch (its plan's `hatch`, the Wreck's hold) has no line in the plane to pass: its
+  // gate runs through the scuttle and both of you plant on its line, one each side; in its rects is through, the transit's cut having
+  // put you there from the other deck, 60 m off in the plan)
+  if (plan.hatch) return plan.rects.some(r => inRect(r, x, z));
   return across(plan, x, z) > THRESHOLD_M && plan.rects.some(r => inRect(r, x, z));
 }
 

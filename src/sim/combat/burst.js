@@ -47,6 +47,9 @@
 // cqb.js cqb-grenade's and two.js twoClear's "Get clear"); liveIn(state, plan, path) a live grenade whose burst's room holds the
 // plan's room, or within its free-field stun line (blast.js standoffM at STUN_KPA, 1.36 m for a G-11 at 66 kPa) of a path:
 // bundle.js runSlot's guard, so your #2 never starts his entry into a live grenade ("the bang, then in").
+// v0.0.25 (its build sheet §1 B, §3.2): the height apart is the body's lift over a man standing on the deck, the middle of its span
+// (src/sim/body/footing.js spanFrameOf, the one helper) less a standing man's on the floor: on the deck its floor (actor.y) as built,
+// on the deckhead 0.45 m under the Wreck's 2.2 m (its span [0.45, 2.2]), a floating body its float over FLOAT_Y_M (heightApartOf).
 // Pure but burst and tickDevices, which write the people, the stands, the doors, the items and the record.
 import { stream, next, range } from '../../core/rng.js';
 import { playerActor, playerId } from '../../core/ids.js';
@@ -58,6 +61,7 @@ import { DEVICES, liveDevices } from '../arms/devices.js';
 import { readBurst, blastLine } from './practice.js';
 import { discard, holderOf } from '../arms/kit.js';
 import { laneRec, breakOpening, sessionOf } from './op.js';
+import { spanFrameOf } from '../body/footing.js';
 
 /** The bang's window: an entry later than this after the burst gives them back the bang (COMBAT §25.18.2's, ms). */
 export const BANG_LATE_MS = 2000;
@@ -112,6 +116,8 @@ export function doorRoom(state, area, door) {
   const inSet = [...new Set(parts.flatMap(p => p.in))], next = [...new Set(parts.flatMap(p => p.next))].filter(id => !inSet.includes(id));
   return { area, id: parts[0].id, in: inSet, next, volM3: Math.round(parts.reduce((n, p) => n + p.volM3, 0) * 10) / 10 };
 }
+/** A body's height apart from a burst on the deck (m; see the header): its span's middle over a standing man's (footing.js spanFrameOf's base). */
+export const heightApartOf = (state, a) => spanFrameOf(state, a).base;
 /** The TNT a device is read by (kg): a practice grenade's live twin's (DEVICES[model].as: the instructor's read), else its own. */
 export const twinKg = (model) => { const D = DEVICES[model]; return (DEVICES[D?.as] ?? D)?.tntKg ?? 0; };
 /**
@@ -120,7 +126,7 @@ export const twinKg = (model) => { const D = DEVICES[model]; return (DEVICES[D?.
  * (room burstRoom's or doorRoom's record, qsp its pressure); a: the body ({ x, z, y? }). Pure.
  */
 export function peakOn(state, area, { x, z, tntKg, Pa, room = null, qsp = 0 }, a) {
-  const rM = Math.hypot(a.x - x, a.z - z, a.y ?? 0), line = blastLine(state, area, [x, z], [a.x, a.z], { y: a.y ?? 0 });
+  const h = heightApartOf(state, a), rM = Math.hypot(a.x - x, a.z - z, h), line = blastLine(state, area, [x, z], [a.x, a.z], { y: h });
   const r = room && qsp ? roomOf(areaOf(area), a.x, a.z) : null;
   return Math.max(peakKPa(tntKg, rM, Pa) * line.k, r && room.in.includes(r.id) ? qsp : 0);
 }
@@ -186,7 +192,7 @@ export function burst(state, bus, { id, model, x, z, atMs = state.clock.ms, byId
     // (the height apart too: the instructor on the catwalk 3.0 m over the hall (a.y), who stood 1.20 m from room 1's charge on the
     // plan and took 103.5 kPa there (the play review of v0.0.18); everyone on the floor as before)
     // (R1 a: the blast's line, practice.js blastLine: half the free field's peak round a jamb, as the practice read has it)
-    const rM = Math.hypot(a.x - x, a.z - z, a.y ?? 0), peak = peakOn(state, area, { x, z, tntKg: D.tntKg ?? 0, Pa, room, qsp }, a);
+    const rM = Math.hypot(a.x - x, a.z - z, heightApartOf(state, a)), peak = peakOn(state, area, { x, z, tntKg: D.tntKg ?? 0, Pa, room, qsp }, a);
     if (peak >= 1) kPa[a.who] = r1(peak);
     if (!D.flash && Pa > 0) {
       const w = addSupp(state, bus, a.who, { id: `${id}`, kind: 'blast', pts: inputPts('blast', { rM }), prep: team.includes(a.who) ? 'prepared' : 'unprepared', why: 'the blast', atMs });

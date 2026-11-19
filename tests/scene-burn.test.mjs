@@ -92,7 +92,7 @@ export default [
     },
   },
   {
-    name: 'scene-burn (the fixer of D\'s review, 2026-11-19): R at the burn\'s hold on seed 7 (a jink seed; boots never locked, one push off the deck) is struck, "Stand by for the burn", with no R held menu: no fifteen-minute wait, so the clock stays under 120 s, the jink is logged at its onset and its Grab card is offered',
+    name: 'scene-burn (the fixer of D\'s review, 2026-11-19): R at the burn\'s hold on seed 7 (a jink seed; boots never locked, one push off the deck) is struck, "Stand by for the burn", with no R held menu: no fifteen-minute wait, so the clock stays under 140 s (120 s to v0.0.24: v0.0.25\'s burn polish adds the warned 3 G manoeuvre at 95 to 100 s and moves the surprise to 115 to 130 s), the jink is logged at its onset and its Grab card is offered',
     fn() {
       const bad = [];
       for (const atS of [49, 60]) {
@@ -108,20 +108,21 @@ export default [
           g.step(1, input);
           if (n === atS * 20 + 5) after = (s.clock.ms - t0) / 1000;
         }
-        const B = burnNow(s), endS = (s.clock.ms - t0) / 1000, jinkS = P.list[1] ? (P.list[1].atMs - t0) / 1000 : null;
+        // (the surprise found by its kind: v0.0.25's burn polish lists the warned manoeuvre before it in the drawn profile)
+        const J = P.list.find(e => e.surprise) ?? null, B = burnNow(s), endS = (s.clock.ms - t0) / 1000, jinkS = J ? (J.atMs - t0) / 1000 : null;
         console.log(`      R at ${atS} s: offered "${offer?.verb} ${offer?.id}: ${offer?.label}", R held's menu ${menu ? `${menu.rows.length} rows` : 'none'}; 5 ticks on the clock at ${fmt(after, 2)} s; the jink at ${fmt(jinkS, 1)} s, its card ${cards ? `offered (${cards} ticks)` : 'NEVER'}, logged ${B.jink?.what ?? '-'} at ${fmt(B.jink ? (B.jink.atMs - t0) / 1000 : null, 1)} s; the end at ${fmt(endS, 1)} s`);
         if (offer?.verb !== 'scene' || offer?.id !== 'standby') bad.push(`${atS} s: the offer ${offer?.verb} ${offer?.id}`);
         if (menu) bad.push(`${atS} s: R held's menu ${menu.rows.map(r => r.id).join(',')}`);
         if (!(after < atS + 1)) bad.push(`${atS} s: the clock at ${after} s after R`);
-        if (!(endS < 120)) bad.push(`${atS} s: the end at ${endS} s`);
+        if (!(endS < 140)) bad.push(`${atS} s: the end at ${endS} s`);
         if (!jinkS || !cards) bad.push(`${atS} s: no jink card`);
-        if (!B.jink || Math.abs(B.jink.atMs - P.list[1].atMs) > 2000) bad.push(`${atS} s: the jink logged at ${B.jink?.atMs}`);
+        if (!B.jink || Math.abs(B.jink.atMs - J.atMs) > 2000) bad.push(`${atS} s: the jink logged at ${B.jink?.atMs}`);
       }
       assert(!bad.length, bad.join('; '));
     },
   },
   {
-    name: 'scene-burn (the fixer of D\'s review, 2026-11-19): the T line aboard is the scene\'s by the ship\'s phase (stow, then strap in at the 1MC\'s warning, then hold on), no act, never the barracks\' "Free time. Spend it like it costs something."',
+    name: 'scene-burn (the fixer of D\'s review, 2026-11-19): the T line aboard is the scene\'s by the ship\'s phase (stow, then strap in at the 1MC\'s warning, then hold on; from v0.0.25\'s burn polish, strap in at the manoeuvre\'s warning), no act, never the barracks\' "Free time. Spend it like it costs something."',
     fn() {
       const g = createGame({ scenario: 'test-burn', seed: 7 }), s = g.state, t0 = s.clock.ms;
       const day = new Set(Object.values(BASE_RULES.find(r => r.id === 'situation').text).flat().concat(BASE_RULES.find(r => r.id === 'situation').humour ?? []));
@@ -129,7 +130,7 @@ export default [
       for (let n = 0; n < 20 * 300 && !burnNow(s)?.end; n++) {
         const card = gravCardOf(s);
         g.step(1, card?.options?.length ? { act: [{ act: 'grav', args: { card: card.options[0].key } }] } : {});
-        const L = instinctNow(s).line, B = burnNow(s), ph = B.end ? 'end' : B.onset ? 'after' : B.warn ? 'warned' : 'before';
+        const L = instinctNow(s).line, B = burnNow(s), ph = B.end ? 'end' : B.evade && !B.evade.atMs ? 'evade' : B.onset ? 'after' : B.warn ? 'warned' : 'before';
         if (!L) continue;
         const k = `${ph}|${L.id}|${L.text}`;
         if (!seen.has(k)) seen.set(k, { atS: (s.clock.ms - t0) / 1000, ph, L });
@@ -137,7 +138,7 @@ export default [
         if (L.id === 'situation' && ph !== 'end' && (!BURN_T[ph].includes(L.text) || L.act)) bad.push(`${ph}: "${L.text}" act ${L.act}`);
       }
       for (const { atS, ph, L } of seen.values()) console.log(`      ${fmt(atS, 1)} s ${ph}: ${L.id} "${L.text}"${L.act ? ` act ${L.act}` : ''}`);
-      for (const ph of ['before', 'warned', 'after']) if (![...seen.values()].some(x => x.ph === ph && x.L.id === 'situation')) bad.push(`no ${ph} line`);
+      for (const ph of ['before', 'warned', 'after', 'evade']) if (![...seen.values()].some(x => x.ph === ph && x.L.id === 'situation')) bad.push(`no ${ph} line`);
       assert(!bad.length, [...new Set(bad)].slice(0, 6).join('; '));
     },
   },

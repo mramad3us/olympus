@@ -103,7 +103,7 @@ import { hashPick } from '../../core/hash.js';
 import { nextId, playerActor, playerId } from '../../core/ids.js';
 import { post } from '../../core/queue.js';
 import { SCENES } from '../../data/scenes.js';
-import { COURSES, SEQ, SEQ_KD, SEQ_PAIRS, SEQ_STRESS, SEQ_HOUSE, SEQ_HOUSE_DRAWN, seqHouseNamed, KD_STRINGS, COACH, PAIRS_COACH, HOUSE_NUDGE, MACRO_CMD, MACRO_MARK, NEEDS_ROUNDS } from '../../data/courses.js';
+import { COURSES, SEQ, SEQ_KD, SEQ_PAIRS, SEQ_STRESS, SEQ_HOUSE, SEQ_HOUSE_DRAWN, SEQ_WRECK, seqHouseNamed, KD_STRINGS, COACH, PAIRS_COACH, HOUSE_NUDGE, MACRO_CMD, MACRO_MARK, NEEDS_ROUNDS } from '../../data/courses.js';
 import { KD_RANGE } from '../../data/places/range.js';
 import { logEntry } from '../log.js';
 import { lonOfSite } from '../places/env.js';
@@ -157,7 +157,8 @@ export const rangeOf = (state) => state.armoury?.range ?? null;
 export const seqOf = (R) => (R?.course === 'kd' ? SEQ_KD : R?.course === 'pairs' ? (R.stress ? SEQ_STRESS : SEQ_PAIRS) : R?.course === 'house' ? houseSeqOf(R.house) : SEQ);
 // (a named house, B or C (its draw record's layout, else its code's: shoothouse.js namedLaneOfDraw), briefs and stands by with its
 // letter: courses.js seqHouseNamed; the play review of v0.0.22 heard "A new layout" over lane B)
-const houseSeqOf = (H) => { const named = H?.draw ? namedLaneOfDraw(H.draw) : null; return named ? seqHouseNamed(named) : H?.draw ? SEQ_HOUSE_DRAWN : SEQ_HOUSE; };
+// (the Wreck's own, courses.js SEQ_WRECK, command for command SEQ_HOUSE's, where the house record says `ship: 'wreck'`)
+const houseSeqOf = (H) => { if (H?.ship === 'wreck') return SEQ_WRECK; const named = H?.draw ? namedLaneOfDraw(H.draw) : null; return named ? seqHouseNamed(named) : H?.draw ? SEQ_HOUSE_DRAWN : SEQ_HOUSE; };
 // (the command after i: the next, or the kd course's own (its zero's loop); null at the end)
 const nextIOf = (state, R, i) => (R.course === 'kd' ? kdNextI(state, i) : i + 1 < seqOf(R).length ? i + 1 : null);
 // (a shot is the player's: v0.0.6's by their lane; the kd course's by its shooter, the relay's never; the pairs course's all)

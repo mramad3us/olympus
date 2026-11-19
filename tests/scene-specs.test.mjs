@@ -44,8 +44,8 @@ const V0010 = Object.freeze({
   'sandbox|48213': [23480400000, 'test.rooms', 24.9, 4.4, 'right', '13270604d2b6c8'],
   'barracks|48213': [23480400000, 'melas.echo.1', 52.075, 3.3, 'down', '09eaa02234bb43'],
 });
-/** v0.0.24's two void scenes ("Anchor before you fire", "Secure for burn"): off Mars, with no v0.0.10 start. */
-const VOID_SCENES = Object.freeze(['test-anchors', 'test-burn']);
+/** v0.0.24's two void scenes ("Anchor before you fire", "Secure for burn") and v0.0.25's Wreck ("Hold to hold"): off Mars, with no v0.0.10 start. */
+const VOID_SCENES = Object.freeze(['test-anchors', 'test-burn', 'test-zerocqb']);
 const startOf = (s) => { const a = playerActor(s); return [s.clock.ms === s.meta.createdMs ? s.clock.ms : `${s.clock.ms}≠${s.meta.createdMs}`, s.places.live.area, a.x, a.z, a.face, digest(toJSON(s))]; };
 const throws = (fn) => { try { fn(); return null; } catch (e) { return e.message; } };
 
@@ -87,7 +87,9 @@ export default [
       // coasting deck's preset; listed after "Stack and clear, live", the anchors then the burn)
       assert(built.filter(x => !VOID_SCENES.includes(x.id)).every(x => x.env.preset === 'site' && x.host.site === 'melas' && SCENARIOS[x.scenario]), 'every shipped scene but the void\'s: Melas, the site\'s own environment, a fill');
       assert(SCENES['test-anchors'].host.site === 'phobos-void' && SCENES['test-anchors'].env.preset === 'site' && SCENES['test-burn'].host.site === 'mcrn-testudo' && SCENES['test-burn'].env.preset === 'ship-coast', 'the void\'s two scenes');
-      assert(JSON.stringify(SCENE_IDS) === JSON.stringify(built.map(x => x.id)) && SCENE_IDS.at(-1) === 'test-burn' && SCENE_IDS.at(-2) === 'test-anchors' && SCENE_IDS.at(-3) === 'test-shoothouse-live' && SCENE_IDS.at(-4) === 'test-shoothouse', SCENE_IDS.join());
+      // (v0.0.25: "Hold to hold", the Wreck at Phobos in its site's own environment, its own scenario, after "Secure for burn" in the menu's order)
+      assert(SCENES['test-zerocqb'].host.site === 'phobos-void' && SCENES['test-zerocqb'].host.area === 'phobos.void.wreck' && SCENES['test-zerocqb'].env.preset === 'site' && SCENES['test-zerocqb'].scenario === 'test-zerocqb', 'the Wreck\'s scene');
+      assert(JSON.stringify(SCENE_IDS) === JSON.stringify(built.map(x => x.id)) && SCENE_IDS.at(-1) === 'test-zerocqb' && SCENE_IDS.at(-2) === 'test-burn' && SCENE_IDS.at(-3) === 'test-anchors' && SCENE_IDS.at(-4) === 'test-shoothouse-live' && SCENE_IDS.at(-5) === 'test-shoothouse', SCENE_IDS.join());
       assert(Object.values(STARTS).every(x => x.env.preset === 'site') && STARTS.sandbox.host.site === 'test' && STARTS.barracks.host.site === 'melas', JSON.stringify(STARTS));
       console.log(`      the Tests menu: ${SCENE_IDS.join(', ')}; stubs: ${Object.values(SCENES).filter(x => x.built === false).map(x => x.id).join(', ')}`);
     },

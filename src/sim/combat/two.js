@@ -52,7 +52,15 @@
 // The hunt of v0.0.20's team findings (T1; COMBAT §25.21.1): a live man of yours shooting at the stack, whom he sees and you are not on,
 // is his whoever's sector he stands in (fightsUs, FIGHTS_US_MS), taken before any of his own and kept when your rifle is back (the
 // contact's and the row's `fire`); no gun in your hands inside a room you entered is your rifle down (youDown: he covers you).
+// v0.0.25, "Hold to hold" (its build sheet §1 B, §3.2, item 3; PL§7; COMBAT §14.8): **your #2 at 0 G** (voidTick, at the head of his
+// tick). The buddy brace at a deck hatch is the drill's (bundle.js: his `brace` beat at his stack, his hand out; your transit takes his
+// grip on your harness, "Got you."); here he lets go LET_AFTER_MS 0.2 s after your first round fired from it (bundle.js voidLet,
+// "Through."), your plant ending it otherwise (your boots replace his grip), and his entry is cued by either (bundle.js entryGo). Under a
+// burn's warning (places/gravity.js bracePending) standing on the deckhead, he says "Feet aft." and changes his face to the deck (the
+// drill's `onface` beat, his doing halted for it), once a warning. His boots stay with yours (twoBoots) but for your transit and face
+// changes (his grip holds you there, on his own locked boots) and his own (his beats set them).
 import { q } from '../../core/num.js';
+import { wreckDeckAt } from '../../data/places/wreck.js';
 import { stream } from '../../core/rng.js';
 import { playerId, playerActor } from '../../core/ids.js';
 import { pastThreshold, coveredNow, lanePlanOf } from './room.js';
@@ -85,7 +93,8 @@ import { placeGaits } from '../body/motion.js';
 import { ownerOf, sideOf, TEAM_WORDS } from './team.js';
 import { seenK, drawnOn, aimedOn } from './men.js';
 import { move, pouchFor, handGunOf, wear } from '../arms/kit.js';
-import { bootsOf, bootsLocked, setAnchor } from '../body/footing.js';
+import { bootsOf, bootsLocked, setAnchor, TRUNK_REACH_M } from '../body/footing.js';
+import { DECK_HATCHES } from '../places/hatch.js';
 import { MAG_BOOTS } from '../../data/body/needs.js';
 import { modelOf, isLong } from '../arms/models.js';
 
@@ -96,7 +105,10 @@ import { moverStart, locoStep } from '../body/loco.js';
 import { tickDevices } from './burst.js';
 // (R2 b: his own "Get clear", twoClear below)
 import { stunsOn } from './burst.js';
-import { clearOf, wayOf, legsOf as bodyLegsOf, doorNow } from './bundle.js';
+import { clearOf, wayOf, legsOf as bodyLegsOf, doorNow, voidLet } from './bundle.js';
+import { bracePending } from '../places/gravity.js';
+import { VOID } from '../../data/body/needs.js';
+import { faceMsOf } from './drills/void.js';
 import { halt as haltDoing, advanceBeats, profileOf, profileWhen, pathLen } from './stepper.js';
 import { handDeviceOf } from '../arms/devices.js';
 
@@ -124,8 +136,8 @@ export const THREAT_FACES = Object.freeze(['threat', 'armoured', 'hostage']);
 export function whole(ms) { return Math.ceil(ms / TICK_MS) * TICK_MS; }
 /** A person's actor, or null. */
 export function actorOf(state, pid) { return pid ? state.actors?.list?.find(a => a.who === pid) ?? null : null; }
-/** The legs in the plan's order: the three rooms, then the hall. */
-export function legsOf(H) { return H ? [...H.rooms, H.hall] : []; }
+/** The legs in the plan's order: the three rooms, then the hall (v0.0.25: the Wreck's four compartments, no hall: `H.hall` null). */
+export function legsOf(H) { return H ? (H.hall ? [...H.rooms, H.hall] : [...H.rooms]) : []; }
 /** The leg the lane is on, or null. */
 export function curLeg(H) { return legsOf(H)[H?.cur ?? 0] ?? null; }
 /** Whether a gun holds anything by the truth (a magazine in, a chamber not empty, a double): not clear. A bolt held back on nothing is clear. */
@@ -345,6 +357,8 @@ export function twoTick(state, bus, R, H, a, now) {
   const W = H.two;
   // (his mag boots with yours, before his eyes (twoBoots, at the file's end): nothing without boots of yours)
   twoBoots(state, bus, H, now);
+  // (his grip at a deck hatch let go, his feet aft under a burn's warning (voidTick; see the header))
+  voidTick(state, bus, H, now);
   // (R2 b: a live grenade on the floor that would stun him where he stands: his run clear of it first, ahead of his eyes)
   if (twoClear(state, bus, H, a, now)) return;
   coverTick(state, bus, R, H, a, now);
@@ -1175,6 +1189,12 @@ function twoOutTick(state, H, W, now) {
 export function twoBoots(state, bus, H, now = state.clock.ms) {
   const W = H?.two, you = playerId(state);
   if (!W?.pid || !you || !bootsOf(state, you)) return;
+  // (not while you go through a hatch or change your face on a hold (his grip, your hand on it), nor while he does (see the header))
+  if (voidBusy(state, you) || voidBusy(state, W.pid, W.doing)) { delete W.boots; return; }
+  // (C's lane, v0.0.25: nor across a deck hatch: you through the trunk on its coaming's hold, 60 m off in the plan, he let his boots go on
+  // deck 5, floated, and never reached his stack; his own transit and plant are his beats')
+  const me0 = playerActor(state), him = actorOf(state, W.pid);
+  if (me0 && him && H?.ship === 'wreck' && wreckDeckAt(me0.x) !== wreckDeckAt(him.x)) { delete W.boots; return; }
   if (!bootsOf(state, W.pid)) wear(state, W.pid, 'mb-1');
   const mine = bootsLocked(state, you), his = bootsLocked(state, W.pid), want = mine ? 'lock' : 'release';
   if (mine === his) { delete W.boots; return; }
@@ -1182,4 +1202,64 @@ export function twoBoots(state, bus, H, now = state.clock.ms) {
   if (now < W.boots.atMs) return;
   setAnchor(state, W.pid, mine ? 'boots' : null);
   delete W.boots;
+}
+
+// ---- v0.0.25, "Hold to hold" (its build sheet §1 B, §3.2): voidTick directly below B's v0.0.24 block ----
+// (the void's beats a body may be in, his boots his beats' own while they run)
+const VOID_KINDS = Object.freeze(new Set(['hatch', 'plant', 'onface', 'let']));
+// (a body in a transit or a face change: a teammate's grip (a buddy's anchor), a face row's or beat's faceTo, or one of the void's beats
+// running; a hand on a hold elsewhere is v0.0.24's, his boots following yours off as built)
+function voidBusy(state, pid, doing = null) {
+  const a = pid === playerId(state) ? playerActor(state) : actorOf(state, pid);
+  if (!a) return false;
+  if (a.faceTo || a.anchor === 'buddy') return true;
+  return !!doing?.beats?.some(b => b.st === 'run' && VOID_KINDS.has(b.k));
+}
+// (the face a body hanging on a deck hatch's coaming plants on: the end's face on his deck, within the trunk's reach of it; else null)
+function coamingOf(state, a) {
+  for (const T of Object.values(DECK_HATCHES)) for (const e of T.ends) if (Math.hypot(a.x - e.at[0], a.z - e.at[1]) <= TRUNK_REACH_M) return e.face;
+  return null;
+}
+// (your rounds in the lane so far: every leg's, the house's count (shoothouse.js houseShot))
+const roundsOf = (H) => legsOf(H).reduce((n, L) => n + (L?.rounds ?? 0), 0);
+/**
+ * Your #2 at 0 G this tick (see the header): his grip on your harness let go LET_AFTER_MS after your first round from it; under a
+ * burn's warning on the deckhead, "Feet aft." and his face to the deck. Writes his record (W.brace's firedMs, W.aft) and his doing.
+ */
+/** Your #2 holds your harness across a deck hatch at most this long, lived (ms; my call: the honest lanes' longest brace is 2.4 s, the recruit's and the corporal's, so twice that and room). */
+export const BRACE_HOLD_MAX_MS = 5000;
+export function voidTick(state, bus, H, now = state.clock.ms) {
+  const W = H?.two;
+  if (!W?.pid) return;
+  const br = W.brace;
+  if (br?.one && br.let === undefined && br.gone === undefined) {
+    const one = br.one === playerId(state) ? playerActor(state) : actorOf(state, br.one), n = roundsOf(H);
+    // (your plant took you off his grip (your boots in its place): his "Through." is his entry's, its `let` beat)
+    if (one?.anchor !== 'buddy' || one.anchorRef !== W.pid) br.gone = now;
+    else {
+      if (br.rounds0 === undefined) br.rounds0 = n;
+      if (br.firedMs === undefined && n > br.rounds0) br.firedMs = now;
+      if (br.firedMs !== undefined && now >= br.firedMs + VOID.LET_AFTER_MS) voidLet(state, bus, W.pid, now);
+      // (and never longer than BRACE_HOLD_MAX_MS of lived time: you neither planted nor fired, and he let go, "Through.", your hand on
+      // the coaming (the review of C and D: the fuzz sergeant on 1962 hung in his grip 120 s to the lane's end, a brace never let go))
+      else if (Number.isFinite(br.atMs) && now >= br.atMs + BRACE_HOLD_MAX_MS) voidLet(state, bus, W.pid, now);
+    }
+  }
+  const a = actorOf(state, W.pid);
+  // (C's lane, v0.0.25: his row halted while he came through (his eyes on a man: a contact cuts the plant) left him on the coaming's
+  // hold in the far compartment, never planted, and no later row could walk him; his plant is made once nothing of his runs, to the
+  // far end's face, as the plant does it: a hand on the coaming within the trunk's reach of its end on his deck, off every face)
+  const cut = a && a.anchor === 'handhold' && !a.onFace && !a.faceTo && Number.isFinite(a.floatY) && !W.doing?.beats?.some(b => b.st === 'run') ? coamingOf(state, a) : null;
+  if (cut) {
+    const beat = { key: 'plant', k: 'onface', ch: 'feet', to: cut, ms: faceMsOf(false), after: [], cut: false, st: 'wait', fromMs: null, untilMs: null, slot: 2 };
+    W.doing = { who: W.pid, step: 'drill:plant', kind: 'bundle', bundle: null, tempo: 'normal', rung: W.rung ?? 0, slot: 2, door: null, variant: {}, beats: [beat], lanes: {}, subs: [], fromMs: now, atMs: now, untilMs: now, untilPlanMs: now + beat.ms, seams: [] };
+    return;
+  }
+  if (!a || !bracePending(state)) { if (W.aft && !bracePending(state)) delete W.aft; return; }
+  if (a.onFace !== 'deckhead' || a.faceTo || W.doing?.beats?.some(b => b.k === 'onface' && b.st !== 'done')) return;
+  if (W.doing && !W.doing.halt) { haltDoing(state, bus, W.doing, 'stop', null, now); return; }
+  if (W.doing?.beats?.some(b => b.st === 'run')) return;
+  if (!W.aft) { W.aft = now; bus?.emit('say', { who: W.pid, text: 'Feet aft.', kind: 'speech', durMs: 800 }); }
+  const ms = faceMsOf(bootsLocked(state, W.pid)), beat = { key: 'onface', k: 'onface', ch: 'feet', to: 'deck', ms, after: [], cut: false, st: 'wait', fromMs: null, untilMs: null, slot: 2 };
+  W.doing = { who: W.pid, step: 'drill:aft', kind: 'bundle', bundle: null, tempo: 'normal', rung: W.rung ?? 0, slot: 2, door: null, variant: {}, beats: [beat], lanes: {}, subs: [], fromMs: now, atMs: now, untilMs: now, untilPlanMs: now + ms, seams: [] };
 }

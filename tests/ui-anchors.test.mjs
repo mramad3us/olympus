@@ -5,7 +5,7 @@ import { SCALE_STEP_K as FLOAT_SCALE_K, SCALE_FROM_M as FLOAT_SCALE_FROM_M } fro
 
 export default [
   {
-    name: 'ui-anchors: Well A in the page: your figure in mag boots; a body floating 1.2 m off the deck drawn there one scale step larger (F-b), at 0.3 m at its own size, tumbling by its frame; no page error; the frame times printed',
+    name: 'ui-anchors: Well A in the page: your figure in mag boots; a body floating 0.7 m over a standing man\'s place (floatY 1.7) drawn there one scale step larger (F-b), at 0.3 m (floatY 1.3) at its own size, tumbling by its frame; no page error; the frame times printed',
     heavy: true,
     timeoutMs: 300_000,
     async fn() {
@@ -17,17 +17,19 @@ export default [
         assert(String(own).includes('"boots":"mag"'), `the look carries no mag boots: ${own}`);
         const f0 = await frameMs(page);
         // (the float as the locomotion record says it (B's fields: floatY, gait 'float', tumbleRad), set on your actor between ticks;
-        // the fixer of v0.0.24's reviews: it set actor.y, the floor, the very field the view wrongly read, so it passed against the bug)
+        // the fixer of v0.0.24's reviews: it set actor.y, the floor, the very field the view wrongly read, so it passed against the bug;
+        // v0.0.25: the view reads the lift over a standing man's place, floatY − FREEFALL.FLOAT_Y_M (render/faces.js liftOf), so
+        // v0.0.24's 1.2 m case is a lift of 0.7 m, floatY 1.7, and 0.3 m is floatY 1.3)
         const floatAt = async (y, tumbleRad = 0) => {
-          await page.evaluate(([y1, t1]) => { const s = window.__olympus.state, me = s.actors.list.find(a => a.who === s.player.id); me.floatY = y1; me.gait = 'float'; me.tumbleRad = t1; }, [y, tumbleRad]);
+          await page.evaluate(([y1, t1]) => { const s = window.__olympus.state, me = s.actors.list.find(a => a.who === s.player.id); me.floatY = 1.0 + y1; me.gait = 'float'; me.tumbleRad = t1; }, [y, tumbleRad]);
           await page.waitForTimeout(250);
           return page.evaluate(() => (window.__olympus.view?.floats ?? []).find(f => f.id === window.__olympus.state.player.actor) ?? null);
         };
         await page.evaluate(() => window.__olympus.pause?.(true));
-        const hi = await floatAt(1.2), lo = await floatAt(0.3), tumbling = await floatAt(1.0, Math.PI / 2);
-        console.log(`      floating 1.2 m: ${JSON.stringify(hi)}; 0.3 m: ${JSON.stringify(lo)}; tumbling 90° at 1.0 m: ${JSON.stringify(tumbling)}`);
-        assert(hi && hi.y === 1.2 && hi.scaleK === FLOAT_SCALE_K, JSON.stringify(hi));
-        assert(lo && lo.y === 0.3 && lo.scaleK === 1 && 0.3 <= FLOAT_SCALE_FROM_M, JSON.stringify(lo));
+        const hi = await floatAt(0.7), lo = await floatAt(0.3), tumbling = await floatAt(1.0, Math.PI / 2);
+        console.log(`      floating 0.7 m up: ${JSON.stringify(hi)}; 0.3 m: ${JSON.stringify(lo)}; tumbling 90° at 1.0 m: ${JSON.stringify(tumbling)}`);
+        assert(hi && Math.abs(hi.y - 0.7) < 1e-9 && hi.scaleK === FLOAT_SCALE_K, JSON.stringify(hi));
+        assert(lo && Math.abs(lo.y - 0.3) < 1e-9 && lo.scaleK === 1 && 0.3 <= FLOAT_SCALE_FROM_M, JSON.stringify(lo));
         assert(tumbling && /^tumble\d$/.test(tumbling.frame ?? ''), JSON.stringify(tumbling));
         console.log(`      Well A: frames p50 ${fmt(f0.medianMs, 1)} ms, p95 ${fmt(f0.p95Ms, 1)} ms`);
         assert(!errors.length, errors.join('\n'));

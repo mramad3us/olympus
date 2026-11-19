@@ -76,7 +76,7 @@ const is = (re) => (s) => re.test(String(s?.id ?? ''));
 const id = (x) => (s) => s?.id === x;
 const LINE_RE = /^(sight:|optic:|read$|hold:|wait:mark|kd:|police|confirm)/;
 const ROOM_RE = /^(watch:|look:|call:clear|mark$|move:)/;
-const OUT_RE = /^(drill:stack:|door:(push|pull|kick|read)|drill:door:|drill:room:(in|clear)(@|>|$))/;
+const OUT_RE = /^(drill:stack:|door:(push|pull|kick|read|undog|hatch|through)|drill:door:|drill:room:(in|clear)(@|>|$)|drill:void:(stack|point|in|clear)(@|>|$))/;
 const lineRow = (s) => LINE_RE.test(String(s?.id ?? '')) || (!!s?.act && s?.kind !== 'shot');
 // (v0.0.19, kit D2: the door's grenade rows (D1's flash, D2's frag and conc) and their kind; the R-7's ballistic breach; a
 // grenade in the hand thrown (D1's `dev:throw`, D2's planner's single `dev:gren:throw:<item>`))
@@ -94,22 +94,22 @@ export const MAPS = Object.freeze({
     { words: 'Aim ⇄ Hold', c: [(s) => s?.id === 'contact:hold' && !!s.lead && !s.off, (s) => s?.kind === 'aim', id('hold'), id('contact:hold')] }, { words: 'Breathe', c: [is(/^breathe/)] },
     { words: 'The line ▸', deep: true, c: [] }],
   DRILL_OUT: [null,
-    { words: 'Stack up', c: [is(/^drill:stack:up(@|>|$)/)] }, { words: 'Stack up, take point', c: [is(/^drill:stack:point(@|>|$)/)] },
+    { words: 'Stack up', c: [is(/^drill:stack:up(@|>|$)/), is(/^drill:void:stack(@|>|$)/)] }, { words: 'Stack up, take point', c: [is(/^drill:stack:point(@|>|$)/), is(/^drill:void:point(@|>|$)/)] },
     // (v0.0.18: Breach shows the first way of the kit's live, the charge, else the halligan or the ram (a pull door: Pry); Flash a
     // grenade's own row, or the one in your hand thrown)
     // (v0.0.19, kit D2: Breach's candidates in the order charge (the SC-1 or the BC-1, both `drill:door:breach`), pry, ram, then
     // the R-7's ballistic breach, Shoot the lock (`drill:door:shoot`), the first live showing; Flash the grenade in the hand, then
     // the door's grenade rows, the bang variant's kind first (frag, conc or flash), its stand words kept "Flash, then in" so the
     // standard kit's panel holds to the byte)
-    { words: 'Open', c: [is(/^door:(push|pull)>/)] }, { words: 'Kick door', c: [is(/^door:kick>/)] }, { words: 'Breach', c: [(s) => /^drill:door:breach(@|>|$)/.test(s?.id ?? '') && !s.off, (s) => /^drill:door:(pry|ram)(@|>|$)/.test(s?.id ?? '') && !s.off, (s) => SHOOT_RE.test(s?.id ?? '') && !s.off, is(/^drill:door:breach(@|>|$)/), is(/^drill:door:(pry|ram)(@|>|$)/), is(SHOOT_RE)], stand: { off: 'not issued' } },
+    { words: 'Open', c: [is(/^door:(push|pull)>/), (s) => /^door:(undog|hatch|through)>/.test(s?.id ?? '') && !s.off, is(/^door:(undog|hatch|through)>/)] }, { words: 'Kick door', c: [is(/^door:kick>/)] }, { words: 'Breach', c: [(s) => /^drill:door:breach(@|>|$)/.test(s?.id ?? '') && !s.off, (s) => /^drill:door:(pry|ram)(@|>|$)/.test(s?.id ?? '') && !s.off, (s) => SHOOT_RE.test(s?.id ?? '') && !s.off, is(/^drill:door:breach(@|>|$)/), is(/^drill:door:(pry|ram)(@|>|$)/), is(SHOOT_RE)], stand: { off: 'not issued' } },
     { words: 'Flash, then in', c: [is(HAND_THROW_RE), (s) => GREN_RE.test(s?.id ?? '') && !s.off && gKind(s.id) === s.variant?.bang, (s) => GREN_RE.test(s?.id ?? '') && !s.off, is(GREN_RE)], stand: { off: 'not issued' } },
-    { words: 'Enter', c: [id('drill:carry'), is(/^drill:room:clear(@|>|$)/), is(/^drill:room:dominate(@|>|$)/), is(/^drill:room:in(@|>|$)/)] },
+    { words: 'Enter', c: [id('drill:carry'), is(/^drill:room:clear(@|>|$)/), is(/^drill:room:dominate(@|>|$)/), is(/^drill:room:in(@|>|$)/), is(/^drill:void:clear(@|>|$)/), is(/^drill:void:dominate(@|>|$)/), is(/^drill:void:in(@|>|$)/)] },
     { words: 'Read the door', c: [is(/^door:read>/)] }, { words: 'Hold it', c: [is(/^door:hold>/)] }],
   DRILL_IN: [null,
-    { words: 'Watch your corner', c: [is(/^watch:/), is(/^look:/)], cycle: true }, { words: 'To your point', c: [id('drill:carry'), is(/^drill:room:dominate(@|>|$)/), id('move:point')] },
+    { words: 'Watch your corner', c: [is(/^watch:/), is(/^look:/)], cycle: true }, { words: 'To your point', c: [id('drill:carry'), is(/^drill:room:dominate(@|>|$)/), is(/^drill:void:dominate(@|>|$)/), id('move:point')] },
     { words: '"Clear!"', c: [id('call:clear')] }, { words: 'Go long', c: [is(/^move:far/)] }, { words: 'Mark the room', c: [id('mark')] },
     // (the build sheet v0.0.20 item 12: Coming out, the `out` kind's single, offered inside a room called clear (bundle.js singleRows))
-    { words: 'Coming out', c: [is(/^call:out/)] }, { words: 'To the next door', c: [is(/^drill:stack:up(@|>|$)/), is(/^drill:stack:point(@|>|$)/), is(/^move:(hallEnd|next)/)] },
+    { words: 'Coming out', c: [is(/^call:out/)] }, { words: 'To the next door', c: [is(/^drill:stack:up(@|>|$)/), is(/^drill:stack:point(@|>|$)/), is(/^drill:void:(stack|point)(@|>|$)/), is(/^move:(hallEnd|next)/)] },
     { words: 'Hold it', c: [is(/^door:hold>/)] }, { words: 'Clear it', c: [is(/^door:(push|pull|kick)>/), is(/^drill:room:(in|clear)(@|>|$)/)] }],
   GUN: [null,
     { words: 'Reload', c: [(s) => /^macro:reload:/.test(s?.id ?? '') && !!s.first && !s.off, id('macro:reload:speed'), id('macro:reload:tactical'), id('macro:reload:retain')] },
@@ -120,7 +120,7 @@ export const MAPS = Object.freeze({
     { words: 'Hands ▸', deep: true, c: [] }],
   BODY: [null,
     { words: 'High ready', c: [id('posture:highReady')] }, { words: 'Careful ⇄ Fast', c: [id('drill:variant:stance'), is(/^gait:(combat|assault)$/)] },
-    { words: 'Kneel ⇄ Stand', c: [id('stance:kneel'), id('stance:stand')] }, { words: 'Prone', c: [id('stance:prone')] }, { words: 'To cover', c: [is(/^move:cover/)] },
+    { words: 'Kneel ⇄ Stand', c: [id('stance:kneel'), id('stance:stand')] }, { words: 'Prone', c: [(s) => /^face:/.test(s?.id ?? '') && !s.off, is(/^face:/), id('stance:prone')] }, { words: 'To cover', c: [is(/^move:cover/)] },
     { words: 'Stop here', c: [id('drill:variant:feet')] }, { words: 'Wait', c: [id('wait')] }, { words: 'Sling it ⇄ Relaxed', c: [id('stow'), id('gait:relaxed')] },
     { words: 'Low ready', c: [id('posture:lowReady')] }],
   // (v0.0.19, the #2's roles on your word (team.js): "#2, bang it" 2, "Breacher up" 3 (its first way; the others TEAM's third
@@ -133,7 +133,11 @@ export const MAPS = Object.freeze({
 });
 /** The group a row no slot takes goes to (its third level), by its kind. */
 // (v0.0.19, kit D2: a device single of the planner's (kind 'device': Pin back in, Throw it clear, Prime again) goes to GUN's
-// "Hands ▸", beside the rifle's admin, where the hands' own rows are; v0.0.24's step 5: the mag boots' row (kind 'boots',
+// "Hands ▸", beside the rifle's admin, where the hands' own rows are; v0.0.25 (its build sheet §1 B): at a hatch the void's rows
+// take the house's slots (Stack on the hatch on 1, Stack up, take the hatch on 2, Undog, Open the hatch and Through the hatch on
+// Open's 3 as they come, the Kick struck on 4, the void's room rows on Enter's 7, inside "To your point" and "To the next door"
+// theirs), and the face's rows (kind 'anchor', ids 'face:…': Boots to the deck, Boots to the deckhead, Feet aft) on BODY's 4
+// ahead of Prone, which free fall never offers; v0.0.24's step 5: the mag boots' row (kind 'boots',
 // shooting.js bootsRow, offered only where the gravity does not hold the feet) and the anchors' (kind 'anchor', shooting.js
 // anchorRows: Take the hold, Clip in, Wedge, Let go, offered only under 0.05 G) go to BODY's, with the stances)
 const OVERFLOW_OF = (s) => (s?.kind === 'device' ? 'GUN' : isShotRow(s) || s?.kind === 'fire' || lineRow(s) ? 'FIRE'

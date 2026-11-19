@@ -43,7 +43,8 @@ export const PHOBOS_VOID_SITE = deepFreeze({
   id: 'phobos-void', kind: 'base', template: 'phobos-void@1', name: 'the Void Operations School, Phobos', body: 'phobos', clock: 'utc',
   outside: { kind: 'vacuum', air: 'vacuum' }, inside: { air: 'martian-indoor' },
   gravity: { regime: 'micro', gG: 0.0006, down: [0, -1, 0] }, lighting: 'ship', water: 'ship', routine: 'melas', palette: null,
-  areas: ['phobos.void.well-a'],
+  // (the Wreck, decks 5 and 6 of the stripped corvette moored in Yard Shed 3, one area: src/data/places/wreck.js)
+  areas: ['phobos.void.well-a', 'phobos.void.wreck'],
 });
 
 /**

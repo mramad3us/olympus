@@ -8,9 +8,13 @@
 // driving him). A breach off the range had nowhere to write: the burst's door (burst.js) and the kick's lock (bundle.js
 // lockedOf) read and wrote the house's R.house.broken only. Each case fails without its fix: the imports alone (openOp,
 // opActors, opRules, opShot) are v0.0.21's.
+// v0.0.25's stage 0 (its build sheet §2 step 3, C5): F72's barracks lines leave out the void's two rules, 'anchor' and 'aft', which
+// an operation at 0 G or under a burn says (the last case; it fails on v0.0.24's set, which held 'anchor').
 import { assert } from './helpers.mjs';
 import { cqbWorld } from './cqb-world.mjs';
-import { opLane, rowsRun, opGauge, OP_ENFORCED } from './flawless-op.mjs';
+import { opLane, rowsRun, opGauge, OP_ENFORCED, BARRACKS_LINES, VOID_LINES } from './flawless-op.mjs';
+import { BASE_RULES } from '../src/sim/skills/instinct/base.js';
+import { GROOM_RULES } from '../src/sim/skills/instinct/groom.js';
 import { createGame } from './game.mjs';
 import { stepsOf, chooseStep } from '../src/sim/arms/shooting.js';
 import { moveTo } from '../src/sim/places/portals.js';
@@ -111,6 +115,15 @@ export default [
       const row = opGauge(lanes, [rowsRun(cqbWorld({ tier: 'sgt' }))]);
       console.log(`      ${row.id} ${row.met ? 'MET ' : 'OPEN'} ${row.name}: ${row.value} (target ${row.target})${OP_ENFORCED.has(row.id) ? ' [enforced]' : ''}`);
       assert(!OP_ENFORCED.has(row.id) || row.met, row.value);
+    },
+  },
+  {
+    name: 'F72\'s barracks lines (v0.0.25\'s stage 0, C5): every BASE_RULES and GROOM_RULES id but the void\'s, \'anchor\' (v0.0.24 A\'s "Anchor before you fire.") and \'aft\' (the Wreck\'s "Feet aft", reserved before its rule exists), so an operation at 0 G or under a burn counts neither as a barracks line',
+    fn() {
+      const ids = [...BASE_RULES, ...GROOM_RULES].map(r => r.id), kept = ids.filter(id => !VOID_LINES.has(id));
+      console.log(`      ${BARRACKS_LINES.size} barracks lines of ${ids.length} rule ids; left out: ${ids.filter(id => VOID_LINES.has(id)).join(', ') || 'none'} (reserved: ${[...VOID_LINES].filter(id => !ids.includes(id)).join(', ') || 'none'})`);
+      assert(!BARRACKS_LINES.has('anchor') && !BARRACKS_LINES.has('aft') && ids.includes('anchor'), JSON.stringify({ anchor: BARRACKS_LINES.has('anchor'), aft: BARRACKS_LINES.has('aft') }));
+      assert(kept.length === BARRACKS_LINES.size && kept.every(id => BARRACKS_LINES.has(id)), JSON.stringify({ kept: kept.length, size: BARRACKS_LINES.size }));
     },
   },
 ];

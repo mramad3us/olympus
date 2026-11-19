@@ -25,6 +25,8 @@
 // their use, the kinds are the barracks' and the base's (the military catalogue grows with each
 // template), seats and staff spots wait for booking (0.0.5) and PEOPLE's posts (0.0.9).
 //
+// v0.0.25 adds the Wreck's (the build sheet v0.0.25 §1 A): the trunk's scuttle (mount 'deck', or 'deckhead' by its fixture), the
+// 1MC's speaker (mount 'deckhead'), the hold's cargo stack and the brig's couch rack, both deck to deckhead (2.2 m).
 // 0.0.6 adds the barber's pole (barberPole: on its own stand, 0.36 m square, its one spot 0.65 m beside it,
 // used for 'haircut'; the PX's chairs wait for its building, PLACES §4.13).
 // 0.0.3 (the build sheet 0.0.3 §2.1) adds the building's own kinds: wallClock (hung on a wall, or
@@ -123,6 +125,16 @@ export const CATALOGUE = Object.freeze({
   // faces you (the door's side by the PX), facing it, so the pole never stands between you and the camera; it hides
   // nobody: my calls)
   barberPole: K(0.36, 0.36, 2.2, true, false, ['haircut'], [S(1, 0.65, 0, 'haircut', 'left')], null, { sightH: 0 }),
+  // (the Wreck's (the build sheet v0.0.25 §1 A; PLACES §5.4, §5.7): a ship's compartment of 2.2 m, every standing piece
+  // deck to deckhead, so one grid serves a body on the deck and one inverted on the deckhead. The trunk's scuttle, mounted in the
+  // deck or the deckhead (its fixture's `mount` says which; 'deck' its kind's), a hole Ø 0.8 m with its coaming, stopping nobody
+  // (shut, it is deck to stand on; the transit through it is the trunk's, src/sim/places/hatch.js); the 1MC's speaker under a
+  // deckhead (where the cadre's and the 1MC's bubbles are drawn); the hold's cargo stacked and lashed deck to deckhead; the brig's
+  // berth couches racked on end deck to deckhead. My calls: the sizes, and the couches' rack a rack3's footprint and frame)
+  scuttle: K(0.8, 0.8, 0.1, false, false, [], [], 'deck'),
+  speaker: K(0.2, 0.2, 0.1, false, false, [], [], 'deckhead'),
+  cargo: K(1.2, 1.2, 2.2, true, false, []),
+  berthRack: K(0.95, 2.05, 2.2, true, true, ['store']),
 });
 
 /** The catalogue's kinds, in its order. */
@@ -171,7 +183,11 @@ export function spotsOf(fx) {
 /** Every spot of an area's fixtures, in the fixtures' order. */
 export const spotsOfArea = (area) => (area.fixtures ?? []).flatMap(spotsOf);
 
-/** Where a fixture is mounted: 'wall' or 'desk' (checked by its centre, never by its footprint), else null (on the floor). */
+/**
+ * Where a fixture is mounted: 'wall' or 'desk' (checked by its centre, never by its footprint), from v0.0.25 'deck' (let into the
+ * deck: the trunk's scuttle) or 'deckhead' (under the deckhead: a scuttle overhead, the 1MC's speaker), else null (standing on the
+ * floor). A mounted piece hides nobody from the sight grid (sightHOf 0) and stops no walker unless its kind blocks.
+ */
 export const mountOf = (fx) => fx.mount ?? kindOf(fx.kind).mount;
 
 /**

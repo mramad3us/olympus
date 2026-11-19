@@ -18,6 +18,11 @@
 //   - in Pairs the head called for is the line's row, its key 4 (the question of 2026-11-14: one panel model, the head made plain);
 //   - the keys card names the layout played (C: the five and the core, Tab; no B banks), the menu's toggle C ⇄ A (P2 dropped);
 //   - under --ui 1 a tile says one word (P3's small views: Stack, Point, Open, Kick, Enter).
+// v0.0.25 (its build sheet §1 E; the carried lens §3.3): the cases over the lanes' stops (allStops) read the five lanes on 48213 quick,
+// and one heavy case runs every one of them again over both seeds (1489397426's five lanes too), each case unchanged: the file was
+// over its quick CPU line alone (5.8 s against 4.7 s × k), its ten lanes about half of it. "What is done stays on its key" asks for
+// more than ten door stops with a door opened, which 48213's five lanes give nine of (1489397426's another nine): it is heavy whole,
+// on both seeds as before, run in the heavy case with the rest (stops 'all').
 import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { houseKeysBot, houseHonestBot, runHouse } from './bots/house.mjs';
@@ -52,16 +57,24 @@ function laneStops(tier, seed, bot) {
   } });
   return out;
 }
-let memo = null;
-const allStops = () => (memo ??= [
-  ...[48213, 1489397426].flatMap(seed => ['recruit', 'private'].map(t => laneStops(t, seed, houseKeysBot()))).flat(),
-  ...[48213, 1489397426].flatMap(seed => ['cpl', 'sgt', 'tierone'].map(t => laneStops(t, seed, houseHonestBot()))).flat(),
-]);
+/** v0.0.25: the seeds the lanes' stops are read on (see the header): 48213 for the quick cases, both in the heavy case. */
+export const STOP_SEEDS_QUICK = Object.freeze([48213]), STOP_SEEDS_ALL = Object.freeze([48213, 1489397426]);
+let stopSeeds = STOP_SEEDS_QUICK;
+const memo = new Map();
+const allStops = () => {
+  const k = stopSeeds.join(',');
+  if (!memo.has(k)) memo.set(k, [
+    ...stopSeeds.flatMap(seed => ['recruit', 'private'].map(t => laneStops(t, seed, houseKeysBot()))).flat(),
+    ...stopSeeds.flatMap(seed => ['cpl', 'sgt', 'tierone'].map(t => laneStops(t, seed, houseHonestBot()))).flat(),
+  ]);
+  return memo.get(k);
+};
 // (a row, as stepsOf gives it, for the model's own tests)
 const R = (id, kind = 'single', extra = {}) => ({ id, kind, label: id, ms: 500, ...extra });
 
-export default [
+const CASES = [
   {
+    stops: true,
     name: 'AT THE DOOR\'s five is P3-j\'s on every lane (the build sheet v0.0.20 item 5; the user, 2026-11-11: "always visible and accessible (even if grayed out)"): Stack up 1, Stack up and take point 2, Open 3, Kick door 4, Breach 5, struck "not issued" with the issue badge on the standard lane and live on the breach lane, the same key in both; Enter on Tab › 2 › 7 (re-pinned on purpose: v0.0.17 had Enter on 5, v0.0.19 Enter on 5 but on a breaching lane)',
     fn() {
       const rows = [];
@@ -83,6 +96,8 @@ export default [
     },
   },
   {
+    stops: 'all',
+    heavy: true,
     name: 'what is done stays on its key, ticked (VIEWS §7.8.1\'s ✓; P3 drew "Stack up ✓"): stacked on the door, Stack up and Stack up and take point struck "already stacked" with the done badge, and Read the door "already read" once read; nothing on the five goes blank after a choice at the same door',
     fn() {
       const stops = allStops().filter(x => x.model.situation.id === 'door' && x.steps.some(s => /^door:(push|pull|kick)>/.test(s.id)));
@@ -97,6 +112,7 @@ export default [
     },
   },
   {
+    stops: true,
     name: 'nothing on the five goes blank at the same situation once done: the hall\'s end reached keeps To the next door struck "already there", Challenge once his hands are seen "already seen", and a door opened outside it Stack up and take point, Open and Kick door "already open" (the audit found 12 such blanks on 24 lanes: the hall\'s walk done, the challenge given, the tier one\'s room 3 opened under him)',
     fn() {
       const list = allStops(), bad = [], seen = {};
@@ -120,6 +136,7 @@ export default [
     },
   },
   {
+    stops: true,
     name: 'an inner door keeps the room\'s keys (Watch 1, To your point 2, "Clear!" 3), its Hold it and Clear it on 4 and 5 (they moved "Clear!" from 3 to 4 and Watch from 1 to 3 as the door was seen); in the bots\' lanes no row changes its key between the room and its inner door',
     fn() {
       const room = [R('watch:r2:ne', 'watch'), R('move:point', 'move'), R('call:clear', 'call'), R('call:out', 'call'), R('move:next', 'move')];
@@ -143,6 +160,7 @@ export default [
     },
   },
   {
+    stops: true,
     name: 'the hall\'s leg, with no door, is named THE HALL on the band, its five on AT THE DOOR\'s keys (the hall\'s entry on 5); a door\'s leg keeps AT THE DOOR (it said AT THE DOOR in the hall); inside it, IN THE HALL, the rooms\' IN THE ROOM (it said IN THE ROOM down the hall)',
     fn() {
       const list = allStops().filter(x => x.model.situation.id === 'door'), hall = list.filter(x => x.leg === 3), rooms = list.filter(x => x.leg < 3);
@@ -155,6 +173,7 @@ export default [
     },
   },
   {
+    stops: true,
     name: 'the DI is never silent at a choice on the lane (the standing rule: never a dead end): a line fires at every stop of the keys and honest lanes on two seeds, with the private aimed at his #2\'s man in room 3 ("your two\'s; yours: your point") and the recruit bracketed on his #2\'s rifle with his own man\'s hands unseen ("hands not seen; on him") (both were silent, NEXT empty)',
     fn() {
       const list = allStops(), silent = list.filter(x => !x.fired.length);
@@ -164,6 +183,7 @@ export default [
     },
   },
   {
+    stops: true,
     name: 'the line names its row (line.row: its act\'s, or the head, the press, Breathe its words name with no act), and that row\'s own keys on the panel drawn reach it at every stop; "Rifle. Pair." names the pair (the sergeant\'s lit the failure drill on 3), "Press." a shot or Fire',
     fn() {
       const list = allStops(), bad = [], counts = {};
@@ -242,6 +262,24 @@ export default [
       ];
       console.log(`      ${w.join(' · ')}`);
       assert(w.join('|') === 'Stack|Point|Open|Kick|Enter|Watch|Point|Clear!|Off safe|High|IA|Rifle', w.join('|'));
+    },
+  },
+];
+// (a run with the stops read on a set of seeds; and the stops of a set of seeds, as allStops reads them)
+function withSeeds(seeds, fn) { const was = stopSeeds; stopSeeds = seeds; try { return fn(); } finally { stopSeeds = was; } }
+const allStopsOf = (seeds) => withSeeds(seeds, allStops);
+
+export default [
+  // (a case over both seeds' stops (stops 'all') reads both, as it did before v0.0.25)
+  ...CASES.map(c => (c.stops === 'all' ? { ...c, fn: () => withSeeds(STOP_SEEDS_ALL, c.fn) } : c)),
+  {
+    name: 'every case over the lanes\' stops above, again over both seeds (48213 and 1489397426: ten lanes; heavy from v0.0.25, the quick cases on 48213\'s five, each case unchanged)',
+    heavy: true,
+    timeoutMs: 600_000,
+    fn() {
+      const cases = CASES.filter(c => c.stops && c.stops !== 'all');
+      withSeeds(STOP_SEEDS_ALL, () => { for (const c of cases) { console.log(`      ${c.name.slice(0, 60)}…`); c.fn(); } });
+      console.log(`      ${cases.length} quick cases again, over ${allStopsOf(STOP_SEEDS_ALL).length} stops on both seeds (${allStopsOf(STOP_SEEDS_QUICK).length} on 48213)`);
     },
   },
 ];

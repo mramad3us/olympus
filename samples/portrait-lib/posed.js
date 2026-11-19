@@ -18,7 +18,7 @@
 import { doll } from '../../src/art/doll/doll.js';
 import { dressOf, dressedDoll } from '../../src/art/doll/dress.js';
 import { maskOf } from '../../src/art/doll/portrait.js';
-import { paintHitcard, figGeom, figAt, bandOf, wordsRows, WORDS_K, WORDS_ROW_PX, CARD_W, HIT_C, MAN_GROUNDS } from '../../src/art/doll/hitcard.js';
+import { paintHitcard, figGeom, figAt, bandOf, wordsRows, WORDS_K, WORDS_ROW_PX, CARD_W, HIT_C, MAN_GROUNDS, MAN_GROUND_BY_BAND, MAN_GROUND_PICKS } from '../../src/art/doll/hitcard.js';
 import { mix } from '../../src/art/doll/grid.js';
 import { word } from '../../src/art/paint.js';
 import { glyphOf } from '../../src/art/font.js';
@@ -53,14 +53,15 @@ const DOT = Object.freeze(['0', '0', '1', '0', '0']);
  * A man's target card composed from a doll (paintHitcard's geometry for a man in his own colours, written here; see the header):
  * a Pixmap { w, h, data }. pm: the doll at the band's scale (figGeom(band.pxPerM).scale); ground: MAN_GROUNDS' key.
  */
-export function manCardOf(pm, { rangeM = 4, words = '', size = CARD_W, ground = 'dark' } = {}) {
+export function manCardOf(pm, { rangeM = 4, words = '', size = CARD_W, ground = null } = {}) {
   const band = bandOf(rangeM), G = figGeom(band.pxPerM), S = size, W = S, H = S, col = new Int32Array(W * H), data = new Uint32Array(W * H);
   const r = Math.round, put = (x, y, c) => { x = r(x); y = r(y); if (x >= 0 && y >= 0 && x < W && y < H) col[y * W + x] = c; };
   const rect = (x, y, w, h, c) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, c); };
   const write = (x, y, str, c, k = 1) => { for (const ch of String(str).toUpperCase()) { const g = ch === '·' ? DOT : glyphOf(ch); g.forEach((row, j) => [...row].forEach((b, i) => { if (b === '1') rect(x + i * k, y + j * k, k, k, c); })); x += (g[0].length + 1) * k; } return x; };
   const rows = wordsRows({ words }, S), figH = H - rows.h, mask = maskOf(pm, G.scale);
   const shift = r(pm.anchors?.drop ?? 0), at = figAt(band.pxPerM, S, pm.w), r0 = G.rows[0] + shift, r1 = Math.max(r0 + 1, Math.min(G.rows[1] + shift, r0 + figH - at.y));
-  const lift = MAN_GROUNDS[ground] ?? 0;
+  // (the game's ground by the band when none is given (v0.0.25: hitcard.js MAN_GROUND_BY_BAND), so the composed card is the game's)
+  const lift = MAN_GROUNDS[ground ?? MAN_GROUND_PICKS[MAN_GROUND_BY_BAND[bandOf(rangeM).id]] ?? 'dark'] ?? 0;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) col[y * W + x] = y >= figH ? HIT_C.glass : mix(mix(HIT_C.board, 0x3a3c45, y / figH * 0.6), HIT_C.khakiShade, lift);
   for (let y = r0; y < Math.min(r1, pm.h); y++) for (let x = 0; x < pm.w; x++) {
     const i = y * pm.w + x;
@@ -78,8 +79,8 @@ export function manCardOf(pm, { rangeM = 4, words = '', size = CARD_W, ground = 
 }
 
 /** A record's target card (see the header): paintHitcard's with the man as its subject, or manCardOf's for a bend. */
-export function cardOf({ gear, person, rec, bend = null, rangeM = 4, words = '', size = CARD_W, ground = 'dark' }) {
-  if (!bend) return paintHitcard({ subject: { kind: 'man', rec, person, ground }, rangeM, words, size });
+export function cardOf({ gear, person, rec, bend = null, rangeM = 4, words = '', size = CARD_W, ground = null }) {
+  if (!bend) return paintHitcard({ subject: { kind: 'man', rec, person, ...(ground ? { ground } : {}) }, rangeM, words, size });
   const scale = figGeom(bandOf(rangeM).pxPerM).scale;
   return manCardOf(dollOf(gear, person, scale, rec, bend), { rangeM, words, size, ground });
 }

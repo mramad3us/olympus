@@ -33,6 +33,7 @@
 // before v0.0.24, or none of your rounds at it) is not engaged and has no card.
 
 // (the rooms' role's laneWordOf read by name, so the paper is v0.0.21's until it is exported)
+import { WRECK_LEGS } from '../../data/courses.js';
 import * as ASSEMBLE from '../../sim/scenes/assemble.js';
 import { gearOf } from '../../sim/arms/gear.js';
 import { seenKey, standSeen } from '../../sim/people/seen.js';
@@ -118,7 +119,7 @@ export function rowParts(words) {
  * The run sheet as the instructor's paper: an element ({ className 'runsheet' }) whose data-text is every line in order (the
  * card's line first, then each room's), or null. rs: runSheetOf(state) ({ rows: [{ room, words }], card, one?, spinLine?, practised? }).
  */
-export function runSheetEl(rs, { doc = globalThis.document, bars = null, lane = null } = {}) {
+export function runSheetEl(rs, { doc = globalThis.document, bars = null, lane = null, place = null } = {}) {
   if (!rs || !doc) return null;
   const el = (tag, props = {}, ...kids) => { const n = Object.assign(doc.createElement(tag), props); for (const k of kids.flat()) if (k !== null && k !== undefined && k !== false) n.append(k); return n; };
   // (the play review: each room's missed par says its cause, "BASIC MISSED (SEEN LATE)", from the hot wash's bars
@@ -133,7 +134,7 @@ export function runSheetEl(rs, { doc = globalThis.document, bars = null, lane = 
   // (a named house's letter where the card says NEW LAYOUT)
   const card0 = typeof rs.card === 'string' ? rs.card : rs.card?.words ?? rs.card?.text ?? null, card = lane && card0 ? card0.replace(/\bNEW LAYOUT\b/, `LANE ${lane}`) : card0, one = typeof rs.one === 'string' ? rs.one : rs.one?.text ?? null;
   const body = el('div', { className: 'runsheet' },
-    el('div', { className: 'rs-title' }, el('span', { textContent: 'RUN SHEET' }), el('span', { className: 'rs-lane', textContent: lane ? `LANE ${lane} · THE WHEEL · HOUSE 1` : rs.lane ? `LANE ${rs.lane}` : 'THE WHEEL · HOUSE 1' })),
+    el('div', { className: 'rs-title' }, el('span', { textContent: 'RUN SHEET' }), el('span', { className: 'rs-lane', textContent: place ?? (lane ? `LANE ${lane} · THE WHEEL · HOUSE 1` : rs.lane ? `LANE ${rs.lane}` : 'THE WHEEL · HOUSE 1') })),
     card ? el('p', { className: 'rs-card', textContent: card }) : null,
     ...rows,
     // (the team's row under the rooms', its marks split as a room's are)
@@ -231,7 +232,8 @@ export function houseAspects(hn, { fmt = two } = {}) {
   const pause = (p) => (!p?.n ? 'no contact taken in' : `${p.n} taken in, ${fmt(p.minMs)}${p.maxMs !== p.minMs ? ` to ${fmt(p.maxMs)}` : ''} s${Number.isFinite(p.firstMinMs) ? ` · the first round ${two(p.firstMinMs)} s from the sighting at the quickest` : ''}`);
   const drill = (d) => {
     // (each leg named by its place in the lane before the untimed ones go (a room a setup cleared has none): the hunt of v0.0.20, P3)
-    const legs = (d?.legs ?? []).map((l, i) => ({ ...l, word: i < 3 ? `room ${i + 1}` : 'hall' })).filter(l => Number.isFinite(l.ms));
+    // (a leg that names itself (the Wreck's "cell 2", "the hold") by its own word)
+    const legs = (d?.legs ?? []).map((l, i) => ({ ...l, word: l.word ? String(l.word).toLowerCase() : i < 3 ? `room ${i + 1}` : 'hall' })).filter(l => Number.isFinite(l.ms));
     const how = (l) => { const h = l.how ?? {}; const ks = Object.entries(h).filter(([, n]) => n > 0).map(([k, n]) => `${k} ${n}`); return ks.length ? ` (${ks.join(', ')})` : ''; };
     return `${legs.map(l => `${l.word} ${two(l.ms)} s, ${l.presses ?? 0} press${l.presses === 1 ? '' : 'es'}${how(l)}`).join(' · ')}${Number.isFinite(d?.presses) ? ` · ${d.presses} presses in all` : ''}`;
   };
@@ -245,11 +247,16 @@ export function houseAspects(hn, { fmt = two } = {}) {
   const team = (t) => [t.words ? t.words.replace(/^TEAM · /, '').toLowerCase() : null, Number.isFinite(t.fired) ? `his rounds ${t.fired}, ${t.hits ?? 0} hit` : null].filter(Boolean).join(' · ');
   const panel = (p) => `${p.presses ?? 0} press${p.presses === 1 ? '' : 'es'}: ${p.keys ?? 0} by the keys, ${p.rows ?? 0} by a row${p.layout ? ` · panel ${String(p.layout).toUpperCase()}` : ''}`;
   const feel = (f) => [`walk ${f.cycle ?? 'B'}`, f.look ? `look ${Object.entries(f.look).filter(([, v]) => v !== null && v !== undefined && !(Array.isArray(v) && !v.length)).map(([k, v]) => `${k}:${Array.isArray(v) ? v.join('+') : v}`).join(',') || 'as built'}` : 'look as built'].join(' · ');
-  const say = { pause: (v) => w(v) ?? pause(v), drill: (v) => w(v) ?? drill(v), team: (v) => team(v), panel: (v) => w(v) ?? panel(v), shots: (v) => w(v) ?? shots(v), feel: (v) => w(v) ?? feel(v) };
-  return HOUSE_ASPECTS.filter(k => a[k] !== undefined && a[k] !== null).map(k => [k, say[k](a[k])]).filter(([, t]) => t);
+  // (the Wreck's anchor: "fired floating none · first rounds: braced (#2) 1, mag boots 3")
+  const anchor = (an) => [`fired floating ${an.floating ? an.floating : 'none'}`, Object.keys(an.first ?? {}).length ? `first rounds: ${Object.entries(an.first).map(([k, n]) => `${ANCHOR_WORDS[k] ?? k} ${n}`).join(', ')}` : null].filter(Boolean).join(' · ');
+  const say = { anchor: (v) => w(v) ?? anchor(v), pause: (v) => w(v) ?? pause(v), drill: (v) => w(v) ?? drill(v), team: (v) => team(v), panel: (v) => w(v) ?? panel(v), shots: (v) => w(v) ?? shots(v), feel: (v) => w(v) ?? feel(v) };
+  // (the Wreck's anchor first, where houseNow gives one (never on the house))
+  return [...(a.anchor ? ['anchor'] : []), ...HOUSE_ASPECTS].filter(k => a[k] !== undefined && a[k] !== null).map(k => [k, say[k](a[k])]).filter(([, t]) => t);
 }
 /** "Stack and clear"'s aspects, in the score card's order (scenes.js; v0.0.20: six, from three). */
 export const HOUSE_ASPECTS = Object.freeze(['pause', 'drill', 'team', 'panel', 'shots', 'feel']);
+// (the anchor's words on the end card (shoothouse.js roundAnchor's rows))
+const ANCHOR_WORDS = Object.freeze({ buddy: 'braced (#2)', braced: 'braced', magBoots: 'mag boots', handhold: 'a hand on a hold', floating: 'floating', planted: 'planted', light: 'standing light' });
 
 /**
  * The session's sheets side by side on one seed (card C6; "Bang"'s gridTable form): { cols: [label], rows: [{ word, cells:
@@ -317,7 +324,7 @@ export function truthRows(state) {
       subject = { kind: 'board', key: `${rec.face}|${F.holds ?? T.holds}|truth`, face: F.face ?? T.face, holds: F.holds ?? T.holds, rec };
     }
     const belief = { face: F.read?.face ?? null, holds: F.read?.holds ?? null };
-    out.push({ key: T.key, stand: T.stand, leg, firstMs: Number.isFinite(F.ms) ? F.ms - goAt : null, live, subject, belief, words: `READ ${READ_WORDS[belief.holds] ?? String(belief.holds ?? '-').toUpperCase()}` });
+    out.push({ key: T.key, stand: T.stand, leg, ...(H.ship === 'wreck' && WRECK_LEGS[leg] ? { legWord: WRECK_LEGS[leg].word } : {}), firstMs: Number.isFinite(F.ms) ? F.ms - goAt : null, live, subject, belief, words: `READ ${READ_WORDS[belief.holds] ?? String(belief.holds ?? '-').toUpperCase()}` });
   }
   return out.sort((a, b) => (a.firstMs ?? Infinity) - (b.firstMs ?? Infinity) || a.leg - b.leg);
 }
@@ -341,7 +348,7 @@ export function truthRowEl(rows, { doc = globalThis.document, modelOf = null, pa
     const pm = paint({ ...m, size }), cv = el('canvas', { width: pm.w, height: pm.h });
     cv.style.cssText = `width: ${pm.w}px; height: ${pm.h}px; image-rendering: pixelated; display: block;`;
     cv.getContext('2d')?.putImageData(new globalThis.ImageData(new Uint8ClampedArray(pm.data.buffer.slice(0)), pm.w, pm.h), 0, 0);
-    const head = `${legWord(r.leg)} · ${String(r.stand).toUpperCase()}${Number.isFinite(r.firstMs) ? ` · ${(Math.max(0, r.firstMs) / 1000).toFixed(1)} S` : ''} · ${r.words}`;
+    const head = `${r.legWord ?? legWord(r.leg)} · ${String(r.stand).toUpperCase()}${Number.isFinite(r.firstMs) ? ` · ${(Math.max(0, r.firstMs) / 1000).toFixed(1)} S` : ''} · ${r.words}`;
     const cap = el('figcaption', { className: 'truth-head', textContent: head });
     cap.style.cssText = `${small} width: ${pm.w}px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;`;
     cap.title = head;

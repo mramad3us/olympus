@@ -388,9 +388,20 @@ export function lampPost(k, o) {
 
 // ---------- door leaves ----------
 
-const LEAVES = { interior: 0x7c7f86, ext: 0x565b67, office: 0x8c6d59 };
-/** A leaf's face: the slab, its edge lines, a kick plate, the handle at the free edge (right), a vision panel by make. */
-const leafFace = (make, flip) => tex(`leaf:${make}:${flip}`, (px, w, h, ppm) => {
+const LEAVES = { interior: 0x7c7f86, ext: 0x565b67, office: 0x8c6d59, hatch: 0x6d757f };
+// (the Wreck's bulkhead hatch, `samples/wreck-faces`' B-a until scored: a ship's steel leaf with its corners rounded
+// off and four dogs, two a side, at a quarter and three quarters of its height, no kick plate and no handle: the dogs are its)
+const hatchFace = (flip) => tex(`leaf:hatch:${flip}`, (px, w, h, ppm) => {
+  const c = LEAVES.hatch, r = Math.max(1, P(0.08, ppm, 1)), dw = Math.max(2, P(0.07, ppm, 2)), dh = Math.max(1, P(0.04, ppm, 1));
+  paintedSteel(px, 0, 0, w, h, { c, ppm, seed: 8 });
+  bevel(px, 0, 0, w, h, c, 1.3);
+  for (const [x, y] of [[0, 0], [w - r, 0], [0, h - r], [w - r, h - r]]) px(x, y, r, r, null);
+  for (const t of [0.25, 0.75]) for (const x of [1, w - 1 - dw]) { const y = Math.round(t * h); px(x, y, dw, dh, C.steel); px(x, y + dh, dw, 1, tone(C.steel, -0.35)); }
+  void flip;
+});
+/** A leaf's face: the slab, its edge lines, a kick plate, the handle at the free edge (right), a vision panel by make (the 'hatch' make, v0.0.25, its own). */
+const leafFace = (make, flip) => (make === 'hatch' ? hatchFace(flip) : leafFaceOf(make, flip));
+const leafFaceOf = (make, flip) => tex(`leaf:${make}:${flip}`, (px, w, h, ppm) => {
   const c = LEAVES[make] ?? LEAVES.interior;
   if (make === 'office') { px(0, 0, w, h, c); for (let i = 1; i < w; i += Math.max(3, Math.round(0.12 * ppm))) px(i, 0, 1, h, tone(c, (hash3(i, 7) % 3 - 1) * 0.03)); }
   else paintedSteel(px, 0, 0, w, h, { c, ppm, seed: 6 });

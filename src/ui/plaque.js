@@ -54,6 +54,10 @@
 // figure, every bubble placed before it in the frame and the HUD's rectangles (main.js speakerHud); a bubble with no free place is
 // not drawn (the radio box shows every line whole). A speaker with no body on the stage (a loudspeaker: the 1MC, a tower's horn)
 // is anchored at the fact's `at` ({ x, z, y? }) where it gives one, else he has the radio box alone.
+// v0.0.25 (its build sheet §1 E, the carried lens's C3; v0.0.23's play review 9 and question 22): NO PLATE OVER ANOTHER. In the house
+// each plate naming a target was slid off the room on its own, so the row's plate ("PAIR, MOVING ON") could slide onto the shot's
+// plaque ("TORSO SURE") under it. place() keeps the frame's slid plates (PLATES, emptied by each keepOff) and slides each new one off
+// them too; slideRect stacks a plate below one it would meet (its x kept, 'stacked'), else slides as before, never onto a plate.
 import { glyphOf } from '../art/font.js';
 import { glyph57, width57 } from '../art/kit/type.js';
 import { GLOWS } from '../art/palette.js';
@@ -255,9 +259,12 @@ export function place(el, p, x, y, k, anchor = 'tip', { ox = 0, oy = 0 } = {}) {
   let ax = anchor === 'tip' ? x - p.tip : anchor === 'right' ? x - p.w : anchor === 'centre' ? x - p.w / 2 : x;
   let ay = anchor === 'tip' ? y - p.h : anchor === 'centre' ? y - p.h / 2 : y - Math.floor(p.h / 2);
   // (off the room, in the house (keepOff), a plate naming a target slides; the brackets and stamps stand where they mark)
+  // (and off the plates placed before it in the frame (PLATES), stacked below one it would meet: slideRect)
   if (KEEP && SLIDES.test(el.className ?? '') && !NO_SLIDE.test(el.className ?? '')) {
-    const r = slideRect({ x: ax, y: ay, w: p.w, h: p.h }, KEEP.boxes, { bounds: KEEP.bounds, reserved: KEEP.reserved });
+    PLATES.delete(el);
+    const r = slideRect({ x: ax, y: ay, w: p.w, h: p.h }, [...KEEP.boxes, ...PLATES.values()], { bounds: KEEP.bounds, reserved: KEEP.reserved });
     ax = r.x; ay = r.y; el.dataset.slid = r.how;
+    PLATES.set(el, { x: ax, y: ay, w: p.w, h: p.h, who: 'plate', plate: true });
   } else if (el.dataset?.slid) delete el.dataset.slid;
   el.style.transform = `translate(${Math.round(ox + Math.round(ax) * k)}px, ${Math.round(oy + Math.round(ay) * k)}px)`;
 }
@@ -613,14 +620,16 @@ export const SPEAKER_MARK_PX = 3, BALLOON_WORDS_MAX = 2, CALL_BALLOON_MS = 1200,
 export const MARK_ABOVE_PX = 8;
 // (the plates that slide off the room, and those that never do)
 const SLIDES = /\b(reticle|contact|parts|terms)\b/, NO_SLIDE = /\b(bracket|stamp|farlabel|window)\b/;
-let KEEP = null;
-/** The frame's keep-off: { boxes: [{ x, y, w, h }] (picture px: figures, stands, the room's floor, the panel and the radio box), bounds, reserved } or null (off the house: nothing slides). */
-export function keepOff(spec) { KEEP = spec && Array.isArray(spec.boxes) ? spec : null; }
+let KEEP = null, PLATES = new Map();
+/** The frame's keep-off: { boxes: [{ x, y, w, h }] (picture px: figures, stands, the room's floor, the panel and the radio box), bounds, reserved } or null (off the house: nothing slides). Each call begins a frame: the plates placed in it are kept off one another (v0.0.25, C3). */
+export function keepOff(spec) { KEEP = spec && Array.isArray(spec.boxes) ? spec : null; PLATES = new Map(); }
 /** Whether a line is a call for the balloon: at most BALLOON_WORDS_MAX words. */
 export const isCall = (text) => { const n = String(text ?? '').trim().split(/\s+/).filter(Boolean).length; return n > 0 && n <= BALLOON_WORDS_MAX; };
 const fadeK = (t, from, to) => clamp01(Math.min((t - from) / MARK_FADE_MS, (to - t) / MARK_FADE_MS));
 /** v0.0.24: a bubble's rows at most this wide (picture px: about twenty letters of the 5 × 7 alphabet) and this many rows a page; its foot within BUBBLE_ABOVE_PX over its speaker's head (a man in a stack has another's head close over his). */
 export const BUBBLE_ROW_PX = 116, BUBBLE_ROWS = 3, BUBBLE_ABOVE_PX = 20;
+/** How far up a line heard at a place (its `at`, not a body) may go for a free row (picture px; v0.0.25's fixer, my call). */
+export const BUBBLE_AT_REACH_PX = 60;
 /**
  * A line's bubble pages (pure, see the header): [{ rows: [text], share (of the line's words, 0 to 1), fromShare }], its words wrapped
  * to rows of at most BUBBLE_ROW_PX in the 5 × 7 alphabet (a word wider than a row alone on its row, cut to it), BUBBLE_ROWS a page.
@@ -676,8 +685,20 @@ const SIZES_KEPT = new Map();
  * CALL_BALLOON_MS (v0.0.24: the ◉ of a longer line is retired), a long line paged by its words' share of that time.
  */
 export function speakerMarks(says, nowMs, { who = null } = {}) {
+  // (the play review of "Hold to hold", the cadre's two lines of tick 1, the brief's first never shown: a speaker's lines said on one
+  // tick follow each other, each from the end of the one before it; a line said later still takes over from any of them)
+  const by = new Map();
+  for (const x of says ?? []) if (x && x.who && Number.isFinite(x.atMs) && x.atMs <= nowMs && (!who || who.includes(x.who))) { if (!by.has(x.who)) by.set(x.who, []); by.get(x.who).push(x); }
   const last = new Map();
-  for (const x of says ?? []) if (x && x.who && Number.isFinite(x.atMs) && x.atMs <= nowMs && (!who || who.includes(x.who))) { const o = last.get(x.who); if (!o || x.atMs >= o.atMs) last.set(x.who, x); }
+  for (const [w, list] of by) {
+    let prevAt = null, prevEnd = 0, cur = null;
+    for (const x of [...list].sort((a, b) => a.atMs - b.atMs)) {
+      const startMs = x.atMs === prevAt ? prevEnd : x.atMs, durMs = Math.max(CALL_BALLOON_MS, Number(x.spokenMs) || 0);
+      prevAt = x.atMs; prevEnd = startMs + durMs;
+      if (startMs <= nowMs) cur = { ...x, atMs: startMs };
+    }
+    if (cur) last.set(w, cur);
+  }
   const out = [];
   for (const x of last.values()) {
     const durMs = Math.max(CALL_BALLOON_MS, Number(x.spokenMs) || 0), toMs = x.atMs + durMs;
@@ -696,9 +717,11 @@ export function markPixels() {
   b.px(0, 0, 3, 3, INK); b.px(1, 1, 1, 1, AMBER);
   return b;
 }
-// (the two marks a line says that the 5 × 7 alphabet draws blank, drawn in the bubble alone: the alphabet's own pictures are pinned
+// (the marks a line says that the 5 × 7 alphabet draws blank, drawn in the bubble alone: the alphabet's own pictures are pinned
 // by the cards that use it; each as wide as the alphabet's blank, so a row's width is width57's)
-const BUBBLE_GLYPHS = Object.freeze({ ';': Object.freeze(['000', '000', '010', '000', '010', '010', '100']), '?': Object.freeze(['111', '001', '001', '010', '010', '000', '010']) });
+// (and the brackets and the double quote, every key hint's "(D)" drawn "  D " before: the play review)
+const BUBBLE_GLYPHS = Object.freeze({ ';': Object.freeze(['000', '000', '010', '000', '010', '010', '100']), '?': Object.freeze(['111', '001', '001', '010', '010', '000', '010']),
+  '(': Object.freeze(['001', '010', '100', '100', '100', '010', '001']), ')': Object.freeze(['100', '010', '001', '001', '001', '010', '100']), '"': Object.freeze(['101', '101', '000', '000', '000', '000', '000']) });
 /**
  * A line's balloon: its words in the 5 × 7 alphabet on a pale face, an ink outline, a 2 px tail at its foot's middle, { w, h, data, tip }.
  * v0.0.24: a text of several rows (joined by newlines, bubblePages' page) is drawn a row under the other, 2 px apart, each centred.
@@ -718,17 +741,23 @@ export function balloonPixels(text) {
 const meets = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 /**
  * A mark's or balloon's place over a speaker (pure, picture px): its top-left { x, y } within MARK_ABOVE_PX over the head box
- * (head: { x, y, w, h }), clear of every other box (others), trying the rows above the head then a step left or right; null where none is free.
+ * (head: { x, y, w, h }), clear of every other box (others): of the rows above the head within reach, each at five steps (over it, half
+ * a width and a width either side), the nearest free (a row up costs a pixel, a step aside its width: v0.0.25's fixer); null where none is free.
  */
 export function markPlace(head, size, others = [], { bounds = null, reach = MARK_ABOVE_PX } = {}) {
   const cx = head.x + head.w / 2;
   // (inside bounds where given, the picture's: a bubble half off the top of the stage is not a place)
   const inB = (r) => !bounds || (r.x >= bounds.x && r.y >= bounds.y && r.x + r.w <= bounds.x + bounds.w && r.y + r.h <= bounds.y + bounds.h);
-  for (let up = 1; up <= reach; up++) for (const dx of [0, -size.w / 2, size.w / 2, -size.w, size.w]) {
+  // (the nearest free place first, a row up costing a pixel and a step aside its width: v0.0.25's fixer, the play review's bubbles a
+  // whole width beside their speaker in the margin while a row a few pixels higher stood free over him)
+  let best = null, bestC = Infinity;
+  for (let up = 1; up <= reach && up < bestC; up++) for (const dx of [0, -size.w / 2, size.w / 2, -size.w, size.w]) {
+    const c = up + Math.abs(dx);
+    if (c >= bestC) continue;
     const r = { x: Math.round(cx - size.w / 2 + dx), y: Math.round(head.y - up - size.h), w: size.w, h: size.h };
-    if (inB(r) && !others.some(o => meets(r, o))) return { x: r.x, y: r.y };
+    if (inB(r) && !others.some(o => meets(r, o))) { best = { x: r.x, y: r.y }; bestC = c; }
   }
-  return null;
+  return best;
 }
 /**
  * The frame's bubbles placed (pure, v0.0.24; see the header): marks (speakerMarks'), headOf(mark) → the speaker's head box (picture
@@ -742,7 +771,10 @@ export function placeBubbles(marks, { headOf, boxes = [], ui = [], bounds = null
     const head = headOf(m);
     if (!head) continue;
     // (its size alone (balloonSize, kept), never its pixels drawn again each frame: the fixer of v0.0.24's code review)
-    const pix = balloonSize(m.text), at = markPlace(head, { w: pix.w, h: pix.h }, [...boxes.filter(b => b.who !== m.who), ...ui, ...taken], { bounds, reach: BUBBLE_ABOVE_PX });
+    // (a line heard at a place, its `at` (a loudspeaker, your #2's words at the scuttle), reaches BUBBLE_AT_REACH_PX up: a place has no
+    // body of its own to stand over, and the boards round a scuttle left it none in BUBBLE_ABOVE_PX (v0.0.25's fixer, the play review's
+    // "Got you." and "Through." in the radio box alone))
+    const pix = balloonSize(m.text), at = markPlace(head, { w: pix.w, h: pix.h }, [...boxes.filter(b => b.who !== m.who), ...ui, ...taken], { bounds, reach: m.at ? BUBBLE_AT_REACH_PX : BUBBLE_ABOVE_PX });
     if (!at) { unplaced.push(m); continue; }
     // (a pixel's gap kept round each, so two never touch once scaled to the window)
     taken.push({ x: at.x - 1, y: at.y - 1, w: pix.w + 2, h: pix.h + 2, who: 'bubble' });
@@ -754,11 +786,19 @@ export function placeBubbles(marks, { headOf, boxes = [], ui = [], bounds = null
  * A plate slid off the room (pure, any one unit): rect { x, y, w, h } as anchored; boxes the protected ones. Returns { x, y, how }: 'kept'
  * where it covers none, else the nearest of its four sides clear of the boxes it met (above, below, left or right of their union, and
  * of each one: 'slid'), inside bounds where given; failing all, the reserved rect ('reserved'), or where it stood with none ('stuck').
+ * v0.0.25 (C3; v0.0.23's play review 9 and question 22, "PAIR, MOVING ON" over the top of "TORSO SURE"): a box marked `plate` is a
+ * plate placed before it in the frame (place() passes them), and one it would meet stacks it below that plate, its x kept, below the
+ * next it would then meet in turn ('stacked'), where that is clear of every box; else it slides as before, never onto a plate, and the
+ * reserved rect too is stacked below a plate already in it. Before, the plates were slid off the room each on its own, so one could
+ * slide onto another: the row's plate onto the shot's plaque under it.
  */
 export function slideRect(rect, boxes = [], { bounds = null, reserved = null, gap = 2 } = {}) {
   const inB = (r) => !bounds || (r.x >= bounds.x && r.y >= bounds.y && r.x + r.w <= bounds.x + bounds.w && r.y + r.h <= bounds.y + bounds.h);
   const free = (r) => inB(r) && !boxes.some(b => meets(r, b));
   if (free(rect)) return { x: rect.x, y: rect.y, how: 'kept' };
+  const plates = boxes.filter(b => b.plate);
+  const below = (r) => { let at = { ...r }; for (let i = 0; i < plates.length; i++) { const on = plates.find(b => meets(at, b)); if (!on) break; at = { ...at, y: on.y + on.h + gap }; } return at; };
+  if (plates.some(b => meets(rect, b))) { const st = below(rect); if (free(st)) return { x: st.x, y: st.y, how: 'stacked' }; }
   const hit = boxes.filter(b => meets(rect, b)), U = hit.reduce((u, b) => ({ x0: Math.min(u.x0, b.x), y0: Math.min(u.y0, b.y), x1: Math.max(u.x1, b.x + b.w), y1: Math.max(u.y1, b.y + b.h) }), { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity });
   const cands = [];
   const sides = (u) => [{ ...rect, y: u.y0 - rect.h - gap }, { ...rect, y: u.y1 + gap }, { ...rect, x: u.x0 - rect.w - gap }, { ...rect, x: u.x1 + gap }];
@@ -767,7 +807,8 @@ export function slideRect(rect, boxes = [], { bounds = null, reserved = null, ga
   let best = null, bestD = Infinity;
   for (const c of cands) { if (!free(c)) continue; const d = Math.hypot(c.x - rect.x, c.y - rect.y); if (d < bestD) { bestD = d; best = c; } }
   if (best) return { x: best.x, y: best.y, how: 'slid' };
-  return reserved ? { x: reserved.x, y: reserved.y, how: 'reserved' } : { x: rect.x, y: rect.y, how: 'stuck' };
+  if (reserved) { const r = below({ ...rect, x: reserved.x, y: reserved.y }); return { x: r.x, y: r.y, how: 'reserved' }; }
+  return { x: rect.x, y: rect.y, how: 'stuck' };
 }
 /** The speaker's mark on a canvas (markPixels' record with its canvas, its tip its middle). */
 export const speakerMark = () => keep('m|speaker', () => ({ ...markPixels(), tip: 1, words: 'speaking' }));

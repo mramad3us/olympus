@@ -1,4 +1,5 @@
-// OLYMPUS tests: env-noregress, F100 (the build sheet v0.0.24 §2 step 1, §8's F97, shifted by three: the anywhere note's V0), nothing moves at Mars and the Wheel.
+// OLYMPUS tests: env-noregress, F100 (the build sheet v0.0.24 §2 step 1, §8's F97, shifted by three: the anywhere note's V0), nothing moves at Mars and the Wheel;
+// and F124 (the build sheet v0.0.25 §2 step 1, §8): nothing of v0.0.24 moves through "Hold to hold" but E's two named re-records.
 //
 // The anywhere round (the footing, free fall, gravity events, the two scenes off Mars) adds code that every mover, every roll
 // and every pull reads, and promises that none of it moves a byte where the gravity holds the feet: at 0.3 G and up every body
@@ -18,11 +19,18 @@
 // The scene digests were recorded on v0.0.23's integrated tree (.run/v024/v023-snapshot.tree efa558b2) before any v0.0.24 edit,
 // by .run/v024/lead-figures/scripts/scene-digests.mjs (PRINT_HASH=1 here prints them to paste). A digest that moves is a
 // regression of the anywhere round until its cause is named (a move at Mars or the Wheel is never this round's to make).
+// v0.0.25's stage 0 (F124, its build sheet §2 step 1): the same set is the Wreck round's, on v0.0.24's integrated snapshot (62b0d902,
+// every digest above unmoved there, test-anchors and test-burn among them), with two more held: gear-void (the keys' digest
+// 0f092f7f7710a3 on the steel copy) among the suites, and void-house's steel copy itself (the sergeant's T on house 1 at 0 G in mag
+// boots, every leg clear in STEEL_COPY's 107.55 s, the same operation at 1 G in 47.65 s), which the Wreck's body and beats (B) must
+// leave to the millisecond where the ship is absent; tests/saves/v0.0.24-*.json.gz are game-upgrade's. E's two re-records
+// (house-pin-drawn, seen-lookkeys.json) are named in .run/v025/lead.md with each cell's cause.
 import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { PRINT_HASH } from './golden.mjs';
 import { SCENES, STARTS } from '../src/data/scenes.js';
 import housePin from './house-pin.test.mjs';
+import { steelLane } from './flawless-void.mjs';
 
 /** Every shipped scene at 1,000 ticks on 48213 with no keys: id → the save's digest (the snapshot's, before stage 0). */
 export const SCENE_DIGESTS = Object.freeze({
@@ -40,8 +48,20 @@ export const SCENE_DIGESTS = Object.freeze({
   sandbox: '041066a9e6c2e3',
   // (v0.0.24 D's two scenes, pinned by the v0.0.24 integration at the digests D and the review of D to F recorded on the final build
   // tree (c744ae46), unmoved by the merge: new scenes, so their own first pins, nothing re-recorded)
-  'test-anchors': '12993752104fa6',
-  'test-burn': '1881687a385edc',
+  // (test-anchors re-pinned by v0.0.25's carried round (12993752104fa6 before), its cause named: the user's report of 2026-11-19 ("translate
+  // what I have to do for the 0G shooting training"): the cadre's brief is followed by VOID_CADRE.how and the first command waits for it
+  // (anchors.js A.howAtMs, A.briefEndMs 7 s → 27.9 s on 48213), so at 1,000 ticks the course is 418 ticks behind where it stood)
+  'test-anchors': '18ac47bafe354e',
+  // (test-burn re-pinned by v0.0.25's burn polish (1881687a385edc before), its cause named: the user's score of 2026-11-19 ("mag boots
+  // won't save you from a 3G sideways maneuver ... we just linger next to the bunk"): the scene's profile adds the warned 3 G manoeuvre
+  // and moves the surprise to 115 to 130 s (scenes.js; the drawn profile is saved in places.live.env.profile), the 1MC's queued warning
+  // names the size ("Secure for burn: one G."), and the NCO stands at (1.5, 2.55), off your rack's foot (testudo.js BERTH_SPOTS.nco);
+  // with no keys the 1,000 ticks are otherwise the same: you float by your rack and are thrown by the burn at 47 s as before)
+  'test-burn': '1368bf34d3e065',
+  // (v0.0.25 C's scene, "Hold to hold": its own first pin, recorded on C's tree (the brief at the Wreck's lock, 1,000 ticks with no keys);
+  // re-pinned by the fix of the review of C and D (156e3074e18d61 before): the hold's plan lost its two corners behind the cargo, so its
+  // par and the lane's are 0.5 s shorter (house.rooms[2].parMs 26,000 → 25,500, laneParMs 126,000 → 125,500), nothing else in the save)
+  'test-zerocqb': '1bbaff6ec60182',
 });
 /** The bay at 23:00 (the quick cell): the barracks at hour 23, 1,000 ticks. */
 export const BAY_2300 = Object.freeze({ scenario: 'barracks', hour: 23, seed: 48213, ticks: 1000, digest: '154a1ea53a1608' });
@@ -49,7 +69,10 @@ export const BAY_2300 = Object.freeze({ scenario: 'barracks', hour: 23, seed: 48
 export const HELD_SUITES = Object.freeze([
   'house-pin', 'house-pin-drawn', 'house-live-pin', 'game-upgrade', 'game-walk',
   'people-roster', 'places-validate', 'house-shapes', 'house-draw8', 'room', 'doll-gear', 'target-view', 'art-held', 'samples-held', 'game-determinism',
+  'gear-void',
 ]);
+/** void-house's steel copy (v0.0.25's F124): the sergeant by T on 48213, house 1 at 0 G in mag boots and at 1 G, every leg clear, ms from the start. */
+export const STEEL_COPY = Object.freeze({ steelMs: 107_550, oneMs: 47_650 });
 
 const SCENE_ROWS = () => [...Object.values(SCENES), ...Object.values(STARTS)].map(s => ({ id: s.id, scenario: s.scenario, ...(s.setup ? { setup: s.setup } : {}), ...(s.opfor ? { opfor: s.opfor } : {}) }));
 
@@ -72,7 +95,7 @@ async function runSuite(name) {
 
 export default [
   {
-    name: 'env-noregress, quick (F100): the bay at 23:00 is the snapshot\'s to the byte at 1,000 ticks, and its save carries on byte for byte in a fresh game',
+    name: 'env-noregress, quick (F100, F124): the bay at 23:00 is the snapshot\'s to the byte at 1,000 ticks, and its save carries on byte for byte in a fresh game',
     fn() {
       const A = sceneAt({ id: 'bay@23', ...BAY_2300 });
       const json = A.g.save();
@@ -87,7 +110,7 @@ export default [
     },
   },
   {
-    name: 'env-noregress, quick (F100): the house\'s quick cell (house-pin\'s honest tier one on 48213, from the fill to the card) is held to the tick, the run sheet and the save',
+    name: 'env-noregress, quick (F100, F124): the house\'s quick cell (house-pin\'s honest tier one on 48213, from the fill to the card) is held to the tick, the run sheet and the save',
     fn() {
       const quick = housePin.filter(t => !t.heavy);
       assert(quick.length === 1, `house-pin's quick cases: ${quick.length}`);
@@ -95,7 +118,7 @@ export default [
     },
   },
   {
-    name: 'env-noregress (F100): every shipped scene at 1,000 ticks on 48213 is the snapshot\'s to the byte, and the pins, the saves, moment 2\'s walk and the goldens hold (their own suites, run whole)',
+    name: 'env-noregress (F100, F124): every shipped scene at 1,000 ticks on 48213 is the snapshot\'s to the byte, and the pins, the saves, moment 2\'s walk, the goldens and the steel copy hold (their own suites, run whole)',
     heavy: true,
     timeoutMs: 60 * 60_000,
     async fn() {
@@ -115,7 +138,12 @@ export default [
         console.log(`      ${name}: ${s.ran} passed, ${s.failed.length} failed (${((performance.now() - t0) / 1000).toFixed(1)} s)${s.failed.length ? `: ${s.failed.join(' | ')}` : ''}`);
         suites.push(s);
       }
+      // (v0.0.25: the steel copy and its 1 G twin to the millisecond)
+      const steel = [steelLane({ tier: 'sgt', seed: 48213 }), steelLane({ tier: 'sgt', seed: 48213, steel: false })];
+      const steelSame = steel[0].done && steel[1].done && steel[0].ms === STEEL_COPY.steelMs && steel[1].ms === STEEL_COPY.oneMs;
+      console.log(`      the steel copy: ${(steel[0].ms / 1000).toFixed(2)} s on boots at 0 G, ${(steel[1].ms / 1000).toFixed(2)} s at 1 G (the snapshot's ${(STEEL_COPY.steelMs / 1000).toFixed(2)} and ${(STEEL_COPY.oneMs / 1000).toFixed(2)}), every leg clear ${steel.every(l => l.done)}`);
       const bad = suites.filter(s => s.failed.length);
+      assert(steelSame, JSON.stringify(steel.map(l => ({ steel: l.steel, done: l.done, ms: l.ms, err: l.err }))));
       assert(!moved.length && !unknown.length, `scenes moved or unpinned: ${moved.join(', ')}; pinned but gone: ${unknown.join(', ')}`);
       assert(!bad.length, bad.map(s => `${s.name}: ${s.failed.join(' | ')}`).join('\n'));
     },

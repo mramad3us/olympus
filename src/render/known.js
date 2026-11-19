@@ -17,6 +17,11 @@
 // the legs' states (known.js knownRoomsOf: a room entered known whole, its walls with it, a cell round its rect; the hall as
 // walked), then sight adds the rest; a pop across a load is the load's own first frame.
 //
+// v0.0.25 (the build sheet item 9, §3.4; PC§4; the user, 2026-11-19: "we shouldn't know what's behind closed doors or walls
+// without looking"): a place briefed by its plan (a scene's familiar 'walls', the Wreck's: sim/places/known.js footprintOf's
+// `walls`, every wall's rect) has every wall cell and its ring (WALL_CELLS) known at the start, and every cell in no room of the
+// area (the hull between two decks), the floors not: a blueprint whose compartments fill in as you look into them, a cell deck to
+// deckhead, one bit.
 // On the GPU the cells are one bit each, eight to a byte of a one-channel texture (`mask`: w × h bytes, w = ceil(nx / 8); the
 // house's 160 × 112 cells are 2,240 bytes), re-sent only when a cell turns known: the fog's own mask is 48 KB a frame while it
 // eases, and a byte a cell (17.9 KB) would take a frame over UPLOAD_MID_KB 64 with it (§4 item 13; my call: bits, not bytes).
@@ -76,6 +81,18 @@ export function createKnown({ cellM = 0.25 } = {}) {
       const fj0 = Math.ceil((fz0 - z0) / cellM - 0.5) + WALL_CELLS, fj1 = Math.floor((fz1 - z0) / cellM - 0.5) - WALL_CELLS;
       for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) if (i < fi0 || i > fi1 || j < fj0 || j > fj1) mark(i, j);
       for (const r of footprint.fixed ?? []) markRect(r, WALL_CELLS);
+      // (the plan's walls, briefed (see the header); no `walls` on every shipped scene's footprint)
+      for (const r of footprint.walls ?? []) markRect(r, WALL_CELLS);
+      // (and under the plan's walls every cell whose centre lies in no room of the area: the hull between the Wreck's decks, 51 m of
+      // no compartment inside the footprint's rect, was the unknown's black slab beside the deck in every frame (the review of C and
+      // D); only a compartment's floor waits for your eyes)
+      if (footprint.walls) {
+        const R = (area.rooms ?? []).map(r => r.rect).filter(Boolean);
+        for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
+          const x = x0 + (i + 0.5) * cellM, z = z0 + (j + 0.5) * cellM;
+          if (!R.some(r => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3])) mark(i, j);
+        }
+      }
       for (const r of rooms ?? []) markRect(r.rect, WALL_CELLS);
       dirty = true;
       return true;

@@ -40,6 +40,12 @@
 // the stage's (the turners as the pairs pad draws them, render/range.js, and the anchors a viewer sees: the gear record's hand on a
 // hold, lanyard or wedge, with the hold it is on); againAsAnchors(state, tier) what "Again as …" starts.
 // The fill is testAnchors. Pure but testAnchors, anchorsActors and anchorsShot, which write the session.
+// v0.0.25 (the user's report of 2026-11-19: "instructions from the intructor tell you stuff like "push to north station", I don't know
+// what is meant, translate what I have to do for the 0G shooting training"): the cadre's words say what to press (sayKeys: a key by its
+// label from core/keys.js, a panel row by its label from arms/shooting.js LABELS); the brief is followed once by VOID_CADRE.how (the
+// push-off, the drift and the grab), said when the brief's spoken time is out (A.howAtMs), and the first command waits for its end;
+// anchorsLook gives the stage the station's ring and its line to the turner while its command stands (phases 'move' and 'standby');
+// stationRoute is the pad-eyes a station's route stops at (phobos.js STATIONS' via, then its mark), the DI's next step's.
 import { TICK_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { stream, intIn } from '../../core/rng.js';
@@ -66,6 +72,9 @@ import { anchorOf } from '../arms/shot.js';
 import { turnTo, turnAway, facingOf, TURN_MS } from '../arms/turners.js';
 import { BRASS_LIVE } from '../arms/look.js';
 import { pendingOf } from '../combat/contact.js';
+import { label } from '../../core/keys.js';
+import { LABELS } from '../arms/shooting.js';
+import { spokenMs } from '../../core/speech.js';
 
 /** The course's data (courses.js COURSES.anchors). */
 const C = COURSES.anchors;
@@ -79,7 +88,18 @@ export const STATIONS = VOID_RANGE.stations;
 export const STOP_TORSO = 2, STOP_HEAD = 1, SENSOR_MS = 100;
 /** The words a footing anchor is said in, on the card and the bots' reads. */
 export const ANCHOR_WORDS = Object.freeze({ planted: 'planted', light: 'standing light', magBoots: 'on mag boots', handhold: 'on a hold', braced: 'braced', floating: 'floating' });
-const NUM = Object.freeze(['one', 'two', 'three', 'four', 'five']);
+export const NUM = Object.freeze(['one', 'two', 'three', 'four', 'five']);
+/**
+ * A cadre's or the DI's line in the game's own terms (v0.0.25, see the header): {key:<action>} the key's label (core/keys.js label,
+ * AZERTY: 'up' is Z, 'grab' L), {row:<id>} the panel row's label (arms/shooting.js LABELS: 'boots:release' is "Release your boots"),
+ * and {name} from fill ({n}, {dir}, {row}); a name it does not know is left as written.
+ */
+export function sayKeys(text, fill = {}) {
+  return String(text ?? '').replace(/\{key:(\w+)\}/g, (m, a) => label(a)).replace(/\{row:([\w:-]+)\}/g, (m, id) => LABELS[id] ?? id)
+    .replace(/\{(\w+)\}/g, (m, k) => (fill[k] !== undefined ? String(fill[k]) : m));
+}
+/** A station's route (v0.0.25): the pad-eyes it stops at on the way (phobos.js STATIONS' via), then its mark, as [[x, z]]. */
+export const stationRoute = (st) => [...(st?.via ?? []), st.mark];
 
 const tierOf = (tier) => (tier && TEST_SHEETS[tier] ? tier : SCENE.sheet);
 const whole = (ms) => Math.ceil(ms / TICK_MS) * TICK_MS;
@@ -87,12 +107,14 @@ const actorOf = (state, pid) => state.actors?.list?.find(a => a.who === pid) ?? 
 /** The session on the anchors course, or null. */
 export const anchorsOf = (state) => { const R = state?.armoury?.range; return R && R.course === 'anchors' ? R : null; };
 const turnerOf = (R, lane) => (R?.turners ?? []).find(T => T.lane === lane) ?? null;
-// (the cadre's word, never while a take-in runs (COMBAT §25.4.5: the window's silence): a text bubble at him)
+// (the cadre's word, never while a take-in runs (COMBAT §25.4.5: the window's silence): a text bubble at him, its keys and rows
+// named in the game's terms (sayKeys); returns the words said)
 function cadreSay(state, bus, lines, ...key) {
   const R = anchorsOf(state);
-  if (!R || !lines) return;
-  const text = hashPick(lines, 'void-cadre', state.meta.seed, ...key);
+  if (!R || !lines) return null;
+  const text = sayKeys(hashPick(lines, 'void-cadre', state.meta.seed, ...key));
   bus?.emit('say', { who: R.coachId, text, kind: 'speech', durMs: Math.max(1500, text.length * 60) });
+  return text;
 }
 
 // ---- the fill ----
@@ -202,7 +224,9 @@ export function anchorsActors(state, input, bus) {
   A.vLast = me0 ? [me0.v?.[0] ?? 0, me0.v?.[1] ?? 0, Number.isFinite(me0.tumble) ? me0.tumble : 0] : [0, 0, 0];
   if (A.phase !== 'brief' && A.phase !== 'done' && boatTick(state, bus, A, st, now)) return;
   if (A.phase === 'brief') {
-    if (now === A.atMs + TICK_MS) cadreSay(state, bus, VOID_CADRE.brief, 'brief');
+    // (the brief, then the three ideas (VOID_CADRE.how) once its spoken time is out, the first command after theirs (see the header))
+    if (now === A.atMs + TICK_MS) { const t = cadreSay(state, bus, VOID_CADRE.brief, 'brief'); A.howAtMs = whole(now + spokenMs(t)); A.briefEndMs = Math.max(A.briefEndMs, A.howAtMs); }
+    if (now === A.howAtMs) { const t = cadreSay(state, bus, VOID_CADRE.how, 'how'); A.briefEndMs = Math.max(A.briefEndMs, whole(now + spokenMs(t))); }
     if (now >= A.briefEndMs) { A.phase = 'gap'; A.atMs = now; A.nextAtMs = now; }
     return;
   }
@@ -222,6 +246,10 @@ export function anchorsActors(state, input, bus) {
     // (station three: the R-7 shouldered at the hold, not the pistol: the cadre's "Pistol." once)
     if (st.gun === 'pistol' && r.near && r.anchor && !r.gun && !A.pistolSaid && gunOn(state, playerId(state)) === A.rifle && state.people[playerId(state)]?.kit?.carry?.posture === 'aimed') {
       A.pistolSaid = true; cadreSay(state, bus, VOID_CADRE.pistol, 'pistol');
+    }
+    // (a rifle station, at the mark on its anchor with the P-12 still in the hand: "Rifle." with its row, once a station)
+    if (st.gun === 'rifle' && r.near && r.anchor && !r.gun && A.rifleSaid !== st.n && handGunOf(state, playerId(state)) === A.pistol) {
+      A.rifleSaid = st.n; cadreSay(state, bus, VOID_CADRE.rifle, 'rifle', st.n);
     }
     if (r.ok) {
       rec.readyAtMs = now; A.phase = 'standby'; A.atMs = now;
@@ -377,7 +405,10 @@ export function anchorsLook(state, ms = state.clock.ms) {
     // (y the body's height off the deck: free fall's actor.floatY (the fixer of v0.0.24's code review: it read actor.y, the floor)
     anchors.push({ who: a.who, kind, x: a.x, z: a.z, y: Number.isFinite(a.floatY) ? a.floatY : 0, ...(h ? { hold: { x: h.x, z: h.z, kind: h.kind } } : {}) });
   }
-  return { line: null, turners, lines: [], bangs: [], anchors };
+  // (the station's ring at its mark and the line to its turner while its command stands (see the header))
+  const A = R.anchors, st = STATIONS[A.st];
+  const station = st && (A.phase === 'move' || A.phase === 'standby') ? { n: st.n, x: st.mark[0], z: st.mark[1], rM: C.arriveM, to: [...st.turner] } : null;
+  return { line: null, turners, lines: [], bangs: [], anchors, station };
 }
 
 /**

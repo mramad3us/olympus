@@ -51,13 +51,20 @@
 // kg; the anchor's row keeps keepPush × J / m backward along the bore and keepSpin × J × 0.45 m / I of pitch (shot.js anchorOf). The
 // drift and the tumble are a floating body's motion only: on an anchor (boots, a hold, a brace) the kept share is what the anchor
 // takes, recorded on the shot and shown by its recovery (the anchor holds where it was taken), so no anchored body drifts.
+// v0.0.25, "Hold to hold" (its build sheet §3.2, §5; PL§5): **a low compartment**. In a compartment of VOID.PUSH_LOW_CEIL_M 2.4 m or
+// less (the room's ceilingM: footing.js ceilingAt) the deck and the deckhead are always within reach of a floating body, so pushFrom
+// gives 'deck' there wherever it floats (before, only while floatY was absent: a body off the deck with no wall behind it had nothing,
+// a dead end); pushable, the footing's test, is unchanged. openMiddleOf(state, pid) is the open middle the Wreck's lane faults (C's
+// 'open', after OPEN_MS): floating, no hold within REACH_M (model.js holdNear's rungs on the bulkheads and the fixtures) and no
+// bulkhead or fixture face within it in the plane (sixteen bearings marched in 5 cm). The deck and the deckhead never count for it: in
+// 2.2 m they are always in reach, and it would never fire (the build sheet §0's correction 24).
 // At 0.3 G and up no body's footing is 'float', so nothing here runs at Mars or in the Wheel.
 // Pure but floatStep, pushOff, grab, grabAction and recoilFloat, which write the actor (and the body record through impactOf).
 import { TICK_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { stream, chance } from '../../core/rng.js';
 import { playerActor, playerId } from '../../core/ids.js';
-import { FREEFALL } from '../../data/body/needs.js';
+import { FREEFALL, VOID } from '../../data/body/needs.js';
 import { check, checkShort } from '../skills/checks.js';
 import { rollerOf } from '../combat/roll.js';
 import { valueOf } from '../skills/templates.js';
@@ -65,7 +72,7 @@ import { logEntry } from '../log.js';
 import { navOf } from '../places/nav.js';
 import { standOk, sweep, overlaps, onFloor } from '../places/collide.js';
 import { holdNear } from '../places/model.js';
-import { footingOf, setAnchor } from './footing.js';
+import { footingOf, setAnchor, ceilingAt } from './footing.js';
 import { impactOf, impactWords } from './impact.js';
 import { locoStep } from './loco.js';
 import { BODY_KG } from './motion.js';
@@ -123,21 +130,44 @@ function faceBehind(grid, x, z, ux, uz) {
   }
   return false;
 }
+/** The ceiling at or under which a floating body always has the deck or the deckhead in reach (m; needs.js VOID; see the header). */
+export const PUSH_LOW_CEIL_M = VOID.PUSH_LOW_CEIL_M;
+// (a compartment low enough that its deck and deckhead are in reach of any body floating in it (see the header))
+const lowRoom = (state, a) => { const c = ceilingAt(state, a.x, a.z); return c !== null && c <= PUSH_LOW_CEIL_M + 1e-9; };
 /** Where a push-off along (ux, uz) can be made from (see the header): 'deck' | 'hold' | 'face' | null. */
 export function pushFrom(state, a, grid, ux, uz) {
   if (a.anchor === HOLD_ANCHOR || holdNear(state, a.x, a.z, F.REACH_M)) return 'hold';
   if (a.floatY === undefined) return 'deck';
-  return faceBehind(grid, a.x, a.z, ux, uz) ? 'face' : null;
+  if (faceBehind(grid, a.x, a.z, ux, uz)) return 'face';
+  return lowRoom(state, a) ? 'deck' : null;
+}
+// (a bulkhead or a fixture's face within REACH_M of the body in the plane, on any of sixteen bearings: the walls' rects or the floor's edge)
+function faceNear(grid, x, z) {
+  for (let i = 0; i < 16; i++) { const h = i * Math.PI / 8; if (faceBehind(grid, x, z, -Math.cos(h), -Math.sin(h))) return true; }
+  return false;
+}
+/**
+ * Whether a person is in the open middle now (see the header): floating, with no hold within REACH_M and no bulkhead or fixture face
+ * within it in the plane (the deck and the deckhead never counted). The Wreck's lane faults it after OPEN_MS (shoothouse.js, C's).
+ */
+export function openMiddleOf(state, pid, grid = null) {
+  const a = actorOf(state, pid), area = state.places?.live?.area;
+  if (!a || !area || !floating(state, pid)) return false;
+  if (holdNear(state, a.x, a.z, F.REACH_M, { kind: 'hold' })) return false;
+  return !faceNear(grid ?? navOf(state, area, CLS, a.x, a.z), a.x, a.z);
 }
 
 /**
  * Begin a push-off (see the header) along dir (a heading in rad, or [dx, dz]) at speedMs (one of FREEFALL.PUSH.SPEEDS_MS'),
- * rolled now. Returns { ok, why, roll }: why 'not floating', 'not at rest', 'nothing to push from', 'pushing' or 'no such speed'.
+ * rolled now. Returns { ok, why, roll }: why 'not floating', 'changing face' (v0.0.25: a face row or beat under way), 'not at
+ * rest', 'nothing to push from', 'pushing' or 'no such speed'. A push off the deckhead leaves its face (footing.js setAnchor).
  */
 export function pushOff(state, pid, dir, speedMs, { bus = null, grid = null } = {}) {
   const a = actorOf(state, pid), area = state.places?.live?.area;
   if (!a || !area) return { ok: false, why: 'no actor', roll: null };
   if (!pushable(state, pid)) return { ok: false, why: 'not floating', roll: null };
+  // (a face being changed holds the body on its hold until the lock (footing.js lockOnFace): no push-off from it)
+  if (a.faceTo) return { ok: false, why: 'changing face', roll: null };
   if (a.push) return { ok: false, why: 'pushing', roll: null };
   if (!Object.values(F.PUSH.SPEEDS_MS).includes(speedMs)) return { ok: false, why: 'no such speed', roll: null };
   if (speedOfV(a) > F.AT_REST_MS) return { ok: false, why: 'not at rest', roll: null };

@@ -8,6 +8,9 @@
 // each), never through walls or by distance (my call). Nothing plays in vacuum (no air to carry it: the suit's bus is step 8's),
 // while time stands still, or before the context runs (the engine's own rule).
 // sirenCycle(now, ms) is the pure part (the grav-hud test reads it): the cycle number the moment is in, or null outside a warning.
+// v0.0.25's burn polish (the user's score of test-burn, 2026-11-19: "some indication of how strong is the burn and evasive
+// maneuvers"): the siren's pattern by the event's kind, cycleMsOf(kind): a manoeuvre's warning (a jink) whoops twice as fast as a
+// burn's (SIREN_CYCLE_BY_KIND, my call), so the ear tells a hard manoeuvre from a burn before the words are read.
 // createSiren(engine) takes the engine's world ops (oneShot) and gives { frame(state, ms), stats }.
 import { playerActor } from '../../core/ids.js';
 import { airDb } from '../../sim/people/hearing.js';
@@ -16,10 +19,13 @@ import { gravNow } from '../../sim/places/gravity.js';
 import { SIREN_CYCLE_MS, SIREN_DB } from '../../data/sounds.js';
 import { lowpassHz } from './steps.js';
 
+/** The siren's cycle by the event's kind, ms (see the header): a jink's twice as fast as the rest's SIREN_CYCLE_MS. */
+export const SIREN_CYCLE_BY_KIND = Object.freeze({ jink: SIREN_CYCLE_MS / 2 });
+export const cycleMsOf = (kind) => SIREN_CYCLE_BY_KIND[kind] ?? SIREN_CYCLE_MS;
 /** The siren's cycle at ms for a moment (gravNow's), or null when no brace is warned. */
 export function sirenCycle(now, ms) {
   if (!now || now.phase !== 'warn' || !(ms < now.atMs)) return null;
-  return Math.max(0, Math.floor((ms - (now.atMs - now.warnS * 1000)) / SIREN_CYCLE_MS));
+  return Math.max(0, Math.floor((ms - (now.atMs - now.warnS * 1000)) / cycleMsOf(now.kind)));
 }
 
 /** The siren in the engine (see the header). */

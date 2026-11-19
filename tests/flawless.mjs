@@ -444,7 +444,8 @@ export function flawlessLane({ tier, seed, bot = 'honest', answer = null, setup 
   rec.legS = N.legs.map(V => (V.ms === null ? null : V.ms / 1000));
   rec.legState = N.legs.map(V => V.state);
   // (F14: the legs the lane's due passed or spoke on (shoothouse.js stall, L.dueSaid))
-  rec.dues = [...H.rooms, H.hall].filter(V => V.dueSaid).length;
+  // (v0.0.25: a lane with no hall, the Wreck's four compartments (H.hall null), counted on its rooms)
+  rec.dues = [...H.rooms, H.hall].filter(V => V?.dueSaid).length;
   rec.mem = r?.mem ?? (st.actors.list.find(a => a.who === pid)?.bot ?? {});
   rec.feet.legs = Object.fromEntries(Object.entries(feetLeg).map(([k, f]) => [k, { st: f.st, minV: Number.isFinite(f.minV) ? r3(f.minV) : null, underMs: f.underMs }]));
   rec.gap.minM = Number.isFinite(rec.gap.minM) ? r3(rec.gap.minM) : null;

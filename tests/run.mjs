@@ -77,6 +77,16 @@
 // (contention inflates CPU time itself: 288 to 372 s for the same quick suite at stage 0), as the wall minute is run again on a
 // quiet machine; QUICK_CPU_JUDGE=1 judges them whatever the load.
 //
+// v0.0.25's stage 0 (its build sheet §2 step 4, the carried lens's CA§2.2 and CA§3.4; my calls, the lead's): two more.
+//   - Gates: a test marked `gate: true` (the drawn and eight-room houses' two sweeps each, house-drawn and house-drawn8, red until
+//     the round that switches those defaults) runs only with GATES=1 (the lead's quiet heavy run, and that round); every other
+//     run leaves it out, counts it left out and names it on one line at the end ("4 gates not run: …"). Nothing is loosened: the
+//     acceptance list (tests/house-done.mjs) keeps their rows, OPEN_GAUGES its open gauges.
+//   - The worker's warm-up: before its first file each worker plays one house lane by T and one by the keys (WARM_LANES), so the
+//     sim's first compile (1 to 3 s of CPU in a fresh process: V8's own threads, the carried lens's measure) falls on no file's
+//     CPU; a file's CPU is then its own work whether it runs in the pool or alone. The warm-up's CPU is counted in the quick
+//     suite's sum (QUICK_CPU_S unchanged, so the sum is never looser) and printed on its own line, never in a file's. WARM=0
+//     leaves it out (a probe only). No ceiling moved.
 // The priority (0.0.3). On macOS a process started from an app in the background (the terminal behind
 // a game in front) runs in the darwin background band (`ps -o pri` 4, a foreground terminal's 31), on
 // the efficiency cores: CPU work there runs 3.5 to 4 times slower (a plain loop, 380 ms against
@@ -98,6 +108,12 @@ const filter = process.argv[2] || '';
 const quick = !!process.env.QUICK;
 const skip = (process.env.SKIP || '').split(',').map(x => x.trim()).filter(Boolean);
 const defaultTimeoutMs = Number(process.env.TIMEOUT_MS) || 5 * 60 * 1000;
+/** Whether the tests marked `gate: true` run (v0.0.25: the lead's quiet heavy run, and the round that switches their default). */
+const GATES = process.env.GATES === '1';
+/** Whether a worker warms up before its first file (WARM=0 leaves it out: a probe only). */
+const WARM = process.env.WARM !== '0';
+/** The worker's warm-up (v0.0.25): one house lane by T and one by the keys, from GO on 48213 (a whole lane each, the quick suite's most played). */
+const WARM_LANES = Object.freeze([Object.freeze({ tier: 'tierone', bot: 'T' }), Object.freeze({ tier: 'private', bot: 'keys' })]);
 /** The pool's ceiling while the user is likely playing (the play copy answering on :8200 and the machine in use, PLAYING_IDLE_S). */
 const PLAYING_JOBS = 3;
 /**
@@ -173,7 +189,7 @@ const REPORT = new RegExp(`${MARK}END (.*?)${MARK}\n?`);
 /** One file's tests, in order: { pass, fail, left, timedOut, ms }. log(text) prints a line. */
 async function runFile(file, log) {
   const base = file.replace('.test.mjs', '');
-  const r = { pass: 0, fail: 0, left: 0, timedOut: 0, ms: 0, cpuMs: 0 };
+  const r = { pass: 0, fail: 0, left: 0, timedOut: 0, ms: 0, cpuMs: 0, gates: [] };
   // (v0.0.21: a file's CPU is its tests' own, from its module loaded to its last test: the src modules' first load falls on
   // whichever file a process loads first, 1 to 2 s, and would make a file's CPU depend on its place in the pool)
   const f0 = performance.now();
@@ -196,6 +212,7 @@ async function runFile(file, log) {
     const full = `${base} › ${t.name}`;
     if (filter && !full.includes(filter)) continue;
     if ((quick && t.heavy) || skip.some(k => full.includes(k))) { r.left++; continue; }
+    if (t.gate && !GATES) { r.left++; r.gates.push(full); continue; }
     const limitMs = t.timeoutMs ?? defaultTimeoutMs;
     const t0 = performance.now();
     let timer;
@@ -230,14 +247,30 @@ if (process.env.OLYMPUS_RUN_WORKER === '1') {
   // (stderr folded into stdout, so a file's warnings stay with its lines; what the engine itself writes
   // to stderr still reaches the runner on the other pipe)
   process.stderr.write = process.stdout.write.bind(process.stdout);
+  let warm = WARM ? null : false;
   process.on('message', async ({ file }) => {
+    // (the warm-up before the first file, its CPU and wall reported with that file's report, never in the file's own)
+    if (warm === null) warm = await warmUp();
     const r = await runFile(file, s => console.log(s));
+    if (warm) { r.warm = warm; warm = false; }
     // (after a time-out the worker leaves once its report is out: the runner kills what it left open)
     process.stdout.write(`${MARK}END ${JSON.stringify({ file, ...r })}${MARK}\n`, () => { if (r.timedOut) process.exit(3); });
   });
   process.on('disconnect', () => process.exit(0));
 } else {
   await main();
+}
+
+/** The worker's warm-up (see the header): WARM_LANES played to their card here; { cpuMs, ms, lanes } or { err }. */
+async function warmUp() {
+  const c0 = process.cpuUsage(), t0 = performance.now();
+  try {
+    const { createGame } = await import('./game.mjs');
+    const { houseTBot, houseKeysBot, runHouse } = await import('./bots/house.mjs');
+    for (const L of WARM_LANES) runHouse(createGame({ scenario: 'test-shoothouse', seed: 48213, tier: L.tier, setup: 'go' }), L.bot === 'T' ? houseTBot() : houseKeysBot());
+  } catch (e) { return { err: String(e?.message ?? e).split('\n')[0].slice(0, 200) }; }
+  const c = process.cpuUsage(c0);
+  return { cpuMs: Math.round((c.user + c.system) / 1000), ms: Math.round(performance.now() - t0), lanes: WARM_LANES.length };
 }
 
 /** Claims n of POOL_PORTS for this run: a lock file each (the pid inside; a dead pid's is taken over), and nothing listening there. */
@@ -339,9 +372,9 @@ async function main() {
   const last = files.filter(f => !first.includes(f) && !lanes.includes(f) && !pooled.includes(f));
   const total = { pass: 0, fail: 0, left: 0, timedOut: 0 };
   const add = r => { for (const k of Object.keys(total)) total[k] += r[k]; };
-  const took = {}, cpu = {}, ran = {}, kNow = {};
+  const took = {}, cpu = {}, ran = {}, kNow = {}, gatesOut = [], warms = [];
   const names = list => list.map(f => f.replace('.test.mjs', '')).join(', ') || 'none';
-  const here = async list => { for (const file of list) { const r = await runFile(file, s => console.log(s)); add(r); took[file] = r.ms; cpu[file] = r.cpuMs; ran[file] = r.pass + r.fail; if (r.kNow) kNow[file] = r.kNow; } };
+  const here = async list => { for (const file of list) { const r = await runFile(file, s => console.log(s)); add(r); took[file] = r.ms; cpu[file] = r.cpuMs; ran[file] = r.pass + r.fail; if (r.kNow) kNow[file] = r.kNow; gatesOut.push(...(r.gates ?? [])); } };
 
   // ---- first: the CPU-time ceilings' files, here, on the machine the factor was measured on ----
   const firstT0 = performance.now();
@@ -400,6 +433,7 @@ async function main() {
     };
     const finish = (w, out, r) => {
       add(r); took[w.file] = r.ms || past[w.file] || 0; cpu[w.file] = r.cpuMs ?? 0; ran[w.file] = r.pass + r.fail; if (r.kNow) kNow[w.file] = r.kNow; done.set(w.file, out);
+      gatesOut.push(...(r.gates ?? [])); if (r.warm) warms.push(r.warm);
       busy.delete(w); laneBusy.delete(w); w.file = null;
       drain();
     };
@@ -465,6 +499,10 @@ async function main() {
       renameSync(`${timesFile}.${process.pid}`, timesFile);
     } catch { /* (no .run: the order is only by name next time) */ }
   }
+  // (v0.0.25: the workers' warm-up on its own line, and the gates left out by name)
+  const warmCpuMs = warms.reduce((a, w) => a + (w.cpuMs ?? 0), 0), warmErr = warms.filter(w => w.err);
+  if (warms.length) console.log(`\n(the workers' warm-up: ${warms.length} worker${warms.length === 1 ? '' : 's'}, ${WARM_LANES.length} house lanes each, ${(warmCpuMs / 1000).toFixed(1)} s of CPU in all, ${(warms.reduce((a, w) => a + (w.ms ?? 0), 0) / warms.length / 1000).toFixed(1)} s of wall a worker${quick ? '; counted in the quick suite\'s CPU sum, never in a file\'s' : ''}${warmErr.length ? `; ${warmErr.length} failed: ${warmErr[0].err}` : ''})`);
+  if (gatesOut.length) console.log(`\n(${gatesOut.length} gate${gatesOut.length === 1 ? '' : 's'} not run (GATES=1 runs them): ${gatesOut.map(n => n.length > 90 ? `${n.slice(0, 88)}…` : n).join('; ')})`);
   if (!serial) console.log(`\n(first ${firstS.toFixed(1)} s; the pool and the lanes ${poolS.toFixed(1)} s${quietAt !== null && lanes.length ? `, the lanes from +${quietAt.toFixed(1)} s` : ''}; last ${lastS.toFixed(1)} s)`);
   // (the quick suite's minute: only a whole quick run is timed, a filtered one isn't the suite)
   let overTime = false, overCpu = 0;
@@ -511,10 +549,10 @@ async function main() {
     if (!filter && !skip.length) {
       // (the sum by the slower of the factor at the run's start and at its end: helpers.mjs machineNow)
       const kEnd = (await import('./helpers.mjs')).machineNow().k, kSum = Math.max(k, kEnd);
-      const sumS = quickRan.reduce((a, f) => a + cpu[f], 0) / 1000, capS = QUICK_CPU_S * kSum;
+      const sumS = (quickRan.reduce((a, f) => a + cpu[f], 0) + warmCpuMs) / 1000, capS = QUICK_CPU_S * kSum;
       const overSum = sumS > capS;
       if (overSum && !busy) overCpu++;
-      console.log(`(the quick suite's CPU: ${sumS.toFixed(1)} s over ${quickRan.length} files, the budget ${capS.toFixed(0)} s: QUICK_CPU_S ${QUICK_CPU_S} × ${kSum.toFixed(2)}, the factor at the start ${k.toFixed(2)} and at the end ${kEnd.toFixed(2)})${overSum ? (busy ? ': over the budget, not judged (the machine busy)' : ': over the budget, a failure (TECH §13.7)') : ''}`);
+      console.log(`(the quick suite's CPU: ${sumS.toFixed(1)} s over ${quickRan.length} files${warms.length ? ` and the warm-up's ${(warmCpuMs / 1000).toFixed(1)} s` : ''}, the budget ${capS.toFixed(0)} s: QUICK_CPU_S ${QUICK_CPU_S} × ${kSum.toFixed(2)}, the factor at the start ${k.toFixed(2)} and at the end ${kEnd.toFixed(2)})${overSum ? (busy ? ': over the budget, not judged (the machine busy)' : ': over the budget, a failure (TECH §13.7)') : ''}`);
     }
   }
   if (quick && !filter) {

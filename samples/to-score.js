@@ -5,7 +5,8 @@
 // copies into samples/index.json (indexEntry). toScore(index) turns the index into the list the page draws: one row a set still
 // open, with its title, its default (the view or views the game draws until the score, each with the group it is in), its view
 // count, the day it was first sent, what it decides and the round that draws the pick. The rows are ordered by the round that
-// draws them (this round's first: their defaults ship now), then the oldest first (what has waited longest), then by id. A set
+// draws them, the newest first (the sets just sent, which the game's To score page leads with too: v0.0.25's fixer), then the oldest
+// first (what has waited longest), then by id. A set
 // with no "open" is not listed; a default naming no view of the set is listed with `missing` (the page says so, the test fails).
 // v0.0.24 (the user, 2026-11-19: "please in the future, place the already rated picks in a hidden drop down section at the
 // bottom"): a set with no "open" is one the user has already rated (its "scored" { on, picks } says when and what, where the
@@ -15,7 +16,7 @@
 // Pure: samples/index.html imports it, and tests/gallery-open.test.mjs checks it with no DOM.
 
 /** A round's order ('v0.0.23' before 'v0.0.24'; anything else last). */
-const roundKey = (r) => { const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(String(r ?? '')); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : Infinity; };
+const roundKey = (r) => { const m = /^v?(\d+)\.(\d+)\.(\d+)$/.exec(String(r ?? '')); return m ? Number(m[1]) * 1e6 + Number(m[2]) * 1e3 + Number(m[3]) : -Infinity; };
 
 /** The open sets of an index (see the header): [{ id, title, defaults: [{ id, group, name }], missing: [ids], views, since, decides, builtIn }]. */
 export function toScore(index) {
@@ -30,7 +31,8 @@ export function toScore(index) {
       since: s.open.since ?? null, decides: s.open.decides ?? '', builtIn: s.open.builtIn ?? null,
     });
   }
-  return rows.sort((a, b) => roundKey(a.builtIn) - roundKey(b.builtIn) || String(a.since ?? '').localeCompare(String(b.since ?? '')) || a.id.localeCompare(b.id));
+  // (v0.0.25's fixer, the play review: the newest round's first, as the game's To score page has them, then the oldest first)
+  return rows.sort((a, b) => roundKey(b.builtIn) - roundKey(a.builtIn) || String(a.since ?? '').localeCompare(String(b.since ?? '')) || a.id.localeCompare(b.id));
 }
 
 /** The list as text, a line a set (the page's "Copy the list", and the lead's announcement). */

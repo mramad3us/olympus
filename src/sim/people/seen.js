@@ -44,6 +44,11 @@
 // 'hold' (the doll draws the rail and the gun one-handed). seenOf is never called in a tick but once, at your first round at a
 // man (shoothouse.js houseShot's T.atFirst, the truth cards' capture, with the cover off and { fresh: true, keep: false }, so no
 // cache of the page's is written mid-tick and the capture is the same on a save loaded: §0 item 28).
+// v0.0.25 (the build sheet item 12, §3.4; PC§5): roll, the quarter turns between his up and yours as your picture has them
+// (src/data/faces.js rollOf, from both bodies' onFace: 0 on one face, 2 a man on the deckhead seen from the deck, 1 or 3 across a
+// side bulkhead), 0 in the mirror; a board's by its stand's onFace and the viewer's (standSeen's { onFace, by }). It enters the key
+// only when it is not 0 (seenKey appends '|roll:<n>'), so every key of v0.0.18 to v0.0.24 is the same string; the target view turns
+// the card by it (R-a, samples/portrait-faces' default until scored; src/art/doll/portrait.js turnFigure).
 // standSeen(face, holds, read, { side, rangeM }) is a board's record (the house's and the bay's stands), kind 'board', the hold the
 // stage paints for what the stand holds (range-items.js turnerFace: a rifle across the body at the low ready, a pistol at the chest,
 // open hands raised, a phone), the gear standGear's; called by the target view (art reads no sim: the card is given the record).
@@ -66,6 +71,7 @@ import { headOf, wrap, clearLine } from './perception.js';
 import { lightLevel, lightFrame, spectrumAt } from '../places/light.js';
 import { sightGridOf } from '../places/sight.js';
 import { LIGHT_FULL_K, LIGHT_Q, COVER_Q } from '../../data/portrait.js';
+import { rollOf } from '../../data/faces.js';
 
 /** The facing's bands (radians from the bearing to the viewer's eye): front within FACING_FRONT_RAD, back beyond FACING_BACK_RAD, a side between; the relative yaw's step. */
 export const FACING_FRONT_RAD = Math.PI / 4, FACING_BACK_RAD = 3 * Math.PI / 4, FACING_Q_RAD = Math.PI / 8;
@@ -190,10 +196,12 @@ export function seenKey(rec) {
     light: lightKey(rec.light), cover: coverKey(rec.cover),
     yawQ: (rec.facing === 'left' || rec.facing === 'right') && Number.isFinite(rec.yawQ) ? rec.yawQ.toFixed(3) : '',
   };
-  return SEEN_KEYS.map(k => parts[k]).join('|');
+  // (the roll only when it turns the card, so every shipped key is the string it was)
+  const roll = Number.isInteger(rec.roll) ? ((rec.roll % 4) + 4) % 4 : 0;
+  return SEEN_KEYS.map(k => parts[k]).join('|') + (roll ? `|roll:${roll}` : '');
 }
 
-/** What the viewer sees of a person now (see the header), or null with no actor and no kit. */
+/** What the viewer sees of a person now (see the header; v0.0.25 its roll), or null with no actor and no kit. */
 export function seenOf(state, pid, { by = playerId(state), ms = state?.clock?.ms ?? 0, mirror = false, fresh = false, cover = false, keep = true } = {}) {
   const a = actorOfWho(state, pid);
   const gear = gearOf(state, pid, { by });
@@ -212,17 +220,23 @@ export function seenOf(state, pid, { by = playerId(state), ms = state?.clock?.ms
   // (his light at his feet, as your eye takes it; none in the mirror; the jamb's share only when the page asks)
   const light = mirror ? null : lightOf(state, a.x, a.z, ms), hid = cover && eye ? coverAt(state, a, eye) : null;
   const rec = { who: pid, kind: 'man', frame, gear, hold, aimAt, pose, facing, yawQ, light, cover: hid, rangeM, read };
+  // (his up against yours, by both bodies' faces (actor.onFace, absent the deck); none in the mirror)
+  const roll = me ? rollOf(me.onFace, a.onFace) : 0;
+  if (roll) rec.roll = roll;
   rec.key = seenKey(rec);
   return rec;
 }
 
 /** A board's record (see the header): its painted man's gear and the hold the stage paints for what the stand holds. */
-export function standSeen(face = 'threat', holds = 'rifle', read = null, { side = null, rangeM = null, light = null, cover = null } = {}) {
+export function standSeen(face = 'threat', holds = 'rifle', read = null, { side = null, rangeM = null, light = null, cover = null, onFace = null, by = null } = {}) {
   const shown = face === 'unknown' ? null : holds;
   const [how, right, left] = BOARD_HOLD[shown] ?? ['empty', null, null];
   const r = read && typeof read === 'object' ? { holds: read.holds ?? null, state: read.state ?? null } : { holds: typeof read === 'string' ? read : holds ?? null, state: null };
   const rec = { who: null, kind: 'board', face, frame: 'stand', gear: standGear(face, holds), hold: { how, right, left, act: null }, aimAt: null, pose: 'stand', facing: 'front', yawQ: 0,
     light, cover, rangeM: Number.isFinite(rangeM) ? rangeM : null, read: r, ...(side ? { side } : {}) };
+  // (the stand's face against the viewer's (by: his onFace), the board turned as he sees it)
+  const roll = rollOf(by, onFace);
+  if (roll) rec.roll = roll;
   rec.key = seenKey(rec);
   return rec;
 }

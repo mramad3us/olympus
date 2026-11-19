@@ -357,6 +357,41 @@ export const FREEFALL = deepFreeze({
  * footing 'couched': my call that a body at 2.5 G is down whatever holds it), and a body strapped into a couch or a rack is
  * couched at any change. DOWN_MS: going down to the deck takes 1.5 s, and DOWN_DROP_M the centre of mass's fall that the
  * bruise roll is made on (my call: a quarter metre, a body that buckles rather than drops).
+ * v0.0.25's burn polish (the user's score of test-burn, 2026-11-19: "mag boots won't save you from a 3G sideways maneuver"):
+ * BOOTS_SHEAR_G 1.0 G, what locked mag boots hold across the deck. The magnets pull the soles onto the plate and the soles'
+ * friction on it takes a push along the deck, so the boots break away sideways at MAG_BOOTS.BREAKAWAY_N 800 N: against a marine
+ * and his utilities (motion.js BODY_KG 75 and about 5 kg, 80 kg at 9.81 m/s²) that is 1.02 G, named 1.0 (my call). A push along
+ * the deck's normal (a burn, felt as weight) presses the soles on and is the BRACE_G rule's; a push across the deck (a jink, a
+ * manoeuvre to port or fore and aft) over BOOTS_SHEAR_G tears the boots off and the body is thrown as an unsecured one, floating
+ * across the compartment until it meets a face (src/sim/places/gravity.js, freefall.js, impact.js's bands). Only a body strapped
+ * into a rack or a couch is safe in a hard jink, and the 1MC says so (src/data/onemc.js).
  */
 export const BRACE_G = 1.5, SURPRISE_G = 0.5, COUCH_G = 2.5;
-export const GRAV_BODY = deepFreeze({ HOLD_MAX_G: 1, DOWN_MS: 1500, DOWN_DROP_M: 0.25 });
+// (TORN_SPIN_RADS: the fixer of v0.0.25's play review, "a booted marine thrown by the 3 G jink barely visibly moves": boots torn off
+// the plate leave the body pitching, the breakaway's 800 N at the soles a metre under the centre of mass for the third of a second the
+// ramp takes to reach it, about 6 rad/s on a stiff 80 kg, 1.8 m body (I = m L² / 12, 21.6 kg m²), half of it as the legs give: 3 rad/s,
+// my call. The tumble's frames (render/view.js) show the body thrown, tilting into the compartment's side.)
+export const GRAV_BODY = deepFreeze({ HOLD_MAX_G: 1, DOWN_MS: 1500, DOWN_DROP_M: 0.25, BOOTS_SHEAR_G: 1.0, TORN_SPIN_RADS: 3 });
+
+// ---- v0.0.25, "Hold to hold": the void's beats' constants ----
+/**
+ * The void's body (v0.0.25, "Hold to hold"; its build sheet §5; BODY §16.6; COMBAT §14.8, §25.3's `void` family; PL§5, PL§6),
+ * read by src/sim/body/footing.js (the face a body stands on), src/sim/body/freefall.js (the push in a low compartment),
+ * src/sim/combat/drills/void.js (the beats' times) and src/sim/arms/shooting.js (the face's rows). People stand on the deck or the
+ * deckhead this round: a body on the deckhead keeps its free-fall height actor.floatY at the room's ceiling less FREEFALL.FLOAT_Y_M
+ * (1.2 m under a 2.2 m deckhead), its span mirrored from the ceiling. FACE_MS: "Boots to the deckhead" and "Boots to the deck",
+ * the boots released (RELEASE 300 ms, MAG_BOOTS.UNLOCK_MS), the tuck and turn by a hold (TURN 800 ms), the boots locked on the other
+ * face (LOCK 400 ms, MAG_BOOTS.LOCK_MS): 1.5 s from boots, 1.2 s from floating within reach of a face (the tuck and the lock),
+ * anchored 'handhold' throughout (a hand on the hold the turn is made by). UNDOG_MS 1,500 (a hatch's four dogs, no roll: a stuck dog
+ * is 0.0.7g's), OPEN_HATCH_MS 500 (a deck hatch swung up into the deck you stand on), THROUGH_MS 1,000 × the Zero-g pace (the
+ * transit, head and gun first: 1.04 s for the sergeant at Zero-g 9, the sheet's 1.3 s the lens's arithmetic), one Zero-g roll at THROUGH_DC 6, a miss adding THROUGH_MISS_MS 200 a point
+ * (never a drift: PL's call, simple); COAMING_MS 600, over a bulkhead hatch's 0.3 m coaming on boots (my call, PL§6).
+ * PUSH_LOW_CEIL_M 2.4: in a compartment this low or lower the deck and the deckhead are always within reach of a floating body
+ * (its centre at most 1.1 m from one face under 2.2 m), so a push-off may be made from them (freefall.js pushFrom; never a dead
+ * end); the open middle counts the holds and the bulkhead and fixture faces only (freefall.js openMiddleOf). LET_AFTER_MS 200: your
+ * #2 lets go of your harness 0.2 s after your first round fired from his grip (PL§7), or on your plant, whichever is first.
+ */
+export const VOID = deepFreeze({
+  FACE_MS: { release: 300, turn: 800, lock: 400 }, UNDOG_MS: 1500, OPEN_HATCH_MS: 500, THROUGH_MS: 1000, THROUGH_DC: 6, THROUGH_MISS_MS: 200,
+  COAMING_MS: 600, PUSH_LOW_CEIL_M: 2.4, LET_AFTER_MS: 200,
+});

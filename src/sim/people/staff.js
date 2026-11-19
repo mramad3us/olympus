@@ -45,7 +45,7 @@ export function drawStaff(state, postKey) {
   return admitStaff(state, core, def, { base: ['staff', seed, P.site, P.key] });
 }
 
-/** Stand a person at a post, or stand them down (see the header). */
+/** Stand a person at a post, or stand them down (see the header). A pose may name its seat (spotId: a rack's berth, v0.0.25's burn polish: test-burn's NCO strapped into rack 1), kept on the post. */
 export function setPost(state, pid, pose) {
   const p = state.people?.[pid];
   if (!p) return null;
@@ -53,7 +53,7 @@ export function setPost(state, pid, pose) {
   else {
     const key = pose.key ?? postOf(p);
     p.post = { key, area: pose.area, x: pose.x, z: pose.z, ...(pose.y ? { y: pose.y } : {}), face: pose.face ?? 'down',
-      ...(pose.posture && pose.posture !== 'stand' ? { posture: pose.posture } : {}), outfit: pose.outfit ?? POSTS[key]?.outfit ?? 'utilities' };
+      ...(pose.posture && pose.posture !== 'stand' ? { posture: pose.posture } : {}), ...(pose.spotId ? { spotId: pose.spotId } : {}), outfit: pose.outfit ?? POSTS[key]?.outfit ?? 'utilities' };
   }
   notePosts(state);
   return p.post ?? null;

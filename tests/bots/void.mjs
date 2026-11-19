@@ -24,7 +24,8 @@
 // the card.
 // burnBot() secures for the burn as a careful marine does: the boots locked on the deck, the three items stowed at the locker by R
 // (the scene's hand hook: places/hand.js), then, once the 1MC calls the burn, to the rack's foot and strapped in by R. burnLazyBot()
-// pushes off the deck once and floats there, as a marine who does nothing about it (the thrown body's case). burnFuzzBot({ seed })
+// pushes off the deck once and floats there, as a marine who does nothing about it (the thrown body's case); burnBootsBot() rides it all on
+// his mag boots, never strapped in (v0.0.25's burn polish: the manoeuvre tears his boots off). burnFuzzBot({ seed })
 // presses R, the keys, L, the boots and T at random. Both answer the surprise's card (time held on it: the ship's profile's) as a
 // player answers it, burnBot with a grab where offered, the fuzz at random. runVoid(game, bot) runs either to its end.
 import { anchorsNow } from '../../src/sim/scenarios/anchors.js';
@@ -309,6 +310,27 @@ export function burnBot() {
     if (B.left) return R() ?? {};
     if (B.warn) return R() ?? {};
     return {};
+  };
+}
+
+/**
+ * The booted marine for test-burn (v0.0.25's burn polish): the burn bot's way on his mag boots but never strapped in, his three items
+ * stowed and his boots locked at the locker through the whole profile, so the warned 3 G manoeuvre tears them off the deck; the
+ * surprise's card answered with a grab where offered, his boots locked again by R once he is still.
+ */
+export function burnBootsBot() {
+  return (state, me, mem) => {
+    const B = burnNow(state);
+    if (!B || B.end) { mem.done = true; return {}; }
+    const c = cardAnswer(state, (os) => os.find(o => o.key === 'grab') ?? os[0]);
+    if (c) return c;
+    if (state.skip || state.stop || B.doing) return {};
+    const now = state.clock.ms;
+    const R = () => { const o = handOffer(state); if (o?.verb === 'scene' && !burnOffer(state)?.off && burnOffer(state)?.id !== 'strap' && mem.rAtMs !== now) { mem.rAtMs = now; return { act: ['hand'] }; } return null; };
+    if (footingOf(state, state.player.id).hold !== 'boots') return R() ?? {};
+    const goal = BERTH_SPOTS.locker.spot;
+    if (Math.hypot(me.x - goal[0], me.z - goal[1]) > 0.25) return pressToward(me, goal);
+    return B.left ? R() ?? {} : {};
   };
 }
 

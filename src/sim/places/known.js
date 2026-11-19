@@ -14,6 +14,10 @@
 //                        sheet's question 8). A named house (&layout=B or C, R.house.draw's `layout`: the instructors' other
 //                        panel settings, as fixed as lane A) is briefed as lane A is, so familiar (my call). Every other place,
 //                        and every scene without the field, is familiar: today's picture, untouched.
+//                        v0.0.25 (the build sheet v0.0.25 item 9, §3.1; the user, 2026-11-19, of H2: "we shouldn't know what's
+//                        behind closed doors or walls without looking"): 'walls', the Wreck's, a ship's plan briefed: false on the
+//                        scene's host area, whatever the house's record (the Wreck is no drawn house), so its compartments are black
+//                        until seen and its walls known (footprintOf's `walls`).
 //   footprintOf(state)   the drawn house's known parts, which never move (scenes/assemble.js's header: "its footprint fixed
 //                        (HOUSE1_RECT, the hall, the apron, the catwalk and the booth never move)"): the footprint's rect (its
 //                        outer walls known, the apron outside it), the catwalk's band over the hall and the booth (the
@@ -38,6 +42,7 @@
 import { SCENES } from '../../data/scenes.js';
 import { houseSpecOf } from '../scenes/assemble.js';
 import { areaOf } from './model.js';
+import { planOf, wallsOf, wallRect } from './plan.js';
 import { opOf, hostOf, NULL_HOST } from '../combat/op.js';
 import { turnersOf } from '../arms/turners.js';
 import { contactOf } from '../people/mind.js';
@@ -49,26 +54,52 @@ export const CATWALK_HALF_M = 0.6;
 /** The leg states at or past a room's entry (shoothouse.js progress's order, and 'passed' when the room was entered first). */
 const ENTERED = new Set(['entered', 'clear']);
 
-// (the scene of the game's scenario that names a familiarity: the scenes sharing a scenario share their host, so they share this)
+// (the scene of the game's scenario that names a familiarity: the scenes sharing a scenario share their host, so they share this;
+// the rule { familiar, area (the scene's host area) }, or null)
 function familiarRule(state) {
   const sc = state?.meta?.scenario;
   if (!sc) return null;
-  for (const s of Object.values(SCENES)) if (s.scenario === sc && s.familiar) return s.familiar;
+  for (const s of Object.values(SCENES)) if (s.scenario === sc && s.familiar) return { familiar: s.familiar, area: s.host?.area ?? null };
   return null;
 }
+/**
+ * The familiarity a state's scene names (see the header): { familiar: 'set' | 'walls', area } or null. A test may pass its own rule
+ * to familiarOf and footprintOf in place of this (the scene that names 'walls' is the lane's, not this module's).
+ */
+export const sceneFamiliar = (state) => familiarRule(state);
 // (the house's drawn record, R.house.draw = { mode: 'drawn', … }, or null as set)
 const drawnOf = (state) => { const d = opOf(state)?.draw; return d?.mode === 'drawn' ? d : null; };
 
-/** Whether an area is known before it is seen (see the header). */
-export function familiarOf(state, areaId) {
+/** Whether an area is known before it is seen (see the header). rule: the scene's (sceneFamiliar), or a test's own. */
+export function familiarOf(state, areaId, rule = familiarRule(state)) {
   if (!state || !areaId) return true;
+  // ('walls', the Wreck's: its plan briefed, every compartment unknown until seen, on the scene's host area only)
+  if (rule?.familiar === 'walls') return rule.area !== areaId;
   const d = drawnOf(state);
-  if (familiarRule(state) !== 'set' || !d || d.layout) return true;
+  if (rule?.familiar !== 'set' || !d || d.layout) return true;
   return houseSpecOf(state)?.area !== areaId;
 }
 
-/** The drawn house's fixed, known parts (see the header), or null where there is no house. */
-export function footprintOf(state) {
+// (an area's wall runs as rects [x0, z0, x1, z1], the very walls the nav grid blocks and the cutaway draws: plan.js wallsOf)
+const WALLS = new WeakMap();
+function wallRectsOf(A) {
+  let w = WALLS.get(A);
+  if (!w) { w = Object.freeze(wallsOf(planOf(A)).map(q => { const r = wallRect(q); return Object.freeze([r.x0, r.z0, r.x1, r.z1]); })); WALLS.set(A, w); }
+  return w;
+}
+
+/**
+ * The known parts (see the header), or null where there is none. Under 'walls' (v0.0.25, the Wreck: its plan briefed) the scene's
+ * host area's: { rect: its bounds (outside them nothing to hide), fixed: [], walls: every wall run's rect, known from the start with
+ * its ring (render/known.js marks them with WALL_CELLS), the compartments' floors not }. Else the drawn house's, as before.
+ */
+export function footprintOf(state, rule = familiarRule(state)) {
+  if (rule?.familiar === 'walls') {
+    const A = areaOf(rule.area);
+    if (!A?.boundsM) return null;
+    const b = A.boundsM;
+    return { rect: [b.x0, b.z0, b.x1, b.z1], fixed: [], walls: wallRectsOf(A).map(r => [...r]) };
+  }
   const H = opOf(state);
   if (!H) return null;
   const S = houseSpecOf(state), A = areaOf(S.area);

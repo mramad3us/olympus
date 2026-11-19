@@ -211,7 +211,7 @@ export function postedOn(state, area) {
 /** A post set or cleared (staff.js setPost): the placed list is drawn again. */
 export function notePosts(state) { delete peopleRt(state).placedKey; }
 // (a posted person's pose: at their post, as authored, never away while posted)
-const postPose = (post) => ({ area: post.area, x: post.x, z: post.z, y: post.y ?? 0, face: post.face ?? 'down', posture: post.posture ?? 'stand', spotId: null, outfit: post.outfit ?? 'utilities', curtain: false });
+const postPose = (post) => ({ area: post.area, x: post.x, z: post.z, y: post.y ?? 0, face: post.face ?? 'down', posture: post.posture ?? 'stand', spotId: post.spotId ?? null, outfit: post.outfit ?? 'utilities', curtain: false });
 
 /** A call's delay for a person (see the header): least + hashInt(most − least + 1, 'call', seed, pid, cause, atMs) ms, on CALL_DELAY_MS[cause]. */
 export function callDelay(pid, cause, atMs = 0, seed = 0) {
@@ -679,9 +679,13 @@ export function layPlayer(state, a, seatId, ms = state.clock.ms) {
   delete a.trans;
 }
 
-/** The player gets up (R, T or a move key while lying or sitting): a rise to their rack's foot, or a stand where they sit, at the tempo of the moment (hurriedAt). Returns the transition, or null. */
+/**
+ * The player gets up (R, T or a move key while lying or sitting): a rise to their rack's foot, or a stand where they sit, at the tempo
+ * of the moment (hurriedAt). Returns the transition, or null. A body strapped in (actor.strapped: gravity's profile.js setStrapped)
+ * does not rise: its straps are undone first (v0.0.25's burn polish: test-burn's Unstrap, scenarios/burn.js).
+ */
 export function riseActor(state, a, ms = state.clock.ms) {
-  if (!a) return null;
+  if (!a || a.strapped) return null;
   const posture = a.posture ?? 'stand';
   if (posture === 'stand' || playing(a.trans, ms)) return null;
   const here = { posture, x: a.x, z: a.z, y: a.y ?? 0, face: a.face ?? 'down', spotId: a.spotId ?? null };

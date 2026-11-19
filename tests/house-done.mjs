@@ -18,7 +18,7 @@
 // LATER; a renamed test or a gauge taken out of its ENFORCED fails it, so the list never claims a check that is gone, and never
 // counts as met a gauge that is red (the review of 2026-11-16: "MET 194" counted F70, F71 and F73, red in their heavy suites). The
 // release announcement quotes the USER and the OPEN rows. Group C, the gauges, is generated: one row a
-// gauge, F1 to F123 (GAUGE_LAST). Pure data and two resolvers.
+// gauge, F1 to GAUGE_LAST (137 from v0.0.25). Pure data and two resolvers.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -100,6 +100,22 @@ export const GAUGE_HOMES = Object.freeze([
     [121, null, 'E', 'flawless-looks.mjs', null],
     [122, null, 'E', 'flawless-looks.mjs, ui-truth-cards.test.mjs', null],
     [123, null, 'E', 'looks-applied.test.mjs', 'looks-applied › F123 every pick'],
+    // (v0.0.25, "Hold to hold", its build sheet §8: F124 to F137 homed at D's merge, the round's last; v the sheet's item, null;
+    // tests/wreck-done.mjs WRECK_GAUGES is these rows filtered from here on)
+    [124, null, 'stage 0', 'env-noregress.test.mjs', 'env-noregress › env-noregress, quick (F100, F124): the bay at 23:00'],
+    [125, null, 'C', 'scene-zerocqb.test.mjs, zerocqb-nodead.test.mjs, zerocqb-save.test.mjs', 'scene-zerocqb › the Wreck to the card (F125', 'at the Tests menu\'s ship rule'],
+    [126, null, 'C', 'zerocqb-anchor.test.mjs', 'zerocqb-anchor › F126: no round of the honest sergeant'],
+    [127, null, 'B', 'zerocqb-middle.test.mjs', 'zerocqb-middle › zerocqb-middle (F127): the open middle is floating'],
+    [128, null, 'B', 'zerocqb-hatch.test.mjs', 'zerocqb-hatch › zerocqb-hatch (F128): #1 anchored'],
+    [129, null, 'B', 'zerocqb-two.test.mjs', 'zerocqb-two › zerocqb-two (F129): the brace from your transit'],
+    [130, null, 'D', 'zerocqb-faces.test.mjs, ui-zerocqb.test.mjs', 'zerocqb-faces › F130 six faces agree, the sim'],
+    [131, null, 'C', 'zerocqb-aft.test.mjs', 'zerocqb-aft › F131: the sergeant by T'],
+    [132, null, 'C', 'zerocqb-quick.test.mjs, zerocqb-flawless.test.mjs', 'zerocqb-quick › F132 (quick)'],
+    [133, null, 'C, D', 'zerocqb-tick.test.mjs, ui-zerocqb.test.mjs', 'zerocqb-tick › F133 (the tick\'s half, quick)'],
+    [134, null, 'C', 'zerocqb-pars.test.mjs', 'zerocqb-pars › F134 (quick)'],
+    [135, null, 'A', 'zerocqb-transit.test.mjs, wreck-place.test.mjs', 'zerocqb-transit › one deck at a time'],
+    [136, null, 'C, D', 'zerocqb-words.test.mjs, ui-zerocqb.test.mjs', 'zerocqb-words › F136 (the sim\'s half)'],
+    [137, null, 'A, D', 'wreck-known.test.mjs, ui-zerocqb.test.mjs', 'wreck-known › from deck 5 nothing of deck 6'],
   ].map(([n, v, owner, files, by, when = 'at once']) => ({ from: n, to: n, file: files.split(', ')[0], role: owner, v, owner, files, when, ...(by ? { by } : {}) })),
 ]);
 /** The gauges' names, a short line each (COMBAT §25.19.8 and the sheets' §8; group C's rows). */
@@ -141,12 +157,28 @@ export const GAUGE_WHAT = Object.freeze({
   F120: 'the card\'s facing as scored, the marks on the target\'s plane scaled by the cosine side on',
   F121: 'light and the jamb: lit rooms and "Bang" byte for byte; never below LIGHT_FLOOR_K; the hidden share drawn as the jamb; no doll repainted by light or cover',
   F122: 'the truth cards: each engaged man\'s card equals seenOf at your first round\'s tick, in the scored layout', F123: 'every scored pick drawn as picked, every unscored set at its default',
+  // (v0.0.25: its sheet's §8, F124 to F137, tests/wreck-done.mjs's rows)
+  F124: 'nothing moves: every v0.0.24 pin byte for byte, but E\'s two re-records, each cell with its cause',
+  F125: 'the Wreck to the card on every sheet; 40 seeds × six sheets and the fuzz with no dead end; nine saves byte for byte',
+  F126: 'anchor before you fire: no honest round floating; every first round\'s anchor on the card; every fuzz floating round faulted',
+  F127: 'hold to hold: no honest body in the open middle over OPEN_MS; every fuzz case faulted; a floating body always has a face to push from',
+  F128: 'the hatch: #1 anchored from his transit\'s first tick; never in a coaming over 1 s with nothing to shoot; F4 on the bulkhead hatches',
+  F129: 'the #2\'s brace and cue: the brace held from your transit to your plant or 0.2 s after your first round; his entry within 3 s; his boots with yours',
+  F130: 'six faces agree: every board\'s and body\'s face the same in the sim, the stage and the card at every tick it is drawn',
+  F131: 'feet aft: every honest lane meets its onset, every honest marine booted on the deck at it; a floating body thrown at fallOf\'s speed and carded; no skip while pending',
+  F132: 'the house\'s F1, F2, F6, F7, F9, F10, F13, F14, F15, F17, F24, F25, F26 on the Wreck\'s lanes',
+  F133: 'the Wreck\'s busiest tick under 2 ms × k; ?bench=wreck within TECH §16.1; the deck switch with no frame over 33 ms and nothing sent',
+  F134: 'each sheet\'s T meets its own par on the Wreck on 48213 and two more seeds',
+  F135: 'one deck at a time: crossHatch the only deck change, nobody between the decks, the actors list never re-made; a save mid-transit carries on',
+  F136: 'every line of the Wreck a text bubble at its speaker, none voiced, none overlapping at 1024 × 768 and 1600 × 900',
+  F137: 'nothing drawn before seen in the Wreck, and nothing of the other deck in the picture',
 });
 // (v0.0.23's integration, the stage-0 lead's plan: F97 to F99, the P-12's gauges of the user's fourth note of 2026-11-17, homed
 // from A's and C's merges, counted at the last step; the instructor's sterile walk takes no F number, house-sterile-walk stands as a
 // test (the lead's call), and v0.0.24's sheet shifts its numbers by exactly three)
 // (v0.0.24 E: F100 to F123 homed, the round's last merge; the sheet's §0 item 29)
-export const GAUGE_LAST = 123;
+// (v0.0.25 D: F124 to F137 homed, the round's last merge; its sheet's §7, §8)
+export const GAUGE_LAST = 137;
 /** The gauge's home (GAUGE_HOMES' row), or null. */
 export const homeOf = (id) => { const n = Number(String(id).replace(/^F/, '')); return GAUGE_HOMES.find(h => n >= h.from && n <= h.to) ?? null; };
 
@@ -204,7 +236,9 @@ export const DONE = Object.freeze([
   { id: 'B17c', group: 'B', what: 'on your heels', check: gauge('F48'), by: 'v0.0.20' },
   { id: 'B18', group: 'B', what: 'which is your corner, defined', words: W(D15, 'rigorous definition of which is our corner'), check: test('house-corner'), by: 'v0.0.17' },
   { id: 'B19', group: 'B', what: 'the guns bang harder, the steps quieter', words: W(D15, 'guns should bang harder and closer to realistic ... steps are too loud'), check: test('audio-gun'), by: 'v0.0.17' },
-  { id: 'B19b', group: 'B', what: 'the shot picked', check: user('the To score page\'s Shot row (A0 to A4)'), answered: null },
+  // (v0.0.25's stage 0, C4: the user's pick of the shot, 2026-11-19 (DESIGN.md's log, the gallery's picks): A4 in every scene, the
+  // R-7 rebuilt meaner as A5 (audio-doom), which the audio set's D group waits to be scored against)
+  { id: 'B19b', group: 'B', what: 'the shot picked', check: user('the To score page\'s Shot row (A0 to A4)'), answered: W('2026-11-19', 'If i had to pick only one it\'s the last one, however, I would use the R-7 wave for the P-12 and make the R-7 sound meaner, blunter, more bass heavy. less a "PAF" and more a "DOOM" if that makes sense.') },
   { id: 'B20', group: 'B', what: 'the helmet', words: W(D15, 'The helmet design is pretty goofy'), check: test('art-helmets'), by: 'v0.0.17' },
   { id: 'B21', group: 'B', what: 'doors open one way, and the way shapes the entry', words: W(D15, 'doors should have a direction they open (pull or push) and it should affect our options for entry'), check: test('house-doors'), by: 'v0.0.17' },
   { id: 'B21b', group: 'B', what: 'nobody in a door\'s swing', check: gauge('F26'), by: 'v0.0.17' },
@@ -414,6 +448,53 @@ export const DONE = Object.freeze([
   { id: 'OF4', group: 'O', what: 'every line a text bubble at its speaker, none over another or the HUD, at least 95% placed as said', words: W('2026-11-19', 'forget about voices, those are all terrible use text bubble only'), check: test('bubbles'), by: 'v0.0.24 F' },
   { id: 'OF5', group: 'O', what: 'the older sets drawn as scored: R3, E1, O2 in trim; the throw by distance, B3, R2; the masks M2 and M3; the chemlight; the P-12 A with C and D kept, grey gloves; the walk B (W-c)', words: W('2026-11-19', 'Lots of stale picks since I failed to review them earlier, most of what is already in game is fine'), check: test('picks-applied'), by: 'v0.0.24 F' },
   { id: 'OF6', group: 'O', what: 'the samples to score: audio\'s D, A5 against A4', check: { kind: 'sample', ref: 'audio' } },
+  // ---- P. v0.0.25, "Hold to hold" and the carried fixes (its build sheet §1, §8): each role's rows directly below its own anchor
+  // (A the Wreck's places, B the body on a face and the void's beats, C the lane, D the look off the deck and GAUGE_LAST 137 at
+  // its merge, E the carried fixes on the 1 G house); the round's gauges F124 to F137 are tests/wreck-done.mjs's until D homes them ----
+  // (v0.0.25 A)
+  // (A: the Wreck and its places, F135's and F137's sim halves; the gauges themselves are homed at D's merge)
+  { id: 'PA1', group: 'P', what: 'the Wreck: decks 5 and 6 of one area 60 m apart (past the widest window), every room of its deck, the trunk offset by the decks\' origins, every bulkhead hatch the house\'s door dressed, every fixture deck to deckhead, set A meeting all six faces (F135)', check: test('wreck-place › set A'), by: 'v0.0.25 A' },
+  { id: 'PA2', group: 'P', what: 'the Wreck\'s plans: cells 2 and 5 and the store derived and fresh, the hold\'s authored from its deckhead; every point the lane walks standable and routed, the open scuttle cutting the passage (F135)', check: test('wreck-place › every point the lane walks'), by: 'v0.0.25 A' },
+  { id: 'PA3', group: 'P', what: 'the Wreck\'s bulkheads stand to its 2.2 m deckhead, every shipped area\'s plan and walls the snapshot\'s to the byte', check: test('wreck-place › the cutaway'), by: 'v0.0.25 A' },
+  { id: 'PA4', group: 'P', what: 'one deck at a time: crossHatch the only deck change, by the decks\' offset in one tick, nobody between the decks, the actors never made again, a save mid-transit carried on (F135)', check: test('zerocqb-transit › one deck at a time'), by: 'v0.0.25 A' },
+  { id: 'PA5', group: 'P', what: 'the Wreck\'s plan briefed: every wall cell known at the start and no compartment\'s floor; nothing of the other deck ever in sight (F137, the sim\'s half)', words: W('2026-11-19', 'we shouldn\'t know what\'s behind closed doors or walls without looking'), check: test('wreck-known › at the start'), by: 'v0.0.25 A' },
+  // (v0.0.25 B)
+  // (B: the body on a face and the void's beats, F127 to F129's sim halves; the gauges themselves are homed at D's merge)
+  { id: 'PB1', group: 'P', what: 'the body on a face: the deck or the deckhead (actor.onFace), the deckhead\'s height 1.2 m and its span [0.45, 2.2] head down, one helper for the hit model and the blast; the boots lock on the deckhead, magWalk there under the tug', check: test('face-footing › onFaceOf, setOnFace and bodySpanOf'), by: 'v0.0.25 B' },
+  { id: 'PB2', group: 'P', what: '"Boots to the deckhead" and "Boots to the deck": 1.5 s from boots, 1.2 s from a hold, held on a hold throughout, a save mid-change carried on', check: test('face-footing › the face change lived'), by: 'v0.0.25 B' },
+  { id: 'PB3', group: 'P', what: 'a man upside down is hit where he is: a round at chest height takes his chest, at 0.6 m his head', check: test('face-footing › the hit model and the blast'), by: 'v0.0.25 B' },
+  { id: 'PB4', group: 'P', what: 'anchor before you fire: every shot row under 0.05 G says its anchor and its pull ("Pair · braced (#2) · 420 ms"), every shipped label as built', words: W('2026-11-08', 'let\'s say we use footing to hold recoil'), check: test('face-footing › the shot rows'), by: 'v0.0.25 B' },
+  { id: 'PB5', group: 'P', what: 'the void\'s beats on the drill\'s engine: the dogs, the lift, the transit, the plant, the face change, the coaming; nothing of the house moves', check: test('void-beats › nothing moves on the house'), by: 'v0.0.25 B' },
+  { id: 'PB6', group: 'P', what: 'the hatch: #1 anchored from his transit\'s first tick on the new deck, in his #2\'s grip or on the coaming\'s hold, never floating, then planted on the deckhead; no kick at a hatch (F128, the sim\'s half)', check: test('zerocqb-hatch › #1 anchored'), by: 'v0.0.25 B' },
+  { id: 'PB7', group: 'P', what: 'your #2\'s grip through the trunk: "Got you." from your transit\'s start to your plant or 0.2 s after your first round, never longer, never absent; his entry on that cue within 3 s; his boots with yours (F129, the sim\'s half)', check: test('zerocqb-two › the brace from your transit'), by: 'v0.0.25 B' },
+  { id: 'PB8', group: 'P', what: 'hold to hold: a floating body always has a face to push from in a low compartment; the open middle is floating with no hold or bulkhead in reach, the deck and the deckhead never counted (F127, the sim\'s half)', check: test('zerocqb-middle › never a dead end'), by: 'v0.0.25 B' },
+  { id: 'PB9', group: 'P', what: 'feet aft: under a burn\'s warning your #2 says "Feet aft." and puts his boots on the deck, and T\'s first offer is "Feet aft"', check: test('zerocqb-two › feet aft'), by: 'v0.0.25 B' },
+  // (v0.0.25 C)
+  // (C: the lane on the Wreck, its words, its card and its bots, F125, F126, F131 to F134 and F136's sim half; the gauges themselves are homed at D's merge)
+  { id: 'PC1', group: 'P', what: '"Hold to hold": the house\'s lane on the Wreck as its own scenario, four compartments on two decks, no hall, the house\'s due slots; by URL only until its ship rule (F125)', check: test('scene-zerocqb › the Wreck\'s scene'), by: 'v0.0.25 C' },
+  { id: 'PC2', group: 'P', what: 'the Wreck to the card on every sheet by T and by the keys, 40 seeds a sheet and the fuzz with no dead end, nine saves byte for byte (F125)', check: test('zerocqb-nodead'), by: 'v0.0.25 C' },
+  { id: 'PC3', group: 'P', what: 'anchor before you fire: every round with its anchor, no honest round floating, a floating round faulted with recoilFloat\'s push and spin, the first round\'s anchor on the card (F126)', words: W('2026-11-08', 'let\'s say we use footing to hold recoil'), check: test('zerocqb-anchor'), by: 'v0.0.25 C' },
+  { id: 'PC4', group: 'P', what: '"Secure for burn": the yard tug 60 s after GO, feet aft within its 15 s warning, the deckhead faulted, a floating body thrown at fallOf\'s speed, no skip while pending (F131)', check: test('zerocqb-aft'), by: 'v0.0.25 C' },
+  { id: 'PC5', group: 'P', what: 'the house\'s gauges on the Wreck: F1, F2, F6, F9, F10, F13, F14, F26 held, F7, F15, F17, F24, F25 printed open with their causes (F132)', check: test('zerocqb-quick'), by: 'v0.0.25 C' },
+  { id: 'PC6', group: 'P', what: 'the Wreck\'s busiest tick under 2 ms × k, the least of three (F133, the tick\'s half)', check: test('zerocqb-tick'), by: 'v0.0.25 C' },
+  { id: 'PC7', group: 'P', what: 'each T sheet\'s own par on the Wreck, the anchor\'s, the plant\'s and the tug\'s parts in a stand\'s book (F134)', check: test('zerocqb-pars'), by: 'v0.0.25 C' },
+  { id: 'PC8', group: 'P', what: 'every line of the Wreck a say with a speaker, the cadre\'s at the 1MC while he has no actor, none voiced; "Deck five clear!", "Deck six clear!"; the cadre aboard at Stop (F136, the sim\'s half)', words: W('2026-11-19', 'forget voice synthesis, no voices.'), check: test('zerocqb-words'), by: 'v0.0.25 C' },
+  // (v0.0.25 D)
+  // (D: the look off the deck, the portrait's roll, the bubbles at the speakers, the knowledge's page half, C6; F130, F133, F136 and F137's page halves)
+  { id: 'PD1', group: 'P', what: 'a body or a board on any face drawn as samples/wreck-faces turns it: the deck and the ventral bulkhead upright, the deckhead and the dorsal bulkhead flipped head down, a side bulkhead a quarter turn, whole pixels, never culled (F130)', check: test('wreck-look › faceCard\'s 24 rows'), by: 'v0.0.25 D' },
+  { id: 'PD2', group: 'P', what: 'every body off the deck by one rule, read from floatY: a floater at a standing man\'s height at the deck\'s, raised and one scale step nearer past 0.5 m of lift; a face change through the tumble\'s 45° frames', check: test('wreck-look › heightLookOf is one value'), by: 'v0.0.25 D' },
+  { id: 'PD3', group: 'P', what: 'a man or a board upside down to you drawn on the card as you see him (R-a, the sample\'s own turn), every shipped key the same string', check: test('portrait-faces › R-a'), by: 'v0.0.25 D' },
+  { id: 'PD4', group: 'P', what: 'the Wreck in the page: framed a deck at a time, the compartments black until seen, the bodies on their faces, the deck wipe with no hitch (F130, F133, F137)', check: test('ui-zerocqb › ui-zerocqb: the Wreck in the page'), by: 'v0.0.25 D' },
+  { id: 'PD5', group: 'P', what: 'every line a text bubble at its speaker: the cadre\'s and the 1MC\'s at your compartment\'s speaker, none over another (F136)', words: W('2026-11-19', 'forget voice synthesis, no voices.'), check: test('ui-zerocqb › every line a bubble at its speaker'), by: 'v0.0.25 D' },
+  { id: 'PD6', group: 'P', what: 'the samples to score: wreck-faces (K, T, P, H, B, X; K-b, T-a, P-a, H-a, B-a, X-a drawn until scored)', check: { kind: 'sample', ref: 'wreck-faces' } },
+  { id: 'PD7', group: 'P', what: 'the samples to score: portrait-faces (R; R-a drawn until scored)', check: { kind: 'sample', ref: 'portrait-faces' } },
+  // (v0.0.25 E)
+  // (E: the carried fixes on the 1 G house, C1 to C3, and the runner's three files' lanes; no gauge of its own: F4 and F86 hold them)
+  { id: 'PE1', group: 'P', what: 'your #2 never holds you in a doorway on a drawn house: out of a room north of the hall he waits inside it while your walk passes its door (F4; drawn seed 3, the tier one, 0 still ticks in room 3\'s funnel, 2 in v0.0.24)', words: W('2026-11-13', 'soldiers need to stay fluidly moving'), check: test('carried-v025 › C1'), by: 'v0.0.25 E' },
+  { id: 'PE2', group: 'P', what: 'the P-12\'s admin on MAKE READY and SHOW CLEAR drawn as the pistol in the hands at the low ready, the rifle hanging, and read so by the record (v0.0.23\'s question 19 at its default; drawn so by v0.0.24 as tagged, its ADMIN_FRAMES kept at the merge and E\'s duplicate dropped, the case reading the tag\'s frames)', check: test('carried-v025 › C2'), by: 'v0.0.25 E' },
+  { id: 'PE3', group: 'P', what: 'no plate over another in the house: the row\'s plate ("PAIR, MOVING ON") stacked below the shot\'s plaque ("TORSO SURE") it would meet (v0.0.23\'s question 22)', check: test('carried-v025 › C3'), by: 'v0.0.25 E' },
+  { id: 'PE4', group: 'P', what: 'the tower\'s wait moves the lane by chance only, judged by the paired difference where it sees a 3% wait, else by the 2% bound kept', check: test('house-pace › the wait moves the lane from GO by chance only'), by: 'v0.0.25 E' },
+  { id: 'PE5', group: 'P', what: 'the quick suite lighter, no case changed: reads-scope\'s, panel-keys\' and fixer-v020\'s extra lanes in heavy twins', check: test('panel-keys › every case over the lanes\' stops above'), by: 'v0.0.25 E' },
 ]);
 
 /** Group C: one row a gauge, F1 to GAUGE_LAST. */
@@ -426,6 +507,8 @@ export const GAUGE_ROUNDS = Object.freeze([
   { from: 1, to: 24, v: 'v0.0.14' }, { from: 25, to: 26, v: 'v0.0.17' }, { from: 27, to: 29, v: 'v0.0.18' }, { from: 30, to: 44, v: 'v0.0.19' },
   { from: 45, to: 59, v: 'v0.0.20' }, { from: 60, to: 73, v: 'v0.0.21' }, { from: 74, to: 84, v: 'v0.0.22' }, { from: 85, to: 99, v: 'v0.0.23' },
   { from: 100, to: 123, v: 'v0.0.24' },
+  // (v0.0.25's integration: the Wreck's F124 to F137, homed by D's merge)
+  { from: 124, to: 137, v: 'v0.0.25' },
 ]);
 /** A gauge's round (GAUGE_ROUNDS), or null. */
 export const roundOf = (id) => { const n = Number(String(id).replace(/^F/, '')); return GAUGE_ROUNDS.find(r => n >= r.from && n <= r.to)?.v ?? null; };
@@ -502,7 +585,15 @@ export const OPEN_GAUGES = Object.freeze({
   // past 585 s 0, the fuzz's longest 585.0 s, every lane to its card)
   F70: { run: "house-ladder's sweep, v0.0.21 C's run of 2026-11-16 (40 set seeds)", value: 'the boot recruit a GO at his own standard on 25% (his men\'s pars); the sergeant a NO-GO at operator on 30%', target: 'GO at own 90%, NO-GO at the next 80%' },
   F71: { run: "moment-house's node part, v0.0.21 C's run of 2026-11-16", value: 'the private by the keys from the brief 7.50 real minutes', target: '5 to 7 real minutes; dead air under 20%' },
-  F73: { run: "render-bench's house benches, v0.0.21 D's run of 2026-11-16 (this Mac, 60 Hz)", value: 'house-kit 229.8 KB uploaded at 7.67 s, house-live 238.2 KB at 7.25 s (the figures\' bands painted mid-lane)', target: `no upload over 64 KB after GO + 1 s` },
+  // (v0.0.25 D, C6: the late band gone (the prepared looks lacked the mask and the boots, so each was another look's; your look's rifle
+  // band at the high ready drawn from a sibling carry's sheet, the same pixels); the frame's bytes left are the fog's and the range layer's)
+  F73: { run: "render-bench's house benches, v0.0.25 D's runs of 2026-11-19 (this Mac, 60 Hz, :8233; the bench card's own reading)", value: 'house-kit 117.9 KB at 6.9 s and house-live 117.9 KB at 6.8 s, no band sent (v0.0.24: 230.5 and 237.9 KB, your look\'s rifle band at the high ready 144 KB of it): the fog\'s eased mask (48 KB a frame while it eases) and the range layer\'s pixel buffers (about 70 KB while its pixels change)', target: `no upload over 64 KB after GO + 1 s` },
+  // (v0.0.25's gauges red on their owners' runs (c.md, 2026-11-19): homed at D's merge, open until the lead's quiet heavy run says otherwise)
+  F129: { run: "C's Wreck lanes, v0.0.25 C's handoff of 2026-11-19 (48213, every sheet, honest, keys and fuzz)", value: 'no lane braced: your #2\'s stack:point at the trunk halted by your body before his brace beat, your transit on the coaming\'s hold after TWO_WAIT_MS 3 s (zerocqb-two\'s bare world braced)', target: 'the brace held from your transit to your plant or 0.2 s after your first round, never absent' },
+  F132: { run: "zerocqb-flawless, v0.0.25 C's run of 2026-11-19 (6 sheets × 48213, 1037, 1074)", value: 'F1, F2, F6, F9, F10, F14, F26 met; F7 18 corner faults, F13 15 stops on the tier one against 14, F15 74.6 s against 46, F17 54 of 54 stacks over 1.5 m, F24 10 of 210 stops naming no row, F25 51 of 54 cues late', target: 'as on the house' },
+  // (F134 emptied by v0.0.25's docs check: zerocqb-pars' heavy case on the integrated tree, 2026-11-19 (JOBS=3, k 1.00), MET: 12 of 12
+  // T lanes GO on 48213, 1037 and 1074, 3 of 3 a sheet (the corporal on 48213 and 1037 and the sergeant on 1037 each one stand missed
+  // on his hands, GO); the sim's lanes, so the machine's load does not move it; F134 never left its file's ENFORCED)
   // (v0.0.22's integration, its full run of 2026-11-16 on the merged tree (JOBS=3, the Mac shared): the new gauges red. F25 on the
   // kit's second slice (B's: the mixed loadout's keys recruit on 1222 after a G-11 slipped at his feet, 3.30 s) emptied by v0.0.22's
   // fixer: your cue ends his stack-up at his stack point (bundle.js), house-flawless-kit2 green on the full run of 2026-11-18

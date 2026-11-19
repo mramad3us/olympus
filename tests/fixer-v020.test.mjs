@@ -111,6 +111,7 @@ export default [
   },
   {
     name: 'the lane timer\'s strip never says HE FIRED FIRST of a man whose par the scene then judges met: the tier one by the honest bot on 105, 2a met within the instructor\'s click and 1b the #2\'s own man (the code review of v0.0.20: "2A HE FIRED FIRST" for 1.25 s and "1B HE FIRED FIRST" at +4.75 s, the strip running each par from the first sighting by anyone, the click left out)',
+    heavy: true, // (v0.0.25, its build sheet §1 E and the carried lens §3.3: the file over its quick CPU line alone, 3.4 to 3.9 s against 3 s × k; this lane, a lane of its own (the tier one on 105, 633 ms of CPU cold), moved to the heavy suite as TECH §13.7 says, the case unchanged)
     fn() {
       const g = createGame({ scenario: 'test-shoothouse', seed: 105, tier: 'tierone', setup: 'go' }), s = g.state, H = houseOf(s);
       const red = new Map();

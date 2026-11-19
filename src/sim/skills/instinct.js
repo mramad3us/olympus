@@ -56,6 +56,8 @@
 // (the sheet §8, item 12): lines that send you somewhere say where, in words.
 // v0.0.24: on the void range (test-anchors) the range's tower and card rules keep quiet (RANGE_OFF_VOID); aboard while test-burn
 // runs, the base's 'situation' says the scene's line by the ship's phase (offBurn, data/courses.js BURN_T), never the barracks' day.
+// v0.0.25 (the user's report of 2026-11-19 on "Anchor before you fire"): the void range's rule (instinct/void.js VOID_RULES) names the
+// next step to a station while its command stands, after the base's rules.
 // The read scope (src/core/reads.js): both evaluations open state.$reads around firedNow, so the rules' panel and
 // bodies are built once per ms whichever rule reads them first; and a whole second is due once at its ms (the held second: a
 // pause standing on a whole second rebuilt the instinct twenty times a second).
@@ -67,6 +69,7 @@ import { GROOM_RULES } from './instinct/groom.js';
 import { RANGE_RULES } from './instinct/range.js';
 import { PAIRS_RULES } from './instinct/pairs.js';
 import { CQB_RULES, stopLead, walkInKey } from './instinct/cqb.js';
+import { VOID_RULES } from './instinct/void.js';
 import { rangeOf } from '../scenarios/handling.js';
 import { contactNow, pendingOf } from '../combat/contact.js';
 import { takeInWords } from '../combat/react.js';
@@ -100,17 +103,22 @@ const offVoid = (r) => (RANGE_OFF_VOID.has(r.id) ? Object.freeze({ ...r, when: (
 // burn.js imported, so no cycle runs through places/hand.js's scene hook. Every other scene: the rule as it was)
 const burnPhase = (state) => {
   const B = state?.armoury?.burn;
-  return !B || B.end ? null : B.onset ? 'after' : B.warnAtMs !== null && B.warnAtMs !== undefined ? 'warned' : 'before';
+  // (the user's score of test-burn: 'evade' from the warned manoeuvre's warning to its onset)
+  return !B || B.end ? null : B.evade && B.evade.atMs === null ? 'evade' : B.onset ? 'after' : B.warnAtMs !== null && B.warnAtMs !== undefined ? 'warned' : 'before';
 };
 const offBurn = (r) => (r.id === 'situation' ? Object.freeze({
   ...r,
   short: (ctx) => (ctx.burn ? BURN_T.short[ctx.burn] : typeof r.short === 'function' ? r.short(ctx) : r.short),
   when: (state, me, ms) => { const p = burnPhase(state); return p ? { variant: `burn-${p}`, burn: p, noHumour: true } : r.when(state, me, ms); },
   act: (ctx, state) => (ctx.burn ? null : r.act ? r.act(ctx, state) : null),
-  text: { ...r.text, 'burn-before': BURN_T.before, 'burn-warned': BURN_T.warned, 'burn-after': BURN_T.after },
+  text: { ...r.text, 'burn-before': BURN_T.before, 'burn-warned': BURN_T.warned, 'burn-after': BURN_T.after, 'burn-evade': BURN_T.evade },
 }) : r);
+// (the user's score of test-burn: the base's 'woke' ("Up. The rack will still be here tonight.") quiet while test-burn runs: lying in your rack
+// there is strapping in or strapped in, and R's Unstrap is the way out, never T's rise)
+const offBurnWoke = (r) => (r.id === 'woke' ? Object.freeze({ ...r, when: (state, me, ms) => (burnPhase(state) ? null : r.when(state, me, ms)) }) : r);
 /** Every rule the instinct weighs: the base's, the grooming's, the range's, then the pairs' (merged by tone in settle(): within a tone, in that order). */
-export const RULES = Object.freeze([...BASE_RULES.map(offBurn), ...GROOM_RULES, ...RANGE_RULES.map(offHouse).map(offPairs).map(offVoid), ...PAIRS_RULES, ...CQB_RULES]);
+// (the void range's next step (instinct/void.js) after the base's, so a wound still comes first)
+export const RULES = Object.freeze([...BASE_RULES.map(offBurn).map(offBurnWoke), ...VOID_RULES, ...GROOM_RULES, ...RANGE_RULES.map(offHouse).map(offPairs).map(offVoid), ...PAIRS_RULES, ...CQB_RULES]);
 /** The line's lead while stop motion holds time (VIEWS §7.4; the build sheet §8 item 10). */
 export const STOP_LEAD = 'Time stands still.';
 
@@ -265,6 +273,13 @@ export function instinctAction(state, action, bus, ctx) {
   if (args?.id) target = fired.find(l => l.id === args.id && (args.act === undefined || l.act === args.act)) ?? null;
   else if (args && 'id' in args) return false;                     // (the page saw no line as T went down: nothing, never a line it did not show)
   else {
+    // (a game loaded and not yet ticked has no line (state.$instinct is runtime): settled now from what fires, as its first tick
+    // would, so T on a pause's first tick after a load does what it did in the game that saved (v0.0.25's fixer, the code review:
+    // zerocqb-save chose its points round it))
+    if (!state.$instinct) {
+      const s0 = settle(null, fired, state.clock.ms, { urgentOnly: isHeld(state) && !isHeld(state, 'stop') });
+      if (s0.line) state.$instinct = { ...instinctNow(state), line: s0.line, chip: s0.chip ? { id: s0.chip.id, act: s0.chip.act } : null };
+    }
     const now = instinctNow(state), want = args?.chip ? now.chip : now.line;
     target = want ? fired.find(l => l.id === want.id) ?? null : null;
   }

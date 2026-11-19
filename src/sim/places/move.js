@@ -22,6 +22,8 @@
 // through a doorway, a step aside or a way out of one is null there, and a carry under way is dropped once the body floats (the
 // review's crash: a carry planned at 0 G after a burn ramped back, its profile divided by a brake of nothing, the body's place
 // NaN and every tick after thrown).
+// v0.0.25 (the review of its E, A and B): a body standing on the deckhead (actor.onFace) meets a bulkhead hatch's head as a closed
+// leaf (headStop: the step onto it not taken, an axis at a time), so it goes to the deck before it crosses; no shipped area has one.
 // While TIME's feetHeld (src/sim/time/doing.js: an activity under way, lying or sitting, a transition
 // playing) the keys only turn a standing player (not while a transition plays: the rise keeps its
 // facing) and nothing settles the feet, so a berth or a stall
@@ -135,7 +137,7 @@ import { locoStep } from '../body/loco.js';
 import { startled } from '../combat/supp.js';
 import { zonesOf, liveZoneAt, exitOf, laneOf, standsStill, keepClearOf, restClear, EXIT_M } from './zones.js';
 import { routed, clipped } from '../combat/route.js';
-import { footingOf, magGaits } from '../body/footing.js';
+import { footingOf, magGaits, hatchHeadGapM } from '../body/footing.js';
 import { gravityAt } from './env.js';
 import { GAIT_G } from '../../data/body/needs.js';
 // (free fall's seam (see the header): v0.0.24 B's body/freefall.js floatStep)
@@ -178,6 +180,16 @@ export function blockerOf(state, pid, x0, z0, x, z) {
   if (!B?.bodies?.length) return null;
   const b = B.bodies.find(o => { const next = Math.hypot(x - o.x, z - o.z); return next < B.gapM && next < Math.hypot(x0 - o.x, z0 - o.z) - 1e-6; });
   return b ? { x: b.x, z: b.z, gapM: B.gapM } : null;
+}
+// (a body on the deckhead spans it ([0.45, 2.2] m), so a bulkhead hatch's head (the bulkhead over its
+// opening) stands in its way as a closed leaf would: a step bringing its circle onto one is not taken, an axis at a time so it
+// slides along it (footing.js hatchHeadGapM); it must go to the deck to cross. Nothing else moves: no shipped area has a hatch leaf)
+const headIn = (state, x0, z0, x, z, r) => { const g = hatchHeadGapM(state, x, z); return g < r - 1e-9 && g < hatchHeadGapM(state, x0, z0) - 1e-9; };
+function headStop(state, a, x0, z0, r) {
+  if (a.onFace !== 'deckhead' || (a.x === x0 && a.z === z0) || !headIn(state, x0, z0, a.x, a.z, r)) return;
+  if (!headIn(state, x0, z0, a.x, z0, r)) a.z = z0;
+  else if (!headIn(state, x0, z0, x0, a.z, r)) a.x = x0;
+  else { a.x = x0; a.z = z0; }
 }
 // (the person whose actor stands at a body's place, or null (a stand))
 const whoAt = (state, b) => state.actors?.list?.find(a => a.x === b.x && a.z === b.z)?.who ?? null;
@@ -331,6 +343,7 @@ function inertStep(state, a, feet, grid, stance, pid = playerId(state), dt = ine
   if (sz) moveActor(a, 0, Math.sign(sz), Math.abs(sz) * 1000 / TICK_MS, grid);
   // (a body of the scene's rule in the way (useBodies): the step not taken, as a wall's)
   if ((a.x !== x0 || a.z !== z0) && bodyBlocks(state, pid, x0, z0, a.x, a.z)) { a.x = x0; a.z = z0; }
+  headStop(state, a, x0, z0, grid.radiusM);
   // (a wall stops the body: what it did not travel it loses)
   const fx = Math.abs(sx) > 1e-9 && Math.abs(a.x - x0) < Math.abs(sx) * 0.5 ? 0 : vx, fz = Math.abs(sz) > 1e-9 && Math.abs(a.z - z0) < Math.abs(sz) * 0.5 ? 0 : vz;
   if (Math.hypot(fx, fz) > 1e-3) a.v = [fx, fz]; else delete a.v;
@@ -810,6 +823,7 @@ export function playerStep(state, input, bus, ctx) {
   const x0 = a.x, z0 = a.z;
   moveActor(a, mx, mz, speed, grid);
   if ((a.x !== x0 || a.z !== z0) && bodyBlocks(state, playerId(state), x0, z0, a.x, a.z)) { a.x = x0; a.z = z0; }
+  headStop(state, a, x0, z0, grid.radiusM);
   const moved = locoStep(a, x0, z0, { state, pid: playerId(state), gait, stance: null, vMs: speed });
   if (grid.kind === 'ground') navAhead(state, area, PLAYER_CLS, a.x, a.z);
   const p = moved > 0 ? portalCrossed(state, a) : null;

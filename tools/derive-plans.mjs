@@ -9,6 +9,11 @@
 //
 //   node tools/derive-plans.mjs            print every derived family
 //   node tools/derive-plans.mjs --write    and rewrite the derived families between x4.js's two markers, nothing else
+//   node tools/derive-plans.mjs --wreck [--write]   v0.0.25 (the build sheet v0.0.25 §1 A): the Wreck's three bulkhead hatches'
+//                                          plans (cells 2 and 5, the store: src/data/places/wreck.js), derived in the area's own frame
+//                                          (one authored area, no chunk), printed, and with --write rewritten between
+//                                          src/data/places/wreck-plans.js's two markers; the hold's plan (entered from its deckhead,
+//                                          no door) is authored there by hand. tests/wreck-place.test.mjs holds them fresh.
 //
 // The committed families are held equal to what the deriver gives today by tests/chunks-fresh.test.mjs: when the router, the sight
 // grid or the corner rule changes, that test fails, this tool is rerun, and the change is said in CHANGELOG.md with the chunks'
@@ -63,7 +68,45 @@ function block(plans) {
   return rows.join('\n');
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// ---- v0.0.25, the Wreck (see the header) ----
+
+/** The Wreck's derived legs: [leg number, the hatch, the compartment's rooms] (the lane's order: cell 2, cell 5, the hold (authored), the store). */
+export const WRECK_DERIVED = Object.freeze([[1, 'o:wk:d5:cell-2', ['wk.d5.cell-2']], [2, 'o:wk:d5:cell-5', ['wk.d5.cell-5']], [4, 'o:wk:d6:store', ['wk.d6.store']]]);
+/** The Wreck's derived plans: { plans: { [hatch]: plan }, lines }, each hot spot's id its leg's ('r1:c0', as a drawn house's), every offered hatch open for the paths. */
+export async function deriveWreck() {
+  const { derivePlan, geoOf } = await import(path.join(root, 'src/sim/combat/derive.js'));
+  const { WRECK, WRECK_HATCHES } = await import(path.join(root, 'src/data/places/wreck.js'));
+  const open = WRECK_HATCHES.filter(h => h.offered !== false).map(h => h.id), plans = {}, lines = [];
+  for (const [leg, door, parts] of WRECK_DERIVED) {
+    const t = performance.now(), P = derivePlan(geoOf(WRECK.id, door, parts), { open }), ms = performance.now() - t;
+    plans[door] = { ...P, hot: P.hot.map(h => ({ ...h, id: `r${leg}:${h.id}` })), corners: P.corners, ...(P.far ? { far: { ...P.far, hot: `r${leg}:${P.far.hot}` } } : {}) };
+    lines.push(`leg ${leg} ${door} (${P.entry}): points ${JSON.stringify(P.points)}; paths ${r2(len(P.paths[1]))} and ${r2(len(P.paths[2]))} m; hot ${P.hot.length} (${P.hot.map(h => h.why).join(', ')}); ${Math.round(ms)} ms`);
+  }
+  return { plans, lines };
+}
+function wreckBlock(plans) {
+  const rows = ['const DERIVED = {'];
+  for (const [id, P] of Object.entries(plans)) {
+    rows.push(`  '${id}': {`);
+    for (const [k, v] of Object.entries(P)) rows.push(`    ${k}: ${lit(v)},`);
+    rows.push('  },');
+  }
+  rows.push('};');
+  return rows.join('\n');
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv.includes('--wreck')) {
+  const { plans, lines } = await deriveWreck();
+  for (const l of lines) console.log(l);
+  if (process.argv.includes('--write')) {
+    const file = path.join(root, 'src/data/places/wreck-plans.js'), src = readFileSync(file, 'utf8');
+    const a = src.indexOf('// derive-plans:begin\n'), b = src.indexOf('// derive-plans:end');
+    if (a < 0 || b < a) throw new Error('derive-plans: no markers in src/data/places/wreck-plans.js');
+    writeFileSync(file, `${src.slice(0, a)}// derive-plans:begin\n${wreckBlock(plans)}\n${src.slice(b)}`);
+    console.log(`written: ${path.relative(root, file)}, between its markers`);
+  }
+  resetCaches();
+} else if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const t0 = performance.now(), { plans, lines } = deriveAll();
   for (const l of lines) console.log(l);
   console.log(`${Object.keys(plans).length} chunks, ${Object.values(plans).reduce((a, f) => a + Object.keys(f).length, 0)} families, derived in ${Math.round(performance.now() - t0)} ms`);

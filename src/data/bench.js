@@ -46,6 +46,10 @@
 // T and the shot row every 2 s for 20 s: the role-players' frames, their masks and paint, a casualty's beat where it falls.
 // house-stop: the private at GO in stop motion, 5 s held, KeyD (the brackets: a press that rebuilds the panel and moves no
 // clock; on panel C a digit acts and runs it) every 1 s: the page's reads while time stands still. All on the set (draw 'set').
+// v0.0.25 (the build sheet §6 D, F133): wreck, "Hold to hold"'s stack on the hold's deckhead after the transit (test-zerocqb's 'hold'
+// setup) on seed 48213 as the sergeant, every board up, T (the next step of the drill) and the shot row (Digit1) in turn every 2 s for
+// 20 s: the bodies upside down on the deckhead and turned boards on every face, the overhead's footprints, the face change down to
+// the deck, the hold's men; judged as the others, from Windows `play.cmd --dev` and ?bench=wreck.
 // Every bench's card judges TECH §16.1 (BENCH_BUDGET): the median frame, its p95, no frame over 50 ms after the first 3 s,
 // the draw calls, the view's CPU at its p95, no program linked after the warm, no upload over UPLOAD_MID_KB after GO + 1 s.
 
@@ -105,6 +109,13 @@ export const BENCH_SCENES = Object.freeze({
   'house-stop': Object.freeze({
     play: 'test-shoothouse', seed: 48213, hour: 10, setup: 'go', tier: 'private', draw: 'set',
     keys: Object.freeze(Array.from({ length: 5 }, () => [Object.freeze(['KeyD', 120]), Object.freeze([null, 880])]).flat()),
+    warmS: 2,
+  }),
+  wreck: Object.freeze({
+    play: 'test-zerocqb', seed: 48213, hour: 10, setup: 'hold', tier: 'sgt',
+    keys: Object.freeze([Object.freeze(['KeyT', 120]), Object.freeze([null, 1880]),
+      ...Array.from({ length: 4 }, () => [Object.freeze(['Digit1', 120]), Object.freeze([null, 1880]), Object.freeze(['KeyT', 120]), Object.freeze([null, 1880])]).flat(),
+      Object.freeze(['Digit1', 120]), Object.freeze([null, 1880])]),
     warmS: 2,
   }),
   'range-far': Object.freeze({

@@ -20,6 +20,18 @@
 //                         before a load is runtime memory, so a save made through a burn carries on to the same line
 //                         and the same T (the review of v0.0.24's A to C: after a load the note took the line from
 //                         "Rifle back." for its three seconds, and T's presses differed)
+//   aft           urgent  (v0.0.25, "Hold to hold"; COMBAT §14.8's feet aft; the build sheet v0.0.25 item 10) while a burn's warning
+//                         is out or its change coming in (places/gravity.js bracePending) in a live operation's lane (op.js
+//                         opLive: the Wreck's; a ship's own burn, Testudo's, keeps its scene's line) and the body stands on the deckhead
+//                         or floats: "Feet aft." and T takes the face's row to the deck (shooting.js faceRows 'face:aft', the act
+//                         'anchor:face:aft'); on the deck nothing (the boots on the deck are feet aft). Saved state only, no repeat
+//                         wait (repeatMs 0), as 'anchor'. With more than AFT_DEFER_MS to the onset and a man you know of up and
+//                         facing within AFT_THREAT_M, the man first: the line is the room's (the honest raider on 48213 went feet
+//                         aft the instant the 1MC spoke, the hold's men waiting 1.5 s, 3b's par missed). Booted on the deck at a
+//                         deck hatch with AFT_HOLD_MS or less to the onset (its leg's way in a deck hatch, not yet entered),
+//                         "Feet aft. Hold on the deck for the burn." and T takes the Wait: the transit, the plant and the face back
+//                         are longer than that (the review of C and D: the corporal by T on 1074 went through 8.3 s before the onset
+//                         and hung on the hold's deckhead at it, not feet aft)
 //   alarm         urgent  a drill open and you not mustered (or mustered and gone from your rack):
 //                         up, utilities, the foot of your rack (T rises you, then dresses you at your
 //                         rack); past the count, the words say you missed it, never its time
@@ -73,15 +85,32 @@ import { riseActor, outfitOf } from '../../people/place.js';
 import { transPlaying } from '../../time/doing.js';
 import { rangeNow } from '../../scenarios/handling.js';
 import { kdAct } from '../../scenarios/range.js';
-import { opLive } from '../../combat/op.js';
+import { opLive, opOf } from '../../combat/op.js';
 import { chooseStep, enterStop } from '../../arms/shooting.js';
 import { stepOfAct } from './range.js';
-import { anchorAction } from '../../arms/shooting.js';
+import { anchorAction, faceRows } from '../../arms/shooting.js';
+import { hatchOf } from '../../places/hatch.js';
+import { bracePending, gravNow } from '../../places/gravity.js';
+import { facingOf } from '../../arms/turners.js';
 import { gravityAt } from '../../places/env.js';
 import { footingOf, anchorOffers, driftingNow } from '../../body/footing.js';
 import { holdNear } from '../../places/model.js';
 import { GAIT_G, FOOTING } from '../../../data/body/needs.js';
 import { handGunOf } from '../../arms/kit.js';
+
+/** Feet aft waits for the man in front of you while the onset is further off than this (ms): a pair (1.85 s at the corporal) and the face (1.45 s), with room. */
+export const AFT_DEFER_MS = 5_000;
+/** How near a man you know of, up and facing, holds feet aft back (m): the compartment's, never the other deck's. */
+export const AFT_THREAT_M = 12;
+/** Booted on the deck at a deck hatch, the transit waits for the burn with the onset this near (ms): the honest tier one's transit, plant and face back, 10.35 s on 48213, with room. */
+export const AFT_HOLD_MS = 12_000;
+// (a transit through a deck hatch ahead: the lane's leg a deck hatch's (places/hatch.js) not yet entered; read from the operation's
+// record, never the panel's rows (stepsOf, twice a tick under the warning, made the Wreck's busiest tick 2.8 ms))
+const transitAhead = (state) => { const H = opOf(state), L = H?.rooms?.[H.cur]; return !!L && L.state !== 'entered' && L.state !== 'clear' && L.state !== 'passed' && hatchOf(state, L.door)?.kind === 'deck'; };
+// (a threat or the armoured you know of (taken in: contact.js's known), standing, facing, within AFT_THREAT_M)
+const threatKnownUp = (state, me, ms) => { const known = state.mind?.contact?.known ?? {};
+  return (state.armoury?.range?.turners ?? []).some(t => (t.face === 'threat' || t.face === 'armoured') && known[t.key] !== undefined && (t.stoppedAtMs ?? null) === null
+    && facingOf(t, ms) >= 0.5 && Math.hypot(t.x - me.x, t.z - me.z) <= AFT_THREAT_M); };
 
 // (BODY's band ladders, so a rule names the band it fires at and reads the stage by its place in the ladder)
 const LADDERS = Object.freeze({
@@ -160,6 +189,11 @@ export const BASE_RULES = Object.freeze([
     when(state, me, ms) {
       void ms;
       if (!state.places?.live?.area || gravityAt(state, null, me.x, me.z).gG >= GAIT_G.FLOAT_BELOW_G) return null;
+      // (on the void range while a station's command stands, the next step is instinct/void.js's, never "Anchor before you
+      // fire" on the way to it (the user's report of 2026-11-19: the course said what to be, never what to press))
+      const RA = state.armoury?.range;
+      // (nor "grab the hold" on station five's standby and string, whose round is the floating one)
+      if (RA?.course === 'anchors' && !RA.end && (RA.anchors?.phase === 'move' || (RA.anchors?.stations?.[RA.anchors.st]?.id === 'floating' && (RA.anchors.phase === 'standby' || RA.anchors.phase === 'string')))) return null;
       const pid = playerId(state), posture = state.people?.[pid]?.kit?.carry?.posture;
       const up = !!handGunOf(state, pid) || posture === 'lowReady' || posture === 'highReady' || posture === 'aimed';
       if (!up || footingOf(state, pid).mode !== 'float') return null;
@@ -176,6 +210,33 @@ export const BASE_RULES = Object.freeze([
       handhold: ['Anchor before you fire. Take the hold.', 'Anchor before you fire. A hand on the hold.'],
       none: ['No footing: nothing in reach to hold.', 'No footing here. Nothing in reach to hold.'],
       drift: ['Drifting. L to grab the hold.', 'Drifting: L to grab the hold as you pass.'],
+    },
+  },
+  {
+    // (a burn's warning out, the body on the deckhead or floating: feet aft (see the header); the warning read first, so no
+    // shipped scene without a profile reads more than a lookup)
+    id: 'aft', voice: 'di', tone: (ctx) => (ctx.step ? 'urgent' : 'note'), short: 'Feet aft', reach: null, repeatMs: 0,
+    when(state, me, ms) {
+      void ms;
+      if (!state.places?.live?.area || !bracePending(state) || !opLive(state)) return null;
+      const pid = playerId(state), on = me.onFace === 'deckhead' || footingOf(state, pid).mode === 'float';
+      // (booted on the deck at a deck hatch, the onset near: hold there (see the header); a man up and facing is the room's first)
+      if (!on && me.anchor === 'boots' && me.onFace !== 'deckhead' && (gravNow(state)?.leftMs ?? 0) <= AFT_HOLD_MS && state.stop?.mode === 'stop' && transitAhead(state) && !threatKnownUp(state, me, state.clock.ms)) {
+        return { step: state.stop.phase === 'choose' ? 'wait' : null, variant: 'hold', busy: !!state.skip || !!state.time?.doing };
+      }
+      if (!on || me.faceTo === 'deck') return null;
+      if ((gravNow(state)?.leftMs ?? 0) > AFT_DEFER_MS && threatKnownUp(state, me, state.clock.ms)) return null;
+      const row = faceRows(state, pid).find(r => r.id === 'face:aft');
+      // (busy while a step of yours acts in stop motion (the hold's clearing bundle): the face change is taken once it ends, so T's
+      // keycap is lit only when it can act; v0.0.25's fixer, the play review's 81 T presses on a lit "Feet aft." that did nothing)
+      const acting = state.stop?.mode === 'stop' && state.stop.phase === 'act' && !!state.stop.doing && state.stop.doing.kind !== 'wait';
+      return { step: row && !row.off ? row.id : null, variant: row && !row.off ? 1 : 'none', busy: !!state.skip || !!state.time?.doing || acting };
+    },
+    act: (ctx) => (ctx.busy || !ctx.step ? null : ctx.variant === 'hold' ? `stop:${ctx.step}` : `anchor:${ctx.step}`),
+    text: {
+      1: ['Feet aft.', 'Feet aft. Boots on the deck.'],
+      hold: ['Feet aft. Hold on the deck for the burn.', 'Feet aft: stay on the deck, through after the burn.'],
+      none: ['Feet aft. Get a hand on a hold.', 'Feet aft: nothing to put your boots on from here. Take a hold.'],
     },
   },
   {
@@ -310,6 +371,8 @@ export const BASE_RULES = Object.freeze([
   {
     id: 'woke', voice: 'di', tone: 'note', short: 'Up', reach: null,
     when(state, me, ms) {
+      // (the user's score of test-burn: never to a body strapped in (test-burn's rack: its straps hold him, riseActor refuses, Unstrap is R's))
+      if (me?.strapped) return null;
       const k = know(state, me, ms);
       if (k.busy || k.moving || k.posture !== 'lie' || k.asleep || state.time?.drills?.open) return null;
       // (between taps and reveille: back to sleep, or the head first)

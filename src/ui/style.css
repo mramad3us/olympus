@@ -49,7 +49,7 @@ button { font: inherit; color: inherit; }
    An element keeps to its box: what does not fit is cut, never spilled over the picture. */
 
 /* WATCH, 280 × 132 top right: the wrist terminal (TIME §3.1's faces; src/ui/hud/watch.js). */
-.watch { position: absolute; top: var(--m); right: var(--m); width: calc(280px * var(--ui)); max-height: calc(132px * var(--ui)); overflow: hidden; background: var(--hud); border: 1px solid var(--glass-edge); border-radius: 4px; padding: calc(6px * var(--ui)) calc(10px * var(--ui)); text-align: right; }
+.watch { position: absolute; top: var(--m); right: var(--m); width: calc(280px * var(--ui)); max-height: calc(150px * var(--ui)); overflow: hidden; background: var(--hud); border: 1px solid var(--glass-edge); border-radius: 4px; padding: calc(6px * var(--ui)) calc(10px * var(--ui)); text-align: right; }
 .watch .time { font-size: calc(26px * var(--ui)); line-height: 1.15; letter-spacing: 0.06em; color: var(--paper); font-variant-numeric: tabular-nums; white-space: nowrap; display: flex; align-items: center; justify-content: flex-end; gap: calc(6px * var(--ui)); }
 .watch .time .t { margin-left: auto; }
 .watch .slip { display: inline-block; margin-left: 6px; padding: 0 4px; font-size: calc(10px * var(--ui)); letter-spacing: 0.12em; color: var(--ink); background: var(--brass); border-radius: 2px; vertical-align: calc(5px * var(--ui)); }
@@ -128,6 +128,19 @@ body > .toasts { position: fixed; z-index: 5; }
 .glyph.bordered.urgent { border-color: var(--red); }
 .strip { display: flex; gap: calc(4px * var(--ui)); align-items: center; }
 .watch .strip.folded { order: -1; margin-right: auto; pointer-events: auto; }
+/* v0.0.25's burn polish: the G line, its meter and the boots' note (src/ui/hud/strip.js createGLine) */
+.watch .gline .gtext { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.watch .gline.brace .gtext { color: var(--brass); }
+.watch .gline .gmrow { display: flex; align-items: center; justify-content: flex-end; gap: calc(6px * var(--ui)); margin-top: calc(2px * var(--ui)); }
+.watch .gline .gmrow[hidden] { display: none; }
+.watch .gline .gnote { font-size: calc(10px * var(--ui)); letter-spacing: 0.08em; color: #e8705f; white-space: nowrap; }
+.watch .gline .gnote.safe { color: #7fc48b; }
+.watch .gline .gmeter { position: relative; display: inline-block; width: calc(96px * var(--ui)); height: calc(6px * var(--ui)); background: var(--ink-2); border: 1px solid var(--glass-edge); }
+.watch .gline .gmeter .fill { position: absolute; left: 0; top: 0; bottom: 0; background: var(--paper); }
+.watch .gline .gmeter.target .fill { background: repeating-linear-gradient(90deg, var(--brass) 0 2px, transparent 2px 4px); }
+.watch .gline .gmeter.over .fill { background: #d0584e; }
+.watch .gline .gmeter.over.target .fill { background: repeating-linear-gradient(90deg, #d0584e 0 2px, transparent 2px 4px); }
+.watch .gline .gmeter .mark { position: absolute; top: calc(-2px * var(--ui)); bottom: calc(-2px * var(--ui)); width: 1px; background: var(--glass-text); }
 
 /* KEYS, 120 × 32 bottom right: "? keys", folded (the user, tradecraft 2026-10-27). */
 .keyshint { position: absolute; right: var(--m); bottom: var(--m); width: calc(120px * var(--ui)); height: calc(32px * var(--ui)); display: flex; align-items: center; justify-content: center; gap: 6px; overflow: hidden; white-space: nowrap; font-size: calc(11px * var(--ui)); color: #b8bdc8; background: var(--hud); border-radius: 4px; }

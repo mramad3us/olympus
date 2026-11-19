@@ -8,6 +8,9 @@
 // but by a read of the view's sheet; (c) under READS_FREEZE (what the scope keeps frozen) a lane runs to its card without a
 // throw, in a child process with READS_FREEZE=1; (d) a pause standing on a whole second runs no evaluation of the instinct over
 // 40 held ticks (40 on v0.0.20's tree: one every held tick).
+// v0.0.25 (its build sheet §1 E; the carried lens §3.3): (a)'s five lanes split, the case unchanged: the tier one by T and the private by
+// the keys quick (the two lanes (c) also runs), the flash, the live sergeant and the fuzz recruit in a heavy "(a, more)"; the file was
+// over its quick CPU line alone (4.8 s against 3.6 s × k), about 60% of it (a)'s.
 import { execFileSync } from 'node:child_process';
 import { assert, root } from './helpers.mjs';
 import { createGame } from './game.mjs';
@@ -17,23 +20,33 @@ import { BUILT } from '../src/core/reads.js';
 import { houseNow } from '../src/sim/scenarios/shoothouse.js';
 import { isHeld } from '../src/core/clock.js';
 
+// ((a)'s lanes, run with the scope and with it forced off, each to its end: one digest and one tick count both ways)
+function scopeLanes(LANES) {
+  const out = LANES.map(L => {
+    const on = make(L), off = make(L);
+    off.state.$readsOff = true;
+    const r1 = runHouse(on, botOf(L.bot, { seed: L.seed })), r2 = runHouse(off, botOf(L.bot, { seed: L.seed }));
+    return { L: `${L.bot} ${L.tier} ${L.seed}${L.setup ? ` ${L.setup}` : ''}${L.opfor ? ` ${L.opfor}` : ''}`, ticks: [r1.ticks, r2.ticks], on: on.digest(), off: off.digest() };
+  });
+  for (const o of out) console.log(`      ${o.L}: ${o.ticks[0]} ticks, digest ${o.on} with the scope, ${o.off} without (${o.ticks[1]} ticks)`);
+  assert(out.every(o => o.on === o.off && o.ticks[0] === o.ticks[1]), JSON.stringify(out));
+}
 const make = (L) => createGame({ scenario: 'test-shoothouse', seed: L.seed, tier: L.tier, setup: L.setup ?? 'go', ...(L.loadout ? { loadout: L.loadout } : {}), ...(L.opfor ? { opfor: L.opfor } : {}) });
 
 export default [
   {
-    name: '(a) five lanes end on the same digest with the read scope and with it forced off (state.$readsOff): the scope moves no tick',
+    name: '(a) two lanes end on the same digest with the read scope and with it forced off (state.$readsOff): the scope moves no tick (the tier one by T and the private by the keys; the other three in "(a, more)")',
     timeoutMs: 120_000,
     fn() {
-      const LANES = [{ tier: 'tierone', seed: 48213, bot: 'honest' }, { tier: 'private', seed: 48213, bot: 'keys', setup: 'room:3' }, { tier: 'tierone', seed: 48213, bot: 'kit:flash', loadout: 'flash', setup: 'room:2' },
-        { tier: 'sgt', seed: 48213, bot: 'honest', opfor: 'live' }, { tier: 'recruit', seed: 48213, bot: 'fuzz', setup: 'hall' }];
-      const out = LANES.map(L => {
-        const on = make(L), off = make(L);
-        off.state.$readsOff = true;
-        const r1 = runHouse(on, botOf(L.bot, { seed: L.seed })), r2 = runHouse(off, botOf(L.bot, { seed: L.seed }));
-        return { L: `${L.bot} ${L.tier} ${L.seed}${L.setup ? ` ${L.setup}` : ''}${L.opfor ? ` ${L.opfor}` : ''}`, ticks: [r1.ticks, r2.ticks], on: on.digest(), off: off.digest() };
-      });
-      for (const o of out) console.log(`      ${o.L}: ${o.ticks[0]} ticks, digest ${o.on} with the scope, ${o.off} without (${o.ticks[1]} ticks)`);
-      assert(out.every(o => o.on === o.off && o.ticks[0] === o.ticks[1]), JSON.stringify(out));
+      scopeLanes([{ tier: 'tierone', seed: 48213, bot: 'honest' }, { tier: 'private', seed: 48213, bot: 'keys', setup: 'room:3' }]);
+    },
+  },
+  {
+    name: '(a, more) three lanes more end on the same digest with the read scope and with it forced off: the flash, the live sergeant and the fuzz recruit (heavy from v0.0.25: (a)\'s five lanes split, the case unchanged)',
+    heavy: true,
+    timeoutMs: 120_000,
+    fn() {
+      scopeLanes([{ tier: 'tierone', seed: 48213, bot: 'kit:flash', loadout: 'flash', setup: 'room:2' }, { tier: 'sgt', seed: 48213, bot: 'honest', opfor: 'live' }, { tier: 'recruit', seed: 48213, bot: 'fuzz', setup: 'hall' }]);
     },
   },
   {

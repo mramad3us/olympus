@@ -69,7 +69,8 @@ export const BERTH_SPOTS = deepFreeze({
   rack: { id: 'f:tb:rack:05', x: RACK_X[0], z: 4.975, foot: [RACK_X[0], 3.0] },
   locker: { id: 'f:tb:locker:04', x: LOCKER_X[0], z: 5.725, spot: [LOCKER_X[0], 4.9] },
   start: { x: 4.2, z: 3.0, face: 'down' },
-  nco: { x: 1.8, z: 3.0, face: 'right' },
+  // (the user's score of test-burn: beside the forward hatch, 0.9 m off your rack's foot (1.8, 3.0 before, 0.5 m: you stood in him to strap in))
+  nco: { x: 1.5, z: 2.55, face: 'right' },
   items: [
     { key: 'helmet', word: 'your helmet', x: 5.4, z: 2.6, y: 1.1 },
     { key: 'bag', word: 'your seabag', x: 2.9, z: 3.4, y: 0.6 },

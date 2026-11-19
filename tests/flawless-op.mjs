@@ -118,7 +118,12 @@ export function opTBot({ keys = false } = {}) {
 }
 
 /** The barracks' DI (instinct/base.js and groom.js: the needs, the grooming, free time): never a line in an operation (the review of 2026-11-16: "Nothing on fire. Enjoy it while it lasts." through the clear). */
-export const BARRACKS_LINES = Object.freeze(new Set([...BASE_RULES, ...GROOM_RULES].map(r => r.id)));
+// (v0.0.25's stage 0, C5: the void's two rules are an operation's, never the barracks': 'anchor' ("Anchor before you fire.", v0.0.24
+// A's) is said in an operation at 0 G, and 'aft' ("Feet aft", B's rule of this round, after it) under a ship's burn, the Wreck's
+// first operation among them; the set is built from every BASE_RULES id, so each is left out by name, 'aft' before it exists)
+/** The ids of BASE_RULES that are an operation's own (see above), never a barracks line. */
+export const VOID_LINES = Object.freeze(new Set(['anchor', 'aft']));
+export const BARRACKS_LINES = Object.freeze(new Set([...BASE_RULES, ...GROOM_RULES].map(r => r.id).filter(id => !VOID_LINES.has(id))));
 
 const legOfStand = (stand) => (stand === 'H' ? 3 : Number(stand?.[0]) - 1);
 // (each turner turned at its own trigger as the house turns it (shoothouse.js triggers): the leg's door open, the hall entered, the start)

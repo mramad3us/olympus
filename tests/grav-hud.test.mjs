@@ -5,6 +5,9 @@
 // change, and nothing at Mars, in the Wheel, or aboard a ship under a steady 1 G with nothing pending. The siren (src/ui/audio/siren.js)
 // plays one cycle a SIREN_CYCLE_MS through the warning and none outside it, at SIREN_DB through the compartment's air; the 1MC's
 // words reach the radio box under its own name; the surprise's card reads as the reflex card does (src/ui/hud/reflex.js reflexOf).
+// v0.0.25's burn polish (the user's score of test-burn, 2026-11-19: "some indication of how strong is the burn"): the words pinned
+// here are the event's size and direction now, "BRACE 0:08 · BURN 1.0 G ▼", "1.00 G ▼ burn" and the 1MC's "Secure for burn: one
+// G."; burn-polish holds the rest (the jink's, the meter, the boots' note).
 import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { setProfile, gLineOf, gravCardOf } from '../src/sim/places/gravity.js';
@@ -26,7 +29,7 @@ const text = (s) => gLineText(gLineOf(s));
 
 export default [
   {
-    name: 'grav-hud: the G line\'s words: "0.00 G · floating" and "0.00 G · on mag boots" on a coasting deck, "BRACE 0:08" in the warning, "1.00 G · burn" under the burn; nothing at Mars, in the Wheel, or under a steady 1 G with nothing pending',
+    name: 'grav-hud: the G line\'s words: "0.00 G · floating" and "0.00 G · on mag boots" on a coasting deck, "BRACE 0:08 · BURN 1.0 G ▼" in the warning, "1.00 G ▼ burn" under the burn (v0.0.25\'s burn polish: the size and the arrow); nothing at Mars, in the Wheel, or under a steady 1 G with nothing pending',
     fn() {
       const g = createGame({ scenario: 'sandbox', seed: SEED, env: 'ship-coast' }), s = g.state;
       setProfile(s, [{ kind: 'burn', toG: 1, atS: 20, warnS: 15 }]);
@@ -40,7 +43,7 @@ export default [
       const none = {};
       for (const [k, o] of [['Mars', { scenario: 'test-handling' }], ['the Wheel', { scenario: 'test-shoothouse' }], ['a ship at 1 G', { scenario: 'sandbox', env: 'ship-1g' }]]) { const n = createGame({ seed: SEED, ...o }); n.step(20); none[k] = { facts: gLineOf(n.state), text: text(n.state) }; }
       console.log(`      ${Object.entries(words).map(([k, v]) => `${k} "${v}"`).join('; ')}; ${Object.entries(none).map(([k, v]) => `${k} "${v.text}" (${v.facts})`).join('; ')}`);
-      assert(words.floating === '0.00 G · floating' && words.boots === '0.00 G · on mag boots' && words.brace === 'BRACE 0:08' && words.burn === '1.00 G · burn', JSON.stringify(words));
+      assert(words.floating === '0.00 G · floating' && words.boots === '0.00 G · on mag boots' && words.brace === 'BRACE 0:08 · BURN 1.0 G ▼' && words.burn === '1.00 G ▼ burn', JSON.stringify(words));
       for (const [k, v] of Object.entries(none)) assert(v.facts === null && v.text === '', `${k}: ${JSON.stringify(v)}`);
     },
   },
@@ -72,7 +75,7 @@ export default [
       // (the free card keeps no answer: no keep line; the stop's own card keeps its line (ui-steps))
       assert(card.free === true && card.keepText === null, JSON.stringify({ free: card.free, keepText: card.keepText }));
       console.log(`      ${said.map(l => `${l.head}: "${l.text}"`).join('; ')}; the card "${card.title}": ${card.rows.map(r => r.text).join(' | ')}`);
-      assert(said.length >= 2 && said.every(l => l.head === '◉ 1MC') && said[0].text === 'Brace, brace, brace. Secure for burn. Burn in one second.', JSON.stringify(said));
+      assert(said.length >= 2 && said.every(l => l.head === '◉ 1MC') && said[0].text === 'Brace, brace, brace. Secure for burn: one G. Burn in one second.', JSON.stringify(said));
       assert(card.title === 'The drive lights.' && card.rows.map(r => r.text).join('|') === '1 Turn feet aft|2 Nothing: let it come', JSON.stringify(card));
     },
   },

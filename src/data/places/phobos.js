@@ -82,12 +82,16 @@ const turner = (lane, x, z, at, name) => ({ key: `turner:${lane}`, lane, x, z, y
  * (a pad-eye at 0.75 m + 3 m k both ways), so a body floating can stop there by a grab and push off again along one of the eight
  * directions the keys give, the lattice's own (my call: the moves between stations are runs from pad-eye to pad-eye).
  */
+// (the user's report of 2026-11-19 ("translate what I have to do for the 0G shooting training"): each station's `via`, the
+// pad-eyes its command's route stops at on the way from the station before it, each run along one of the keys' eight directions, so
+// the cadre's words and the DI's next step (skills/instinct/void.js) name a push that arrives: down then left into the plates' gap,
+// left out of it, up to the top wall and right along it to station five's ring)
 export const STATIONS = deepFreeze([
-  { n: 1, id: 'boots', mark: [27.75, 6.75], want: 'magBoots', hold: 'boots', gun: 'rifle', rounds: 2, lane: 1, dM: 10, turner: [37.75, 6.75] },
-  { n: 2, id: 'lanyard', mark: [21.75, 0.75], want: 'handhold', hold: 'tether', gun: 'rifle', rounds: 2, lane: 2, dM: 15, turner: [36.75, 0.75] },
-  { n: 3, id: 'onehand', mark: [27.75, 0.75], want: 'handhold', hold: 'handhold', gun: 'pistol', rounds: 2, lane: 3, dM: 7, turner: [34.75, 2.25] },
-  { n: 4, id: 'wedge', mark: [15.75, 15.75], want: 'braced', hold: 'braced', gun: 'rifle', rounds: 2, lane: 4, dM: 20, turner: [35.75, 15.75] },
-  { n: 5, id: 'floating', mark: [15.75, 0.75], want: 'floating', hold: 'none', gun: 'rifle', rounds: 1, lane: 5, dM: 10, turner: [25.75, 4.5] },
+  { n: 1, id: 'boots', mark: [27.75, 6.75], want: 'magBoots', hold: 'boots', gun: 'rifle', rounds: 2, lane: 1, dM: 10, turner: [37.75, 6.75], via: [] },
+  { n: 2, id: 'lanyard', mark: [21.75, 0.75], want: 'handhold', hold: 'tether', gun: 'rifle', rounds: 2, lane: 2, dM: 15, turner: [36.75, 0.75], via: [] },
+  { n: 3, id: 'onehand', mark: [27.75, 0.75], want: 'handhold', hold: 'handhold', gun: 'pistol', rounds: 2, lane: 3, dM: 7, turner: [34.75, 2.25], via: [] },
+  { n: 4, id: 'wedge', mark: [15.75, 15.75], want: 'braced', hold: 'braced', gun: 'rifle', rounds: 2, lane: 4, dM: 20, turner: [35.75, 15.75], via: [[27.75, 15.75]] },
+  { n: 5, id: 'floating', mark: [15.75, 0.75], want: 'floating', hold: 'none', gun: 'rifle', rounds: 1, lane: 5, dM: 10, turner: [25.75, 4.5], via: [[12.75, 15.75], [12.75, 0.75]] },
 ]);
 
 /**

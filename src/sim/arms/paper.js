@@ -245,8 +245,28 @@ export function manZone(part, roll) {
   return roll.margin >= A_MARGIN && natOf(roll) !== 1 ? 'A' : 'C';
 }
 /**
+ * v0.0.25 (the user's report of 2026-11-19 on the hostage card, "kind of looks like the hit zone partly covers the hostage's head"): on
+ * the hostage card the hostage stands in front of the hostile, her head over the side of his head circle at x < 0 (the card's H-a, she
+ * at the viewer's left; art/doll/hitcard.js draws H-b mirrored, the marks with it), 40% of the circle at every band. A head round
+ * scored on him (shoothouse.js: graded better than bad) lands on his own side, x ≥ HOSTAGE_CLEAR_CM; one scored on her (bad or worse)
+ * on hers, x ≤ −HOSTAGE_CLEAR_CM, so a hole is never drawn on her head and called his. hostageHead(at, onHer) puts a point of the head
+ * circle on that side (its x mapped across, its y kept inside the circle); manHole and the spin's shift (shot.js) both pass through it.
+ */
+export const HOSTAGE_CLEAR_CM = 2;
+/** Whether a head round on the hostage card is scored on the hostage (its roll's grade bad or worse: shoothouse.js houseShot's rule). */
+export const onHostageHead = (roll) => ['bad', 'disaster'].includes(roll?.grade);
+/** A head circle's point put on the hostile's side (onHer false) or the hostage's (true): see HOSTAGE_CLEAR_CM. */
+export function hostageHead(at, onHer = false) {
+  const Z = PAPERS.man.zones.head, R = Z.r, c = HOSTAGE_CLEAR_CM, x0 = at[0] - Z.at[0], y0 = at[1] - Z.at[1], sign = onHer ? -1 : 1;
+  if (sign * x0 >= c && Math.hypot(x0, y0) <= R + 1e-9) return at;
+  const ax = Math.min(R, Math.abs(x0)), x = sign * (c + ax * (R - c) / R), k = Math.sqrt(Math.max(0, R * R - x * x)) / Math.max(1e-6, Math.sqrt(Math.max(0, R * R - ax * ax)));
+  const y = Math.max(-1, Math.min(1, k)) * y0;
+  return [r1(Z.at[0] + x), r1(Z.at[1] + y)];
+}
+/**
  * Where a round lands on the man-target (see the header): { at: [xCm, yCm] | null, zone: 'A' | 'C' | 'head' | null, word }.
- * face: the turner's face ('threat', 'noshoot', 'armoured'): the same silhouette, the words alike.
+ * face: the turner's face ('threat', 'noshoot', 'armoured', 'hostage'): the same silhouette, the words alike; on the hostage card a head
+ * round on the side it is scored on (hostageHead).
  */
 export function manHole(face, part, roll, shotId, seed = 0) {
   const P = PAPERS.man, Z = P.zones, zone = manZone(part, roll), h = (k, i = 0) => hash01('hole', seed, shotId, k, i);
@@ -255,6 +275,7 @@ export function manHole(face, part, roll, shotId, seed = 0) {
   if (zone === 'head') {
     const t = h('angle') * Math.PI * 2, d = Math.sqrt(h('radius')) * Z.head.r;
     at = [Z.head.at[0] + Math.cos(t) * d, Z.head.at[1] + Math.sin(t) * d];
+    if (face === 'hostage') at = hostageHead(at, onHostageHead(roll));
   } else if (zone === 'A') {
     at = [P.centres.A[0] + (h('x') - 0.5) * Z.A[0], P.centres.A[1] + (h('y') - 0.5) * Z.A[1]];
   } else {

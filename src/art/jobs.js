@@ -33,7 +33,7 @@
 import { snapBox, faceQuad, buildArrays, FACES } from '../render/batch-math.js';
 import { pack } from '../render/pack.js';
 import { buildCutaway } from '../render/cutaway.js';
-import { planOf, WALL_H_M, CUT_H_M } from '../sim/places/plan.js';
+import { planOf, standingH, CUT_H_M } from '../sim/places/plan.js';
 import { CLOCK_Y_M } from './kit/structure.js';
 import { paint, word } from './paint.js';
 import { linear } from './tone.js';
@@ -253,6 +253,8 @@ export function layArea(col, area) {
   const label = new Map((area.openings ?? []).map(o => [o.id, o.label ?? null]));
   // (0.0.12: an opening's swing, PLACES §1.6's hinge side, from the area's own record: the plan keeps the walls' geometry, not the hinge)
   const swing = new Map((area.openings ?? []).filter(o => o.swing).map(o => [o.id, o.swing]));
+  // (the Wreck: the openings whose leaf is a ship's hatch, drawn as one (the doorLeaf's 'hatch' make) over its coaming)
+  const hatches = new Set((area.openings ?? []).filter(o => o.leaf === 'hatch').map(o => o.id));
   // (a clock on the north wall's decor is a wall clock like any other: its hands live, src/render/clocks.js)
   const decorClocks = (look.decor ?? []).filter(d => d.kind === 'clock').map((d, i) => ({ id: `${area.id}:decor-clock:${i}`, kind: 'wallClock', make: 'school', x: d.x, z: P.z0 + 0.025, y: d.y ?? CLOCK_Y_M, face: 'down', faces: ['melas'] }));
   const plan = {
@@ -260,7 +262,10 @@ export function layArea(col, area) {
     openings: P.openings.map(o => ({ ...o, label: label.get(o.id) ?? undefined, ...(swing.has(o.id) ? { swing: swing.get(o.id) } : {}) })),
     decor: (look.decor ?? []).filter(d => d.kind !== 'clock'), lamps: look.lamps ?? [],
   };
-  const cut = buildCutaway(col, plan, { finish: look.finish ?? 'block', deck: look.deck ?? false, strips: look.strips ?? false, battle: look.battle ?? false });
+  // (the things fixed to a deckhead (a fixture's mount 'deckhead': the scuttle, the 1MC's speaker), their footprints dashed on
+  // the deck below by the cutaway (K-b, render/cutaway.js); none on every shipped area)
+  const overhead = (area.fixtures ?? []).filter(f => f.mount === 'deckhead').map(f => ({ x: f.x, z: f.z, w: f.w ?? 0.4, d: f.d ?? f.w ?? 0.4, round: f.kind === 'scuttle' }));
+  const cut = buildCutaway(col, plan, { finish: look.finish ?? 'block', deck: look.deck ?? false, strips: look.strips ?? false, battle: look.battle ?? false, ...(overhead.length ? { overhead } : {}) });
   // (the rooms' own floors over the finish's: a material tile, world-anchored, a millimetre up so the two never fight)
   for (const r of area.rooms ?? []) {
     if (!r.floor) continue;
@@ -284,10 +289,13 @@ export function layArea(col, area) {
   for (const o of plan.openings) {
     if (o.kind !== 'door' || (o.axis === 'x' && Math.abs(o.at - plan.z0) < 0.01)) continue;
     const full = o.axis === 'z' && (Math.abs(o.at - plan.x0) < 0.01 || Math.abs(o.at - plan.x1) < 0.01);
-    col.prop(leafOf(o, plan, full ? WALL_H_M : CUT_H_M));
-    place(col, { kind: 'doorLeaf', make: o.type === 'extDoor' ? 'ext' : 'interior', x: 0, z: 0, face: 'down', w: o.b - o.a, h: full ? 2.1 : CUT_H_M, seed: 1 });
+    // (a leaf in a standing wall as high as the wall stands: WALL_H_M, or its rooms' deckhead under the area's wallsToCeiling)
+    col.prop(leafOf(o, plan, full ? standingH(plan, o, o.a, o.b) : CUT_H_M));
+    place(col, { kind: 'doorLeaf', make: hatches.has(o.id) ? 'hatch' : o.type === 'extDoor' ? 'ext' : 'interior', x: 0, z: 0, face: 'down', w: o.b - o.a, h: full ? 2.1 : CUT_H_M, seed: 1 });
     col.endProp();
     leaves++;
+    // (a hatch's coaming: the sill across its opening, standing in the wall's line whether the leaf is open or shut)
+    if (hatches.has(o.id)) { const m = (o.a + o.b) / 2; place(col, { kind: 'coaming', make: 'yellow', x: o.axis === 'x' ? m : o.at, z: o.axis === 'x' ? o.at : m, face: o.axis === 'x' ? 'down' : 'right', w: o.b - o.a, seed: 1 }); fixtures++; }
   }
   return { plan, walls: cut.walls.length, fixtures, clocks, leaves };
 }

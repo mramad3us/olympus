@@ -130,7 +130,7 @@ import { logEntry } from '../log.js';
 import { paceOf } from '../skills/skills.js';
 import { check, oddsOf, sortMods, TEMPO, checkShort, isMastered, CATCH_K } from '../skills/checks.js';
 import { rollerOf, DARK_BELOW, DIM_BELOW } from '../combat/roll.js';
-import { PAPERS, holeOf, KD_RINGS, isFace, faceHole, faceOdds, poiXY, manHole, A_MARGIN } from './paper.js';
+import { PAPERS, holeOf, KD_RINGS, isFace, faceHole, faceOdds, poiXY, manHole, A_MARGIN, hostageHead, onHostageHead } from './paper.js';
 import { MODELS, KINDS, OPTICS, opticSight } from './models.js';
 import { pull, feel, refusalOf, gunField, sightOf, zeroOfGun, beliefZero, opticOf, beliefOf } from './firearms.js';
 import { flight, envOfPlace, CLICK_MRAD } from './ballistics.js';
@@ -612,6 +612,8 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
       // Wheel's bias moved nothing in the house))
       const sp = h.at ? fp.terms.find(t => t.key === 'spin') : null;
       if (sp) h.at = [Math.round((h.at[0] + sp.windCm) * 10) / 10, Math.round((h.at[1] - sp.elevCm) * 10) / 10];
+      // (on the hostage card a head hole stays on the side it is scored on after the spin's shift (paper.js hostageHead))
+      if (sp && h.at && target.face === 'hostage' && h.zone === 'head') h.at = hostageHead(h.at, onHostageHead(roll));
       man = { part, zone: h.zone, ring: false, through: false, row: row ?? null };
       // (an armoured face's verdict: down only there, the head plate's; a paper threat's sensor is the scene's)
       if (target.face === 'armoured') { const st = h.at ? steelOf(state, { id, part, roll, flight: fl, load: f.load ?? 'ball', model: gun.model ?? 'r7' }, target) : null;

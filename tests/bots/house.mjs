@@ -46,13 +46,15 @@ import { stepsOf, targetOf } from '../../src/sim/arms/shooting.js';
 import { beliefOf } from '../../src/sim/arms/firearms.js';
 import { contactNow } from '../../src/sim/combat/contact.js';
 import { lanePlanOf, pastThreshold, inFunnel } from '../../src/sim/combat/room.js';
-import { cornerOf, TWO_WAIT_MS } from '../../src/sim/combat/bundle.js';
+import { cornerOf, TWO_WAIT_MS, insideOf } from '../../src/sim/combat/bundle.js';
 import { clipped } from '../../src/sim/combat/route.js';
 import { parseHouse } from '../../src/sim/scenes/assemble.js';
 import { rungOf } from '../../src/sim/skills/templates.js';
 import { instinctNow } from '../../src/sim/skills/instinct.js';
 import { pistolOwed, drawn as drawnPistol } from '../../src/sim/arms/sidearm.js';
 import { stepAct, pressToward } from './lib.mjs';
+import { onFaceOf, bootsLocked, footingOf } from '../../src/sim/body/footing.js';
+import { bracePending, gravNow } from '../../src/sim/places/gravity.js';
 import { hashInt } from '../../src/core/hash.js';
 import { TICK_MS } from '../../src/core/clock.js';
 
@@ -112,6 +114,8 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     const inside = !!plan && pastThreshold(plan, me.x, me.z);
     // ---- out of stop motion ----
     if (!S) {
+      // (v0.0.25, the Wreck: the tug's warning on the deckhead, G for the face's row (feet aft), whatever the walk)
+      if (lane && wreckOf(state) && aftDue(state) && onFaceOf(state, pid) === 'deckhead') { mem.walk = null; return press(mem, now, { act: ['ready'] }); }
       if (lane && mem.walk) return walk(state, me, mem, now, humanStartMs);
       if (lane) { mem.walk = null; return press(mem, now, { act: ['ready'] }); }
       // (before GO: still on the mark; G for a command's work)
@@ -184,6 +188,10 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
       return choose('leave');
     }
     // ---- the lane ----
+    // (v0.0.25, the Wreck: dry on the far side of the deck hatch, on the coaming's hold: the plant first, the reload on the face (the
+    // review of C and D: the recruit by the keys on 1074 reloaded hanging in the hatch, "Out of the hatch!"), as below)
+    const coaming = lane && wreckOf(state) && me.anchor === 'handhold' && onFaceOf(state, pid) === 'deck' && Number.isFinite(me.floatY) && !me.faceTo;
+    if (coaming && (b?.locked || b?.chamber === 'empty')) { const f = aftDue(state) ? 'face:aft' : 'face:deckhead'; if (has(f)) return choose(f); }
     // (dry with rounds left: RELOAD; an empty chamber: MAKE READY)
     if (b?.locked && b.count === 0) { const r = ['macro:reload:speed', 'macro:reload:retain'].find(has); if (r) return choose(r); }
     if (b?.chamber === 'empty' && b?.mag === 'in' && has('macro:ready')) return choose('macro:ready');
@@ -209,7 +217,12 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
       (mem.challenged ??= []).push(`${last.id}:${ask.key}`);
       if (has('contact:challenge')) return choose('contact:challenge');
     }
-    const threats = seen.armed;
+    // (v0.0.25, the Wreck: a man of your #2's sector left to him once he is through the deck hatch and up in the hold with you: the
+    // swing onto him crossed your #2 planted beside the scuttle, "Muzzle!" (the review of C and D: the recruit by the keys on 48213,
+    // from the hold's 3b to 3a across him, once the brace brought him through on your heels); the house's lanes as ever)
+    const twoIn = wreckOf(state) && plan?.hatch && N.two?.pid ? state.actors.list.find(x => x.who === N.two.pid) : null;
+    const his = (T) => (T.owner ?? T.slot ?? 1) === 2 && !!twoIn && insideOf(plan, twoIn.x, twoIn.z) && footingOf(state, N.two.pid).mode !== 'float';
+    const threats = seen.armed.filter(T => !his(T));
     if (last && threats.length) {
       const want = threats[0].key;
       if (S.pick !== want) return choose(`pick=${want}`);
@@ -221,6 +234,12 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
       if (S.aim?.key !== pick && has('aim')) return choose('aim', 'normal', pick);
       if (T?.face !== 'hostage' && has('fire')) return choose('fire', 'normal');
       if (T?.face === 'hostage') { const h = rows.find(s => /head/.test(s.id)); if (h && !h.off) return choose(h.id, 'normal', pick); }
+    }
+    // (v0.0.25, the Wreck: through the deck hatch on the coaming's hold (no grip), the shots done: boots onto the far face before anything
+    // else, never a walk or an X off the hold in free fall)
+    if (lane && wreckOf(state) && me.anchor === 'handhold' && onFaceOf(state, pid) === 'deck' && Number.isFinite(me.floatY) && !me.faceTo) {
+      const f = aftDue(state) ? 'face:aft' : 'face:deckhead';
+      if (has(f)) return choose(f);
     }
     // (v0.0.19, the live lane: a role-player taken in at this pause, down or with his hands up as you identified him, nobody covering
     // him (the scene's view: houseNow's covered, the instructor's out): his hands up, Challenge him once; then Cover him, the contact's
@@ -248,6 +267,18 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     if (inner && (inside || S?.carry?.why === 'door-unplanned')) return choose(inner.id);
     if (has('drill:carry') && mode === 'T') return choose('drill:carry');
     if (!L || !plan) return choose('leave');
+    // (v0.0.25, the Wreck (one branch, the lane's `ship`): its face's rows as a player reads them, by the keys and by T alike: feet aft under
+    // the tug's warning ("Feet aft", the deck's row), off the deckhead to the deck where the leg's door is on the deck, onto the far face
+    // after a transit that left you on the coaming's hold; never a push-off)
+    if (lane && wreckOf(state)) {
+      const face = onFaceOf(state, pid);
+      if (aftDue(state) && face === 'deckhead' && has('face:aft')) return choose('face:aft');
+      // (by the keys, feet aft due and you booted on the deck: no transit, no face change, nothing that takes the boots off the deck
+      // until the burn is complete; the wait (the review of C and D: the keys went through the trunk 4.25 s before the onset and hung
+      // one-handed from the hold's coaming at it, "NOT FEET AFT" on the card once the onset judges it)
+      if (mode === 'keys' && aftDue(state) && face === 'deck' && bootsLocked(state, pid)) { if (S.doing?.kind === 'wait') return {}; if (has('wait')) return choose('wait'); }
+      if (face === 'deckhead' && !plan.hatch && !inside && has('face:deck')) return choose('face:deck');
+    }
     const rung = rungOf(state, pid, 'room');
     // (by T: the bundle the line would run (the instinct's act where it offers a drill row, else the panel's lead bundle))
     if (mode === 'T' && rung >= 2) {
@@ -257,8 +288,10 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
       if (lead) { mem.T = (mem.T ?? 0) + 1; return choose(lead); }
     }
     // ---- step by step (and by T where no bundle applies) ----
-    const door = plan.door, opened = !door || L.state === 'open' || L.state === 'entered' || !steps.some(s => s.id.startsWith(`door:`) && s.id.endsWith(`>${door}`) && !s.id.startsWith('door:hold'));
-    const stackRow = row(s => s.id.startsWith('drill:stack:up>'));
+    // (v0.0.25: a deck hatch's leg (the Wreck's hold) has no door in the plane: its scuttle is the door the rows name)
+    const door = plan.door ?? plan.hatch ?? null, opened = !door || L.state === 'open' || L.state === 'entered' || !steps.some(s => s.id.startsWith(`door:`) && s.id.endsWith(`>${door}`) && !s.id.startsWith('door:hold') && !s.id.startsWith('door:through'));
+    // (v0.0.25: the Wreck's "Stack on the hatch", the void's single, where the house's is not offered)
+    const stackRow = row(s => s.id.startsWith('drill:stack:up>')) ?? row(s => s.id.startsWith('drill:void:stack>'));
     // (v0.0.21, A's finding 3: a door found open at the fill (a drawn house) has its leg 'open' at GO, and the bot walked the room's
     // path from where it stood, in straight presses, into a wall (the keys private on drawn seeds 2, 3, 6 and 8: room 3 and the hall
     // passed on the stall); off its stack (OPEN_STACK_M), it stacks first, as at a shut door. On the set a leg turns 'open' only by
@@ -271,10 +304,13 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
     const offStack = !!plan.door && !!plan.stack?.[0] && foundOpen(state, legI) && Math.hypot(me.x - plan.stack[0][0], me.z - plan.stack[0][1]) > OPEN_STACK_M;
     if ((L.state === 'ahead' || (L.state === 'open' && offStack)) && stackRow && !inside) return choose(stackRow.id);
     if (!opened) {
-      const d = row(s => /^door:(push|pull)>/.test(s.id)) ?? row(s => s.id.startsWith('door:kick>'));
+      // (v0.0.25: a hatch's dogs first, then its swing: a bulkhead hatch pushed or pulled, the deck hatch lifted ('door:hatch'))
+      const d = row(s => /^door:undog>/.test(s.id)) ?? row(s => /^door:(push|pull|hatch)>/.test(s.id)) ?? row(s => s.id.startsWith('door:kick>'));
       if (d) return choose(d.id);
     }
-    if (!inside && door) {
+    // (v0.0.25: the deck hatch open, through it head first (no walk in the plane goes through a deck))
+    if (!inside && plan.hatch && has(`door:through>${plan.hatch}`)) return choose(`door:through>${plan.hatch}`);
+    if (!inside && door && !plan.hatch) {
       // (Watch #1's corner before X, when the bot's player does)
       const c = cornerOf(plan, 1);
       if (watch && c && has(`watch:${c.id}`) && mem.watched !== `${legI}`) { mem.watched = `${legI}`; return choose(`watch:${c.id}`); }
@@ -282,7 +318,7 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
       mem.walk = { leg: legI, fromMs: now, path: (plan.paths?.[1] ?? [plan.stack[0], plan.points[0]]).map(p => [...p]), k: 1, lineK };
       return choose('leave');
     }
-    if (!inside && !door) {
+    if (!inside && !plan.door && !plan.hatch) {
       if (has('move:hallEnd') && Math.hypot(me.x - plan.points[0][0], me.z - plan.points[0][1]) > POINT_M) return choose('move:hallEnd');
     }
     // (a walk toward the far leg cut by a contact goes on once the shots are done, never back to the point first: a human keeps
@@ -320,6 +356,13 @@ export function houseBot({ mode = 'keys', humanStartMs = 300, watch = false, lin
 }
 
 // (whether leg k's door was found open at the fill: a drawn house's code says so ('o'), the set never)
+// (v0.0.25: whether the lane is the Wreck's: its operation record's `ship`)
+const wreckOf = (state) => state.armoury?.range?.house?.ship === 'wreck';
+// (v0.0.25: feet aft due, as a player reads the 1MC's count: the warning out with AFT_DUE_MS or less to the onset, time enough for the
+// face's 1.5 s and a pause's work; earlier, the threats in front of you first (the honest bot shot the hold's men 1.5 s late, its feet aft
+// the moment the warning sounded, the raider's 3b par missed on 48213))
+const AFT_DUE_MS = 10_000;
+const aftDue = (state) => bracePending(state) && (gravNow(state)?.leftMs ?? 0) <= AFT_DUE_MS;
 const foundOpen = (state, k) => { const code = state.armoury?.range?.house?.draw?.code; return !!code && parseHouse(code)?.rooms?.[k]?.state === 'open'; };
 // (whether the walker's circle goes straight from where he stands to a point, the walls as they stand: route.js clipped)
 const straightTo = (state, me, p) => { const c = clipped(state, [me.x, me.z], p); return Math.hypot(c[0] - p[0], c[1] - p[1]) < 1e-3; };
@@ -566,6 +609,16 @@ export function houseFuzzBot({ seed = 1 } = {}) {
     // (v0.0.19: never the team's orders (TEAM 2 to 4): its own fuzz presses them (tests/bots/team.mjs teamFuzzBot), so this one's dice stay v0.0.18's)
     // (v0.0.20: nor "Coming out!" by itself (bundle.js singleRows, item 12): offered in every cleared room, it would reshuffle every
     // fuzz lane's dice; the stack rows say it themselves)
+    // (v0.0.25, the Wreck's void (its own dice, so no house lane's move): now and then a shot row offered on a man, whatever holds you,
+    // so a round goes off floating once the dice have let the boots go (F126's fuzz half), and the boots let go more often than the
+    // rows' weights would (Release your boots, then the keys push you off: the open middle's, F127's))
+    if (wreckOf(state)) {
+      const wd = (k) => hashInt(k, 'wreck-fuzz', seed, mem.wn = (mem.wn ?? 0) + 1);
+      const shot = stepsOf(state).find(st => !st.off && isShotRow(st));
+      if (shot && wd(4) === 0) { count('wreck:shot'); return { act: [stepAct(shot.id, 'normal', shot.target ?? null)] }; }
+      const rel = stepsOf(state).find(st => !st.off && st.id === 'boots:release');
+      if (rel && wd(12) === 0) { count('wreck:release'); return { act: [stepAct(rel.id)] }; }
+    }
     const steps = stepsOf(state).filter(st => !st.off && !isShotRow(st) && !['fire', 'macro:ia', 'macro:remedial', 'call:clear', 'call:out'].includes(st.id) && !String(st.id).startsWith('reflex:') && !String(st.id).startsWith('drill:team:'));
     if (!steps.length) return {};
     const w = steps.map(x => (x.kind === 'bundle' ? HOUSE_FUZZ_W.bundle : x.id === 'leave' ? HOUSE_FUZZ_W.leave : x.kind === 'door' ? HOUSE_FUZZ_W.door : 1));

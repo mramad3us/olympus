@@ -32,7 +32,7 @@
 //                                                (the hunt of v0.0.18: the record had no place for it, so every doll drew the
 //                                                hands empty while the pouch it came from was drawn emptied)
 //     boots:   null | 'mag',                     v0.0.24: mag boots worn (kit.worn.boots: src/sim/body/footing.js bootsOf), seen at the feet
-//     anchor:  null | 'hold' | 'lanyard' | 'wedge' | 'buddy' | 'boots' }   v0.0.24: what the body does to hold (footing.js
+//     anchor:  null | 'hold' | 'lanyard' | 'wedge' | 'buddy' | 'boots' | 'straps' }   v0.0.24 (straps v0.0.25): what the body does to hold (footing.js
 //                                                gearAnchorOf: a hand off the gun on a rail, a strap clipped short, back and feet
 //                                                across a passage, a teammate's brace, the boots locked)
 // It holds no count, load, chamber, selector or stoppage ("we only know what we know": a magazine in the well can be seen, the

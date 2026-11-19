@@ -239,7 +239,8 @@ export default [
       console.log(`      ${KINDS.length} core kinds, ${KINDS.length - off.length - missing.length} equal to FOOTPRINTS${missing.length ? `, not yet in the kit: ${missing.join(', ')}` : ''}; not blocking: ${open.join(', ')}; spots ${KINDS.reduce((n, k) => n + CATALOGUE[k].spots.length, 0)}, seats ${KINDS.reduce((n, k) => n + CATALOGUE[k].seats.length, 0)}`);
       assert(!off.length, off.map(k => `${k}: catalogue ${JSON.stringify(CATALOGUE[k])} kit ${JSON.stringify(FOOTPRINTS[k])}`).join('\n'));
       assert(!missing.length, `the kit lacks ${missing.join(', ')} (the stage's §2.3)`);
-      assert(open.join() === 'chair,stool,board,sign,window,emergencyLight,wallClock,stairs', open.join());
+      // (v0.0.25: the Wreck's scuttle and the 1MC's speaker, mounted in the deck or under the deckhead, stop nobody: src/sim/places/fixtures.js)
+      assert(open.join() === 'chair,stool,board,sign,window,emergencyLight,wallClock,stairs,scuttle,speaker', open.join());
     },
   },
   {

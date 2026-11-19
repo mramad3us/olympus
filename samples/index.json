@@ -1,5 +1,5 @@
 {
- "built": "2026-11-19T05:01",
+ "built": "2026-11-19T12:50",
  "samples": [
   {
    "id": "audio",
@@ -4210,6 +4210,63 @@
    ]
   },
   {
+   "id": "portrait-faces",
+   "title": "A man upside down to you: the target card turned as you see him, or upright with his face named",
+   "about": "Aboard the Wreck (v0.0.25, \"Hold to hold\") a board or a man can stand on the deckhead or out of a bulkhead while you stand on the deck, so his up is not yours. Your note of 2026-11-17 asked the card to \"show us what we would be seeing\". Each picture draws three cards by the game's own doll and card code, two rounds marked on each board: H2, a threat board on the hold's deckhead at 4 m (half a turn from you); S1, a threat board standing out of the starboard bulkhead at 7 m (a quarter turn); your #2 on the deckhead at 3 m (half a turn). R-a (the default until scored) turns the card's figure as you see him, his marks and their numbers with him, the words under it upright; R-b keeps the card upright and names his face in its words. Your own I and C cards stay upright in both.",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "R-a"
+    ],
+    "since": "2026-11-19",
+    "decides": "how the target card, the hit card and the truth cards draw a man or a board whose up is not yours",
+    "builtIn": "v0.0.25"
+   },
+   "groups": [
+    {
+     "id": "R",
+     "title": "R: a man upside down to you",
+     "about": "H2 on the deckhead, S1 out of the starboard bulkhead, your #2 on the deckhead, seen from the deck.",
+     "sets": null,
+     "views": [
+      {
+       "id": "R-a",
+       "name": "R-a: turned as you see him (the default)",
+       "query": "r=R-a",
+       "shot": "portrait-faces/shots/r-a.png",
+       "native": [
+        616,
+        236
+       ],
+       "report": {
+        "frame": [
+         616,
+         236
+        ]
+       }
+      },
+      {
+       "id": "R-b",
+       "name": "R-b: upright, his face named",
+       "query": "r=R-b",
+       "shot": "portrait-faces/shots/r-b.png",
+       "native": [
+        616,
+        236
+       ],
+       "report": {
+        "frame": [
+         616,
+         236
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
    "id": "portrait-facing",
    "title": "A man turned on the target card: from behind, in profile, or front on with his head turned; and the card's body",
    "about": "Your note of 2026-11-17: the card should \"show us what we would be seeing\". The card drew every man front on, though the stage drew him turned away. His facing is read from your eye (front within 45° of you, from behind beyond 135°, a side between). Each picture is one candidate, the live lane's role-player drawn by the game's own doll and card code (A's back of a man for F1): F, today's card (front on) for comparison, the candidate at 4, 14 and 30 m, then the card as he turns (a new card each time his facing crosses a band) beside the stage's frames of him facing you, side on and away; R, the card's body for a man with no marks on him, three records (aimed at you, at the low ready, the hands up) at the near and mid bands. F1 (from behind) and F3 (a side: front on, the head and the gun's line turned) are drawn in this release at their defaults; F2 (the profile) only if you score it, in v0.0.24. R1 (the doll, the card you starred) stays; R2 and R3 (the stage's own figure) would be for an unmarked man only (its chibi head cannot carry the marks life size): your pick in v0.0.24.",
@@ -5543,6 +5600,300 @@
         "frame": [
          740,
          164
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "wreck-faces",
+   "title": "A room with no floor, read from above: a man and a board on any face of the Wreck, the pop-up, the hatches and the trunk",
+   "about": "v0.0.25, \"Hold to hold\", takes the shoot house's drill aboard the Wreck at Phobos: two decks of a stripped hull at micro-g on mag boots, where you go head first down a trunk into the hold and plant your boots on its deckhead, and a target can stand out of any of six faces. The stage draws from 45° above, so a thing 2.2 m up on the deckhead is drawn 35 px up the screen, over the floor north of it. Every figure here is the game's own (the shoot house's marine in the black combat EVA suit; the khaki turner boards), turned by the face it stands on: the deck upright, the deckhead and the dorsal (north) bulkhead flipped top to bottom, the ventral (south) bulkhead upright, starboard and port a quarter turn with the feet to the face; the deck is void-look's plate at 16 px/m, snapped to the stage's palette. K (the default K-b) is how a thing on the deckhead reads: the hold with the marine on all six faces and the trunk's two scuttles, beside it a slice of the brig with a board on a cell's deckhead drawn over the passage (the case that reads wrong), and the deckhead man three times larger; K-a the projection alone (the float pick's shadow under each body off the deck), K-b and the overhead's footprint dashed on the deck below everything on the deckhead, K-c and your compartment's deckhead edge, K-d drawn at its plan spot, flipped and dotted (VIEWS §3.5's own sentence: it would also change how v0.0.24 draws a floating body's height). T (T-a) a board on each face, turned out of it or foreshortened by its tilt; P (P-a) the pop-up rising over 400 ms, hinged out or sliding from a slot; H (H-a) the deck hatch, square with four dogs and a yellow coaming or round with a wheel; B (B-a) the bulkhead hatch, oval with dogs or square with a lever, face on and from above; X (X-a) the deck change through the trunk in seven frames, the stair's wipe with the camera held or the camera held on you and gliding back. The game builds at the defaults until you score; each pick lands in one table.",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "K-b",
+     "T-a",
+     "P-a",
+     "H-a",
+     "B-a",
+     "X-a"
+    ],
+    "since": "2026-11-19",
+    "decides": "how the Wreck draws a thing on the deckhead (K), a board on a face (T), the pop-up (P), the deck and bulkhead hatches (H, B) and the deck change through the trunk (X)",
+    "builtIn": "v0.0.25"
+   },
+   "groups": [
+    {
+     "id": "K",
+     "title": "K: a thing on the deckhead, read from above",
+     "about": "The hold (deck 6, 9.2 × 7.2 m) with the marine on the deck, the deckhead, the dorsal bulkhead at 1.1 m, starboard, port and the ventral bulkhead at 1.4 m; the trunk's two scuttles at 4.6, 3.6 (the deck's dogged under the deckhead's open); two cargo stacks and two lamps. Beside it the brig (deck 5): a board on the deckhead of a south cell by its cut wall, drawn over the passage; your #2 in the passage; a man half out of the deck's scuttle. Then the deckhead man three times larger. The legend under the picture names each body's face.",
+     "sets": null,
+     "views": [
+      {
+       "id": "K-b",
+       "name": "K-b: the overhead's footprint dashed on the deck (the default)",
+       "query": "k=K-b",
+       "shot": "wreck-faces/shots/k-b.png",
+       "native": [
+        471,
+        217
+       ],
+       "report": {
+        "frame": [
+         471,
+         217
+        ]
+       }
+      },
+      {
+       "id": "K-a",
+       "name": "K-a: the projection alone",
+       "query": "k=K-a",
+       "shot": "wreck-faces/shots/k-a.png",
+       "native": [
+        471,
+        217
+       ],
+       "report": {
+        "frame": [
+         471,
+         217
+        ]
+       }
+      },
+      {
+       "id": "K-c",
+       "name": "K-c: K-b and your compartment's deckhead edge",
+       "query": "k=K-c",
+       "shot": "wreck-faces/shots/k-c.png",
+       "native": [
+        471,
+        217
+       ],
+       "report": {
+        "frame": [
+         471,
+         217
+        ]
+       }
+      },
+      {
+       "id": "K-d",
+       "name": "K-d: at its plan spot, flipped, dotted",
+       "query": "k=K-d",
+       "shot": "wreck-faces/shots/k-d.png",
+       "native": [
+        471,
+        217
+       ],
+       "report": {
+        "frame": [
+         471,
+         217
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "T",
+     "title": "T: a target on a face",
+     "about": "The hold with a turner board on each of its six faces (K-b's footprints), and the six boards three times larger.",
+     "sets": null,
+     "views": [
+      {
+       "id": "T-a",
+       "name": "T-a: turned out of its face (the default)",
+       "query": "t=T-a",
+       "shot": "wreck-faces/shots/t-a.png",
+       "native": [
+        519,
+        281
+       ],
+       "report": {
+        "frame": [
+         519,
+         281
+        ]
+       }
+      },
+      {
+       "id": "T-b",
+       "name": "T-b: foreshortened by its tilt",
+       "query": "t=T-b",
+       "shot": "wreck-faces/shots/t-b.png",
+       "native": [
+        519,
+        281
+       ],
+       "report": {
+        "frame": [
+         519,
+         281
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "P",
+     "title": "P: the pop-up",
+     "about": "A pop-up on the deckhead (head down) and one on the starboard bulkhead, at 0, 25, 50, 75 and 100% of its 400 ms rise, three times larger.",
+     "sets": null,
+     "views": [
+      {
+       "id": "P-a",
+       "name": "P-a: hinged out (the default)",
+       "query": "p=P-a",
+       "shot": "wreck-faces/shots/p-a.png",
+       "native": [
+        474,
+        219
+       ],
+       "report": {
+        "frame": [
+         474,
+         219
+        ]
+       }
+      },
+      {
+       "id": "P-b",
+       "name": "P-b: sliding from a slot",
+       "query": "p=P-b",
+       "shot": "wreck-faces/shots/p-b.png",
+       "native": [
+        474,
+        219
+       ],
+       "report": {
+        "frame": [
+         474,
+         219
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "H",
+     "title": "H: the deck hatch (the trunk's scuttle, Ø 0.8 m)",
+     "about": "In a deck dogged, in a deck open (the leaf folded back, the shaft's rungs), in a deckhead open (drawn 2.2 m up, the leaf hanging, its footprint dashed below), three times larger.",
+     "sets": null,
+     "views": [
+      {
+       "id": "H-a",
+       "name": "H-a: square, four dogs, a yellow coaming (the default)",
+       "query": "h=H-a",
+       "shot": "wreck-faces/shots/h-a.png",
+       "native": [
+        232,
+        182
+       ],
+       "report": {
+        "frame": [
+         232,
+         182
+        ]
+       }
+      },
+      {
+       "id": "H-b",
+       "name": "H-b: round, a hand wheel",
+       "query": "h=H-b",
+       "shot": "wreck-faces/shots/h-b.png",
+       "native": [
+        232,
+        182
+       ],
+       "report": {
+        "frame": [
+         232,
+         182
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "B",
+     "title": "B: the bulkhead hatch (0.8 m, a 0.3 m coaming)",
+     "about": "In the dorsal bulkhead seen face on, shut and open; in a cut wall from above, shut and swung open; three times larger.",
+     "sets": null,
+     "views": [
+      {
+       "id": "B-a",
+       "name": "B-a: oval with dogs (the default)",
+       "query": "b=B-a",
+       "shot": "wreck-faces/shots/b-a.png",
+       "native": [
+        308,
+        158
+       ],
+       "report": {
+        "frame": [
+         308,
+         158
+        ]
+       }
+      },
+      {
+       "id": "B-b",
+       "name": "B-b: square with a lever",
+       "query": "b=B-b",
+       "shot": "wreck-faces/shots/b-b.png",
+       "native": [
+        308,
+        158
+       ],
+       "report": {
+        "frame": [
+         308,
+         158
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "X",
+     "title": "X: through the trunk",
+     "about": "Seven frames of the deck change, you head first down the trunk from deck 5's passage into deck 6's hold: on deck 5 your head in the deck's scuttle, on deck 6 hanging under the deckhead's.",
+     "sets": null,
+     "views": [
+      {
+       "id": "X-a",
+       "name": "X-a: the stair's wipe, the camera held (the default)",
+       "query": "x=X-a",
+       "shot": "wreck-faces/shots/x-a.png",
+       "native": [
+        592,
+        116
+       ],
+       "report": {
+        "frame": [
+         592,
+         116
+        ]
+       }
+      },
+      {
+       "id": "X-b",
+       "name": "X-b: the camera holds you, then glides",
+       "query": "x=X-b",
+       "shot": "wreck-faces/shots/x-b.png",
+       "native": [
+        592,
+        116
+       ],
+       "report": {
+        "frame": [
+         592,
+         116
         ]
        }
       }

@@ -237,6 +237,9 @@ export const ANCHOR_LOOKS = Object.freeze({
   hold: Object.freeze({ bendL: Object.freeze([10, 4]), rail: Object.freeze({ y: 2, x0: 36, x1: 56 }) }),
   lanyard: Object.freeze({ line: Object.freeze({ from: Object.freeze([46, 60]), to: Object.freeze([60, 132]) }) }),
   wedge: Object.freeze({ bend: Object.freeze({ drop: 6, legs: Object.freeze({ r: Object.freeze([1, 'fit']), l: Object.freeze([0.7, 'fit']) }) }), rail: Object.freeze({ y: 124, x0: 30, x1: 56 }) }),
+  // (the user's score of test-burn: strapped into a rack or a couch (the gear's anchor 'straps', footing.js gearAnchorOf): the harness, two
+  // shoulder straps down to the lap belt across the hips and its buckle, webbing over the figure (my calls, the reference's rows))
+  straps: Object.freeze({ shoulders: Object.freeze([Object.freeze([[24, 27], [29, 59]]), Object.freeze([[40, 27], [35, 59]])]), lap: Object.freeze({ y: 59, x0: 19, x1: 45 }), buckle: Object.freeze({ y: 58, x0: 29, x1: 35 }) }),
 });
 export const ANCHOR_C = Object.freeze({ rail: 0x8a909c, lit: 0xc8ccd4, strap: 0x2c2e38, plate: 0x6a7080 });
 /** The anchor's pieces on the doll's grid (see ANCHOR_LOOKS), drawn over the figure; 'rail' only, after a pose's bend (the wedge's). */
@@ -246,6 +249,13 @@ export function anchorParts(g, kit, only = null) {
   const rail = (R) => { const id = g.add(g.rows(R.y, R.x0, R.x1, R.y + 1), ANCHOR_C.rail); g.on(id, g.rows(R.y, R.x0, R.x1), ANCHOR_C.lit); return id; };
   if (only === 'rail') return a === 'wedge' ? rail(L.rail) : null;
   if (a === 'hold') return rail(L.rail);
+  if (a === 'straps') {
+    const line = ([from, to]) => { const n = Math.ceil(Math.max(Math.abs(to[0] - from[0]), Math.abs(to[1] - from[1]))), out = []; for (let i = 0; i <= n; i++) { const x = from[0] + (to[0] - from[0]) * i / n, y = from[1] + (to[1] - from[1]) * i / n; out.push(...g.rows(y, x - 1, x + 1)); } return out; };
+    const id = g.add([...L.shoulders.flatMap(line), ...g.rows(L.lap.y, L.lap.x0, L.lap.x1, L.lap.y + 2)], ANCHOR_C.strap);
+    g.on(id, g.rows(L.lap.y, L.lap.x0, L.lap.x1), ANCHOR_C.plate);
+    g.add(g.rows(L.buckle.y, L.buckle.x0, L.buckle.x1, L.buckle.y + 3), ANCHOR_C.lit);
+    return id;
+  }
   if (a === 'lanyard') {
     const { from, to } = L.line, n = Math.ceil(Math.max(Math.abs(to[0] - from[0]), Math.abs(to[1] - from[1]))), cells = [];
     for (let i = 0; i <= n; i++) { const x = from[0] + (to[0] - from[0]) * i / n, y = from[1] + (to[1] - from[1]) * i / n; cells.push([y, x, x + 0.6]); }

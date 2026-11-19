@@ -1,0 +1,17 @@
+{
+ "title": "A man upside down to you: the target card turned as you see him, or upright with his face named",
+ "about": "Aboard the Wreck (v0.0.25, \"Hold to hold\") a board or a man can stand on the deckhead or out of a bulkhead while you stand on the deck, so his up is not yours. Your note of 2026-11-17 asked the card to \"show us what we would be seeing\". Each picture draws three cards by the game's own doll and card code, two rounds marked on each board: H2, a threat board on the hold's deckhead at 4 m (half a turn from you); S1, a threat board standing out of the starboard bulkhead at 7 m (a quarter turn); your #2 on the deckhead at 3 m (half a turn). R-a (the default until scored) turns the card's figure as you see him, his marks and their numbers with him, the words under it upright; R-b keeps the card upright and names his face in its words. Your own I and C cards stay upright in both.",
+ "open": {"default": ["R-a"], "since": "2026-11-19", "decides": "how the target card, the hit card and the truth cards draw a man or a board whose up is not yours", "builtIn": "v0.0.25"},
+ "pixel": true,
+ "groups": [
+  {
+   "id": "R",
+   "title": "R: a man upside down to you",
+   "about": "H2 on the deckhead, S1 out of the starboard bulkhead, your #2 on the deckhead, seen from the deck.",
+   "views": [
+    { "id": "R-a", "name": "R-a: turned as you see him (the default)", "query": "r=R-a", "pixel": "616x236" },
+    { "id": "R-b", "name": "R-b: upright, his face named", "query": "r=R-b", "pixel": "616x236" }
+   ]
+  }
+ ]
+}

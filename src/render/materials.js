@@ -66,7 +66,7 @@ import { GLOW_CLASSES } from '../art/paint.js';
 /** Uniforms every patched material shares by reference; the stage sets their values. */
 export const SHARED = {
   uSee: { value: new THREE.Vector4(0, 0, 0, 0) },                    // the figure seen through to: x, z, half-width, height (w 0: off)
-  uSeeK: { value: 1 },                                                // the see-through's fade, 0..1 (a Bayer threshold)
+  uSeeK: { value: 1 },                                                // the see-through's fade, 0..1 (a Bayer threshold); 2 over you lying in your berth (view.js seeFrame: taken away whole)
   uLift: { value: new THREE.Vector4(0, 0, 0, 0) },                   // a roof lifted over the figure: x0, z0, x1, z1 (x1 ≤ x0: none)
   uLiftY: { value: new THREE.Vector2(2.4, 0) },                       // its height, and its fade 0..1
   uSeeWide: { value: new THREE.Vector4(0, 0, 0, 0) },                 // the wide see-through behind a tall mass: x, z, radius, fade (w 0: off)

@@ -43,6 +43,9 @@
 // with { cover: true } (seen.js coverOf's COVER_RAYS through the walls from your eye, once a frame of the page for that one man,
 // never in a tick), and a house's board gets its stand's light and cover the same way (seen.js lightOf, coverAt at the stand), so
 // room 3's dim draws its card darker and a stand half behind a jamb half drawn; "Bang"'s cards are the string's, read as scored.
+// v0.0.25 (the build sheet item 12; PC§5): a man or a board upside down to you is drawn as you see him: the record's roll (seen.js:
+// the quarter turns between his up and yours, a stand's by its onFace) turns the card (R-a, art/doll/hitcard.js through portrait.js
+// turnRegion), its signature with it; R-b keeps it upright and names his face (rollWords).
 // paintOn(state, who) is the role-players' paint on a marine (R.house.live.struck) as card marks in blue, for a card of you or
 // your #2 (the casualty's).
 // Nothing pops: the card repaints only when its signature changes, and a man's dressed doll not yet painted is painted on a
@@ -54,7 +57,7 @@
 // readers (main.js's, read once a tick): pairsOf(s) (pairs.js pairsNow), marksOf(s, key, k, phase) (hitMarks), meAt(s).
 import { cardModel, hitShown, hitTabs, hitRangeM, HIT_LOOK } from './hitcard.js';
 import { hitDollReady, warmHitcard, bandOf, HIT_BANDS } from '../../art/doll/hitcard.js';
-import { paintPortrait, BOARD_PLACES, PORTRAIT_PICKS } from '../../art/doll/portrait.js';
+import { paintPortrait, BOARD_PLACES, PORTRAIT_PICKS, ROLL_FACE_WORDS } from '../../art/doll/portrait.js';
 import { engagedOf, struckLast, seenFace, seenState, liveRecOf } from '../../sim/arms/engage.js';
 import { seenOf, standSeen, seenKey, lightOf, coverAt, paintKey } from '../../sim/people/seen.js';
 import { lookFor, indoorsNow } from '../../sim/people/figure.js';
@@ -130,6 +133,12 @@ export function paintOn(state, who) {
   return list.map((x, i) => { const at = x.hole ?? x.at ?? null; return { n: i + 1, shotId: x.shotId ?? null, called: at, seen: true, hole: at, zone: x.zone ?? null, part: x.part ?? 'torso', paint: 'rp' }; }).filter(m => m.hole);
 }
 
+/** The card's words with R-b's face named before them (v0.0.25: portrait.js ROLL_FACE_WORDS, only for a subject turned to you; R-a turns the card instead). */
+export function rollWords(words, rec, picks = null) {
+  const roll = rec?.roll ?? 0, P = { ...PORTRAIT_PICKS, ...(picks ?? {}) };
+  return roll && P.roll === 'R-b' && ROLL_FACE_WORDS[roll] ? [ROLL_FACE_WORDS[roll], words].filter(Boolean).join(' · ') : words;
+}
+
 /** Whether the view shows: while engaged, with or without marks; after, hitShown's rule. */
 export function targetShown({ engaged = false, phase = 'belief', n = 0, inStop = false, lastT = -Infinity, nowT = 0 } = {}) {
   if (engaged) return true;
@@ -162,7 +171,7 @@ export function targetModel(state, { key, kind = 'turner', who = null, phase = n
       return { look: HIT_LOOK, man: null, key: LT.key, k: 0, face: null, holds: null, phase: hm?.phase ?? phase ?? 'belief', marks, words: lead, line: hm?.line ?? null, tabs, rangeM: frozen ? rec.rangeM : hitRangeM(a ?? LT, me, null),
         subject, live: { key: LT.key, state: st, holds: sf.holds }, ...(picks ? { picks } : {}) };
     }
-    return { look: HIT_LOOK, man: null, key, k: 0, face: null, holds: null, phase: 'belief', marks: [], words: P.name, line: null, tabs: [], rangeM: frozen ? rec.rangeM : hitRangeM(a, me, null), subject, ...(picks ? { picks } : {}) };
+    return { look: HIT_LOOK, man: null, key, k: 0, face: null, holds: null, phase: 'belief', marks: [], words: rollWords(P.name, rec, picks), line: null, tabs: [], rangeM: frozen ? rec.rangeM : hitRangeM(a, me, null), subject, ...(picks ? { picks } : {}) };
   }
   const T = (R?.turners ?? []).find(t => t.key === key) ?? null;
   if (!T) return null;
@@ -177,9 +186,10 @@ export function targetModel(state, { key, kind = 'turner', who = null, phase = n
   const words = sf.holds === 'unseen' ? [UNSEEN_WORDS, m.words].filter(Boolean).join(' · ') : m.words;
   // (the stand in its light and behind the jamb from your eye, as a man is (see the header))
   const eye = state.actors?.list?.find?.(a => a.who === state.player?.id) ?? null;
-  const rec = standSeen(sf.face, sf.holds, { holds: sf.holds, state: null }, { rangeM: m.rangeM ?? null, light: lightOf(state, T.x, T.z), cover: eye ? coverAt(state, T, eye) : null });
+  // (a board on a face turned to you by its roll (R-a); R-b names the face in the words)
+  const rec = standSeen(sf.face, sf.holds, { holds: sf.holds, state: null }, { rangeM: m.rangeM ?? null, light: lightOf(state, T.x, T.z), cover: eye ? coverAt(state, T, eye) : null, onFace: T.onFace ?? null, by: eye?.onFace ?? null });
   const pk = paintKey(rec);
-  return { ...m, words, subject: { kind: 'board', key: `${sf.face}|${sf.holds}${pk ? `|${pk}` : ''}`, face: sf.face, holds: sf.holds, rec }, ...(picks ? { picks } : {}) };
+  return { ...m, words: rollWords(words, rec, picks), subject: { kind: 'board', key: `${sf.face}|${sf.holds}${pk ? `|${pk}` : ''}${rec.roll ? `|r${rec.roll}` : ''}`, face: sf.face, holds: sf.holds, rec }, ...(picks ? { picks } : {}) };
 }
 
 // (whether the stop names a target of yours now, a row's, an aim's or a pause's bracket, whatever it is)

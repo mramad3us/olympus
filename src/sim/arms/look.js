@@ -103,6 +103,7 @@ import { tilesLook } from './brass.js';
 import { pitView } from '../scenarios/range.js';
 import { pairsLook } from '../scenarios/pairs.js';
 import { anchorsLook } from '../scenarios/anchors.js';
+import { gearAnchorOf, anchorHoldOf } from '../body/footing.js';
 import { stressLook } from '../scenarios/stress.js';
 import { houseLook, handsOf, houseOf } from '../scenarios/shoothouse.js';
 import { devicesLook } from '../combat/burst.js';
@@ -418,8 +419,33 @@ export function rangeLook(state, ms = state?.clock?.ms ?? 0) {
     kd: s.course === 'kd' ? kdLook(state, s, ms, gMs2) : null,
     pairs: s.course === 'pairs' ? pairsLook(state, ms) : s.course === 'anchors' ? anchorsLook(state, ms) : null,
     stress: s.stress ? stressLook(state, ms) : null,
-    house: s.course === 'house' ? withDevices(houseLook(state, ms), state, ms) : null,
+    house: s.course === 'house' ? shipLook(withDevices(houseLook(state, ms), state, ms), state) : null,
   };
+}
+/**
+ * v0.0.25 (the build sheet items 7 and 8, §3.4): a ship's lane (the house's record with `ship`, the Wreck's; absent on every house
+ * lane, whose look is returned as it is): each stand's face and pop-up from its turner (turners.js turnerTargets' onFace and pop:
+ * render/range.js turns the board by them), and the anchors a viewer sees, as the void range's (anchors.js anchorsLook: a hand on a
+ * hold or the lanyard drawn to its hold, the wedge), with the #2's brace (the gear's 'buddy': his arm from the one bracing).
+ */
+function shipLook(h, state) {
+  const R = session(state);
+  if (!h || !R?.house?.ship) return h;
+  const byKey = new Map((R.turners ?? []).map(T => [T.key, T]));
+  const stands = (h.stands ?? []).map(t => { const T = byKey.get(t.key); return T && (T.onFace || T.pop) ? { ...t, ...(T.onFace ? { onFace: T.onFace } : {}), ...(T.pop ? { pop: true } : {}) } : t; });
+  const anchors = [];
+  for (const a of state.actors?.list ?? []) {
+    const kind = a.who ? gearAnchorOf(state, a.who) : null;
+    if (kind === 'buddy') {
+      const b = state.actors.list.find(x => x.id === a.anchorRef || x.who === a.anchorRef);
+      if (b) anchors.push({ who: a.who, kind: 'buddy', x: a.x, z: a.z, y: 0, hold: { x: b.x, z: b.z, kind: 'hand' } });
+      continue;
+    }
+    if (kind !== 'hold' && kind !== 'lanyard' && kind !== 'wedge') continue;
+    const hd = kind === 'wedge' ? null : anchorHoldOf(state, a.who);
+    anchors.push({ who: a.who, kind, x: a.x, z: a.z, y: 0, ...(hd ? { hold: { x: hd.x, z: hd.z, kind: hd.kind } } : {}) });
+  }
+  return { ...h, stands, anchors };
 }
 
 // (0.0.8: your bay lane's stake on the 25 m line, marked as yours as on the KD's (see the header))

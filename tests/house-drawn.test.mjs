@@ -24,6 +24,9 @@ export default [
   {
     name: 'a hundred drawn houses by the honest tier one and sergeant and the keys private and recruit: F1 to F26 as on the set (F3 on each lane\'s own house), F63 to F66 against the set on the same seeds, every lane to its card; the ladder\'s drawn means printed',
     heavy: true,
+    // (v0.0.25's stage 0: a gate, run on GATES=1 only (tests/run.mjs; the lead's quiet heavy run and the round that switches the
+    // drawn or eight-room default), its rows kept in house-done; every other run names it among the gates not run)
+    gate: true,
     timeoutMs: 60 * 60_000,
     fn() {
       const seeds = seedsOf(Number(process.env.DRAWN_SEEDS) || DRAWN_SEEDS), drawn = [], set = [];
@@ -47,6 +50,9 @@ export default [
   {
     name: 'the kit\'s second slice on drawn houses: frag and cut on 20 drawn seeds by the honest kit bot, every sheet, F1 to F33 (the frag\'s intel the drawn turners\', every lane door with its stand-off), every lane to its card',
     heavy: true,
+    // (v0.0.25's stage 0: a gate, run on GATES=1 only (tests/run.mjs; the lead's quiet heavy run and the round that switches the
+    // drawn or eight-room default), its rows kept in house-done; every other run names it among the gates not run)
+    gate: true,
     timeoutMs: 60 * 60_000,
     fn() {
       // (F3 on each lane's own house, as the first case's: kitGaugeOf reads the set's grid there (A's finding 4); F13 the set's, its twin F65)

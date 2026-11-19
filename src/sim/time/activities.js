@@ -119,7 +119,7 @@ import { bodyOf, intake, relieve, wash, groom, soil, sleepBegin, sleepEnd } from
 import { stagesOf, hasBeard } from '../body/cues.js';
 import { hairOf, cutsFor, cutHair, SOL_H } from '../body/hair.js';
 import { kdPartEnd } from '../scenarios/range.js';
-import { bracePending } from '../places/gravity.js';
+import { skipBarred } from '../places/gravity.js';
 /** The words of a skip refused while a brace is pending (v0.0.24, step 6; my call). */
 export const BRACE_REFUSED = 'Not now: secure for the burn.';
 
@@ -482,8 +482,9 @@ export function startActivity(state, bus, ctx, { id, spotId = null, args = {}, l
     } else if (late !== 'accepted') return refuse(bus, 'late', null);
   }
   const kind = force ?? plan.kind;
-  // (ROADMAP "anywhere" step 6: no time passes in a skip while a brace is pending, TIME §5.1.6's threat rule (src/sim/places/gravity.js))
-  if (kind !== 'live' && bracePending(state)) return refuse(bus, 'brace', BRACE_REFUSED);
+  // (ROADMAP "anywhere" step 6: no time passes in a skip while a brace is pending, TIME §5.1.6's threat rule (src/sim/places/gravity.js);
+  // v0.0.25: nor while the ship's profile runs, skipBarred, so no wait or sleep skips a burn or a surprise jink in Testudo's berth)
+  if (kind !== 'live' && skipBarred(state)) return refuse(bus, 'brace', BRACE_REFUSED);
   const t0 = state.clock.ms;
   // (the page's R at your rack's foot, standing, a sleep or a nap that begins lying: you lie down in
   // sight first, and it begins from the berth once you are down, ending where its price said)

@@ -1,14 +1,17 @@
 // OLYMPUS tests: the fixer of v0.0.24's reviews in the page (heavy: a browser file), each case failing without its fix:
 //   H1  Well A on the anchors course draws its turners, the anchors and the brass (render/view.js built the range's look only on the
 //       KD's ground and in the shoot house, so at every station you fired at bare deck), with no bay flag in it;
-//   H3  a floating body is drawn at free fall's height (actor.floatY) one scale step larger past 0.5 m (float-look's F-b), as the sim
-//       makes it at the floating station, nothing set by hand (view.js floatOf read actor.y, the floor: every float on the deck);
+//   H3  a floating body is drawn at free fall's height one scale step larger past 0.5 m of lift (float-look's F-b), in the float's
+//       frames, as the sim makes it at the floating station, nothing set by hand (view.js floatOf read actor.y, the floor: every float
+//       stood on the deck); from v0.0.25 its height is the lift over a standing man's place (render/faces.js liftOf);
 //   M3, L6  every bubble clear of every part of the HUD in every frame of the anchors course (the bubbles were placed before the hit
 //       card and the radio box were written in the frame: "Standby, standby." under the hit card, a bubble a pixel into the radio box);
 //   M2  the burn's jink card ("The deck lurches.") clear of the radio box, which moves over it as in stop motion;
 //   CR4 the surprise's free card in stop motion is shown in the panel's place and its digit answers it (it held time unseen there).
 import { assert } from './helpers.mjs';
 import { withGame, BROWSER_TEST_PORT } from './browser.mjs';
+import { FREEFALL } from '../src/data/body/needs.js';
+import { heightLookOf } from '../src/render/faces.js';
 
 const meets = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 const frames = (page) => page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
@@ -58,7 +61,11 @@ export default [
           fl = await page.evaluate(() => { const O = window.__olympus, me = O.state.actors.list.find(a => a.who === O.state.player.id); if (!(me.floatY > 0.5)) return null; const f = (O.view?.floats ?? []).find(x => x.id === me.id); return { floatY: me.floatY, drawn: f ?? null }; });
         }
         console.log(`      floating: floatY ${fl?.floatY} m, drawn ${JSON.stringify(fl?.drawn ?? null)}`);
-        assert(fl?.drawn && Math.abs(fl.drawn.y - fl.floatY) < 1e-6 && fl.drawn.scaleK > 1, JSON.stringify(fl));
+        // (the integration of v0.0.25: drawn at its lift over a standing man's place, floatY − FREEFALL.FLOAT_Y_M (render/faces.js liftOf,
+        // D's one rule for a planted and a floating body), its scale by heightLookOf at that lift, in the float's frames; v0.0.24's fixer
+        // drew floatY itself, a body at rest at its hips' height a metre up and one scale step larger)
+        const lift = Math.max(0, (fl?.floatY ?? 0) - FREEFALL.FLOAT_Y_M);
+        assert(fl?.drawn && Math.abs(fl.drawn.y - lift) < 1e-6 && fl.drawn.scaleK === heightLookOf(lift).scaleK && /^(float|tumble)/.test(fl.drawn.frame ?? ''), JSON.stringify({ ...fl, lift }));
         assert(!errors.length, errors.join(' | '));
       }, { port: BROWSER_TEST_PORT });
     },

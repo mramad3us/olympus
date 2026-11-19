@@ -29,6 +29,11 @@
 // light on the suit: samples/portrait-suit's, lifted). The user's standing rule of 2026-11-19 holds over each: "keep things simple,
 // it's a game. I love the attention do detail, but only if it won't impact gameplay or performance (or introduce so much
 // complexity it creates bugs)".
+// v0.0.25 (the build sheet item 12, §3.4; PC§5): a man or a board upside down to you is drawn as you see him (R-a, samples/portrait-
+// faces' default until scored): the record's roll (src/sim/people/seen.js: the quarter turns between his up and yours) turns the
+// card's figure, its marks and their numbers with him, about the figure's box (turnFigure, the sample's own rule: whole pixels, no
+// resampling, the ground's wash left upright, a quarter turn halved where it would not fit), the words and the frame upright; R-b
+// draws him upright and names his face in the words (ROLL_FACE_WORDS). Your own I and C cards are the mirror's, never turned.
 // Pure but the caches (./dress.js's LRU, the masks by doll).
 import { word } from '../paint.js';
 import { backdropAt } from './doll.js';
@@ -47,7 +52,41 @@ export const PORTRAIT_PICKS = Object.freeze({ gun: 'G1', where: 'W1', hostage: '
   // (portrait-facing R), his light and the jamb (portrait-light L, J), the I and C cards' ground (portrait-suit D), the truth
   // cards' layout (truth-cards T), the boots and the anchor (mag-boots B, H), the hostage card's side and a man's card's ground
   // (target-view H, L))
-  body: 'R1', light: 'L1', jamb: 'J1', suit: 'D-a', truth: 'T-a', boots: 'B-b', anchor: 'H-a', hostageSide: 'H-a', ground: 'L-a' });
+  body: 'R1', light: 'L1', jamb: 'J1', suit: 'D-a', truth: 'T-a', boots: 'B-b', anchor: 'H-a', hostageSide: 'H-a', ground: 'L-a',
+  // (a man upside down to you (portrait-faces R): R-a turned as you see him, R-b upright with his face named)
+  roll: 'R-a' });
+/** The words R-b puts before a turned subject's, by the roll (v0.0.25): his face as you see it. */
+export const ROLL_FACE_WORDS = Object.freeze({ 1: 'ON HIS SIDE', 2: 'UPSIDE DOWN', 3: 'ON HIS SIDE' });
+/** The roll a card is drawn turned by under the picks: the record's on R-a, none on R-b (v0.0.25). */
+export const rollDrawn = (roll, picks = null) => ((picks?.roll ?? PORTRAIT_PICKS.roll) === 'R-b' ? 0 : ((Number(roll) || 0) % 4 + 4) % 4);
+
+/**
+ * A card's figure turned by roll quarter turns counter-clockwise, in place (v0.0.25, R-a; samples/portrait-faces turnCard, the scored
+ * candidate's own rule): col the card's colours W wide, figH the words' strip's first row. The figure is every pixel inside the frame
+ * and above the strip that differs from its row's ground (the ground a vertical wash: its colour at column 1); its box is turned
+ * about itself and centred in the figure's part of the card, the ground under it as it was row by row (so the wash stays upright),
+ * his marks, their numbers and anything drawn on him turned with him; a quarter turn that would not fit is halved (every other
+ * pixel). Returns { halved, map(x, y) } (map: a card point of the figure to where the turn put it), or null where nothing turned.
+ */
+export function turnFigure(col, W, figH, roll) {
+  const r = ((roll % 4) + 4) % 4;
+  if (!r) return null;
+  const ground = (y) => col[y * W + 1], src = col.slice(), on = (x, y) => src[y * W + x] !== src[y * W + 1];
+  let x0 = Infinity, y0 = Infinity, x1 = -1, y1 = -1;
+  for (let y = 1; y < figH; y++) for (let x = 1; x < W - 1; x++) if (on(x, y)) { x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y); }
+  for (let y = 1; y < figH; y++) { const g = ground(y); for (let x = 1; x < W - 1; x++) col[y * W + x] = g; }
+  if (x1 < 0) return { halved: false, map: (x, y) => [x, y] };
+  const bw = x1 - x0 + 1, bh = y1 - y0 + 1, quarter = r % 2 === 1, tw = quarter ? bh : bw, th = quarter ? bw : bh;
+  const halve = tw > W - 2 || th > figH - 1, s = halve ? 2 : 1, ox = 1 + Math.floor((W - 2 - Math.ceil(tw / s)) / 2), oy = 1 + Math.floor((figH - 1 - Math.ceil(th / s)) / 2);
+  // (r 2: half a turn; r 1: a quarter turn, his head to your left; r 3: to your right)
+  const to = (u, v) => (r === 2 ? [bw - 1 - u, bh - 1 - v] : r === 1 ? [v, bw - 1 - u] : [bh - 1 - v, u]);
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    if (!on(x, y) || (halve && ((x - x0) % 2 || (y - y0) % 2))) continue;
+    const [a, b] = to(x - x0, y - y0), px = ox + Math.floor(a / s), py = oy + Math.floor(b / s);
+    if (px >= 1 && px < W - 1 && py >= 1 && py < figH) col[py * W + px] = src[y * W + x];
+  }
+  return { halved: halve, map: (x, y) => { const [a, b] = to(x - x0, y - y0); return [ox + Math.floor(a / s), oy + Math.floor(b / s)]; } };
+}
 /** A side card's facing by the side pick (F3 the head turned, the record's own 'left' or 'right'; F2 the profile) and the back's (F1 drawn from behind). */
 export const SIDE_FACINGS = Object.freeze({ F3: null, F2: 'profile' }), BACK_FACINGS = Object.freeze({ F1: 'back' });
 /** The ship switches (the build sheet's ship rules): the poses and the facing drawn, or every card standing and front on. */

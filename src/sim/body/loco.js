@@ -37,8 +37,20 @@
 // beside the record (`floatY` its centre of mass's height over the deck, never `y`, the floor it stands on; `v` the drift, `tumble` and `tumbleRad` its pitch's spin and angle, `push` a
 // push-off under way), each absent at rest on a deck, so every record at Mars and the Wheel is the bytes it was. floatLook(a) is
 // the view's one read of them: { y (the floatY), vMs, tumbleRad, pushing } or null for a body not floating.
+// v0.0.25 (its build sheet §3.2, item 5): a body standing on the deckhead (actor.onFace 'deckhead', src/sim/body/footing.js) is planted on
+// its face, never floating: floatLook reads null for it (its floatY is the face's height), and faceLook(a) is the view's one read of the
+// face, { onFace, faceTo } (faceTo the face the boots go to while one is changed, else null), or null for a body on the deck with no
+// change under way: so every record of every shipped scene reads null, as before.
 // v0.0.24's stage 0 (its build sheet §0 item 30, F115): with no state (a test's call of stepMOf or locoStep alone) the gravity is
 // the 1 G reference, core/phys.js G0_MS2 (9.80665 m/s²), never a 9.81 of its own; every call with a state reads the place's.
+// v0.0.25's carried round (the user's report of 2026-11-19 playing v0.0.24 at 0 G: "the 0G boots locked walking animation should be a
+// walking animation not a leaping animation, with mags on, each step is slower, but both feet never leave the ground"): the leap was
+// stepMOf's lope, a walk-type gait given a flight wherever its Froude number reached LOPE_FROUDE, and at micro-g (g floored at G_MIN_MS2
+// 0.05 m/s²) a 0.5 m/s walk is Froude 5.6, so the phase counted a flight's metres and the view drew the run's flight frames lifted.
+// On locked mag boots (`boots`: bootsWalk, the anchor 'boots' under GAIT_G.BOUND_BELOW_G 0.3 G, footing.js's 'magWalk') the magnets
+// hold the feet: no flight ever, the band the walk's (Assault's lope read as the Combat glide, a run as the walk), so a step is the
+// walk's planted travel (0.375 m) and the cadence the boots' speed over it (MAG_BOOTS.WALK_MS 0.5 m/s: 1.33 steps a second, the 1 G
+// walk's 1.14 m/s 3.04). The bound stays where it belongs, without boots from 0.05 to 0.3 G.
 // Pure but tickStart, moverStart and locoStep, which write the actor's record.
 import { q } from '../../core/num.js';
 import { TICK_MS } from '../../core/clock.js';
@@ -47,6 +59,7 @@ import { paceOf } from '../skills/skills.js';
 import { valueOf } from '../skills/templates.js';
 import { gravityAt } from '../places/env.js';
 import { takeoffVzMs, G0_MS2 } from '../../core/phys.js';
+import { GAIT_G } from '../../data/body/needs.js';
 import { STRIDE_WRAP_M, GP_WRAP, CYCLE, STEP_PX, STEP_PPM, LOPE_FROUDE, LOPE_VZ_MS, RUN_VZ_MS, LEG_K, REF_HEIGHT_M, TURN_OPERATOR_S, TURN_RECRUIT_S } from '../../data/body/gait.js';
 
 const POS_STEP_M = 0.0001, GP_STEP = 1e-6, RAD_STEP = 1e-6, G_MIN_MS2 = 0.05;
@@ -54,10 +67,13 @@ const wrapRad = (a) => ((a + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math
 /** The pace paceOf gives at its fastest (src/sim/skills/skills.js's floor), where the body turns in TURN_OPERATOR_S. */
 export const FASTEST_K = 0.45;
 
-/** The band a gait's phase is counted in: { band ('walk' | 'combat' | 'assault' | 'run' | null in a float or idle), flight (s, 0 without), stepM (m) }. */
-export function stepMOf({ gait, stance = null, vMs = 0, gMs2 = G0_MS2, legM = LEG_K * REF_HEIGHT_M, cycle = CYCLE }) {
+/** Whether a body walks on locked mag boots here (v0.0.25, see the header): its anchor the boots, under GAIT_G.BOUND_BELOW_G. */
+export const bootsWalk = (a, gMs2) => a?.anchor === 'boots' && gMs2 < GAIT_G.BOUND_BELOW_G * G0_MS2;
+/** The band a gait's phase is counted in: { band ('walk' | 'combat' | 'assault' | 'run' | null in a float or idle), flight (s, 0 without), stepM (m) }; boots: on locked mag boots, no flight (see the header). */
+export function stepMOf({ gait, stance = null, vMs = 0, gMs2 = G0_MS2, legM = LEG_K * REF_HEIGHT_M, cycle = CYCLE, boots = false }) {
   if (!gait || gait === 'idle' || gait === 'float') return { band: null, flight: 0, stepM: 0 };
   const S = STEP_PX[cycle] ?? STEP_PX[CYCLE], g = Math.max(G_MIN_MS2, gMs2);
+  if (boots) { const band = stance === 'assault' || stance === 'combat' ? 'combat' : 'walk'; return { band, flight: 0, stepM: S[band] / STEP_PPM }; }
   const run = gait === 'run' || gait === 'bound';
   const band = run ? 'run' : stance === 'assault' ? 'assault' : stance === 'combat' ? 'combat' : 'walk';
   // (flight from physics, not from a picture: the run always flies, a walk-type gait from Froude LOPE_FROUDE)
@@ -123,12 +139,12 @@ export function locoStep(a, x0, z0, { state = null, pid = a?.who ?? null, gait =
   if (moving) {
     const gMs2 = state ? gravityAt(state, null, a.x, a.z).gMs2 : G0_MS2, legM = state && pid ? legMOf(state, pid) : LEG_K * REF_HEIGHT_M;
     const v = Number.isFinite(vMs) && vMs > 0 ? vMs : moved / Math.max(1e-3, dtS);
-    const s = stepMOf({ gait, stance, vMs: v, gMs2, legM, cycle: CYCLE });
+    const boots = bootsWalk(a, gMs2), s = stepMOf({ gait, stance, vMs: v, gMs2, legM, cycle: CYCLE, boots });
     if (s.stepM > 0) a.gp = q(((gpOf(a) + moved / s.stepM) % GP_WRAP + GP_WRAP) % GP_WRAP, GP_STEP);
     // (the page's other cycle: its own phase, runtime only (see the header))
     const c = cycleOf(state);
     if (c !== CYCLE) {
-      const sc = stepMOf({ gait, stance, vMs: v, gMs2, legM, cycle: c });
+      const sc = stepMOf({ gait, stance, vMs: v, gMs2, legM, cycle: c, boots });
       if (sc.stepM > 0) a.$gp = q(((gpOf(a, c) + moved / sc.stepM) % GP_WRAP + GP_WRAP) % GP_WRAP, GP_STEP);
     }
   }
@@ -148,6 +164,13 @@ export function locoStep(a, x0, z0, { state = null, pid = a?.who ?? null, gait =
 /** A floating body's look (see the header; VIEWS §2.11): { y, vMs, tumbleRad, pushing }, or null for a body on a deck with no drift, tumble or push. */
 export function floatLook(a) {
   if (!a || (a.floatY === undefined && !a.v && !a.tumble && !a.push)) return null;
+  if (a.onFace && !a.v && !a.push && !a.tumble) return null;
   if (a.floatY === undefined && a.gait !== 'float') return null;
   return { y: a.floatY ?? 0, vMs: q(Math.hypot(a.v?.[0] ?? 0, a.v?.[1] ?? 0), 0.001), tumbleRad: a.tumbleRad ?? 0, pushing: !!a.push };
+}
+
+/** The face a body stands on (see the header; v0.0.25): { onFace, faceTo } or null for a body on the deck with no face changed. */
+export function faceLook(a) {
+  if (!a || (!a.onFace && !a.faceTo)) return null;
+  return { onFace: a.onFace ?? 'deck', faceTo: a.faceTo ?? null };
 }

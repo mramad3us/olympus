@@ -123,7 +123,7 @@ import { testHandling } from './scenarios/handling.js';
 import { testRange } from './scenarios/range.js';
 import { testPairs } from './scenarios/pairs.js';
 import { testStress } from './scenarios/stress.js';
-import { testShoothouse } from './scenarios/shoothouse.js';
+import { testShoothouse, testZerocqb } from './scenarios/shoothouse.js';
 import { testAnchors } from './scenarios/anchors.js';
 import { testBurn } from './scenarios/burn.js';
 import { refusesAct } from './combat/contact.js';
@@ -139,7 +139,9 @@ const LAYER_NAMES = new Set(FAST_LAYERS.map(L => L.name));
 /** The domains, in the order their contributors run. */
 export const DOMAIN_ORDER = Object.freeze(['tech', 'time', 'places', 'body', 'people', 'weapons', 'combat', 'world', 'career']);
 /** The scenarios a new game can start in: each fills a fresh state (fill(state, { at })). */
-export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling, 'test-range': testRange, 'test-pairs': testPairs, 'test-stress': testStress, 'test-shoothouse': testShoothouse, 'test-anchors': testAnchors, 'test-burn': testBurn });
+export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling, 'test-range': testRange, 'test-pairs': testPairs, 'test-stress': testStress, 'test-shoothouse': testShoothouse, 'test-anchors': testAnchors, 'test-burn': testBurn,
+  // ("Hold to hold", the house's fill on the Wreck (shoothouse.js testZerocqb): its own scenario, since specOf holds one host a scenario)
+  'test-zerocqb': testZerocqb });
 
 // (one host and one environment a scenario: the scenes that share a fill differ only in the hud's fields and their setup)
 const sameStand = (a, b) => JSON.stringify([a.host, a.env]) === JSON.stringify([b.host, b.env]);

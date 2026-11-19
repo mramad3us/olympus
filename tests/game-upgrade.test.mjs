@@ -112,6 +112,13 @@
 // 3702 on the snapshot, V023_GO_TICK; house-pin's cell starts at the fill, before the brief, so its 4502 is not this lane's). They are the anywhere round's held saves (F100): each
 // merge, A to D, keeps them byte for byte; after E's the house save gains no T.atFirst until a round is fired after the load (E adds
 // that assertion here).
+// v0.0.25's stage 0 (its build sheet §2 step 7, a heavy case as v0.0.24's): two saves made by v0.0.24's own code (the integrated
+// snapshot, tree 62b0d902, v0.0.24 untagged; the maker .run/v025/lead-figures/scripts/make-saves.mjs), stamped 0.0.24: test-anchors
+// as the private by the keys bot on 48213 at station 3 ('onehand', the P-12) the first tick its string runs with his hand on a hold
+// (tick 1040), and the private by the keys on 48213 at his first contact's pause in room 2 (tick 512 from GO). Each loads with
+// nothing written (saved again byte for byte: no key gained), carries on byte for byte from a save made 300 ticks on, and reaches
+// its card on the tick the same course or lane played straight does (V024_ANCHORS_TICK 2354, V023_GO_TICK 3702, unchanged from
+// v0.0.23). They are the Wreck round's held saves (F124): every merge, E to D, keeps them byte for byte.
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -142,10 +149,22 @@ import { areaOf, resetCaches as resetRegistry } from '../src/sim/places/model.js
 import { HOUSE_CHIEF } from '../src/data/courses.js';
 import { botOf } from './flawless.mjs';
 import { instinctNow } from '../src/sim/skills/instinct.js';
+import { anchorsBot } from './bots/void.mjs';
+import { anchorsNow } from '../src/sim/scenarios/anchors.js';
 // (v0.0.22's C: the two v0.0.21 saves' end ticks under v0.0.22's rules (see their case), recorded on C's tree)
 const SAVE_TICKS = Object.freeze({ showclear: 4562, paint: 3362 });
 /** v0.0.24's stage 0: the keys private on 48213 from setup 'go' to his card, the tick on v0.0.23's snapshot (the room 2 save's lane). */
 const V023_GO_TICK = 3702;
+/** v0.0.25's stage 0: test-anchors as the private by the keys bot on 48213 from the fill to its card, the clock's tick on v0.0.24's snapshot (62b0d902; the station 3 save's course). */
+const V024_ANCHORS_TICK = 2354;
+/**
+ * The same course played straight from its fill on v0.0.25's carried round (re-recorded, its cause named): 2782. The cadre's brief is
+ * followed by VOID_CADRE.how (the user's report of 2026-11-19, "translate what I have to do for the 0G shooting training"), so the
+ * first command comes 418 ticks later (tick 559, was 141), and the free fall's push rolls are drawn on the push's ms (freefall.js
+ * 'ff:push'), so the shifted course rolls its own pushes (10 ticks more). The save at station 3, its brief long past, still ends on
+ * V024_ANCHORS_TICK, the oracle that holds the load byte for byte.
+ */
+const V025_ANCHORS_STRAIGHT_TICK = 2782;
 
 const LON = SITES.melas.lonEDeg, MIN_TICKS = 20 * 60;
 // (v0.0.21, the build sheet §1 item 25, §0 item 17: a house save from before v0.0.20's pars gains them on load, the stands' books,
@@ -738,6 +757,39 @@ export default [
         }
         console.log(`      ${name}: ${old.meta.scenario} at tick ${old.clock.tick} (${hm(old.clock.ms)}), ${json.length} bytes; saved again at once ${saved === json ? 'byte for byte' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; 600 ticks, ${g.errors.length} errors; a save at 300 carried on ${carried ? 'byte for byte' : 'DIFFERENTLY'}${card}`);
         assert(saved === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried, JSON.stringify({ same: saved === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 2), carried }));
+      }
+    },
+  },
+  {
+    name: 'v0.0.25 (its build sheet §2 step 7): two saves made by v0.0.24\'s own code load with nothing written, gain no key and carry on byte for byte: test-anchors at station 3 (the P-12, one hand on a hold) to its card on the course\'s own tick, and the private by the keys at his first contact\'s pause in room 2 to his card on his lane\'s tick from GO',
+    heavy: true,
+    timeoutMs: 300_000,
+    fn() {
+      const CASES = {
+        'v0.0.24-anchors-s3': { scenario: 'test-anchors', bot: () => anchorsBot(), done: (s) => !!anchorsNow(s).end, run: (g, b) => { for (let n = 0; n < 20 * 60 * 15 && !anchorsNow(g.state).end; n++) g.step(1, b); }, straight: () => createGame({ scenario: 'test-anchors', seed: 48213, tier: 'private' }), tick: V024_ANCHORS_TICK, straightTick: V025_ANCHORS_STRAIGHT_TICK },
+        'v0.0.24-house-room2': { scenario: 'test-shoothouse', bot: () => houseKeysBot(), done: (s) => !!s.armoury.range.house.end, run: (g, b) => runHouse(g, b, { maxMs: 30 * 60_000 }), straight: () => createGame({ scenario: 'test-shoothouse', seed: 48213, tier: 'private', setup: 'go' }), tick: V023_GO_TICK },
+      };
+      for (const [name, c] of Object.entries(CASES)) {
+        const json = read(name), old = JSON.parse(json);
+        assert(old.meta.version === '0.0.24' && old.meta.seed === 48213 && old.meta.scenario === c.scenario, `${name}: ${old.meta.version} ${old.meta.seed} ${old.meta.scenario}`);
+        if (c.scenario === 'test-anchors') {
+          const A = old.armoury.range.anchors, me = old.actors.list.find(a => a.who === old.player.id);
+          assert(A.st === 2 && me?.anchor === 'handhold', JSON.stringify({ st: A.st, anchor: me?.anchor }));
+        } else {
+          const H0 = old.armoury.range.house, S0 = old.stop, T0 = S0?.pick ? old.armoury.range.turners.find(t => t.key === S0.pick) : null;
+          assert(H0.tier === 'private' && H0.cur === 1 && S0?.mode === 'stop' && S0.phase === 'choose' && S0.via === 'contact' && T0?.room === 'w4.r2', JSON.stringify({ tier: H0.tier, cur: H0.cur, via: S0?.via }));
+        }
+        const g = createGame({ scenario: c.scenario, seed: 48213 }), s = g.load(json), saved = g.save(), ids = checkIds(JSON.parse(saved), g.sim.domains), b = c.bot();
+        g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
+        const h = createGame({ scenario: c.scenario, seed: 48213 }); h.load(mid); h.step(300, c.bot());
+        const carried = h.save() === end;
+        // (to the card, and the same lane straight from its start (no save) beside it: the oracle, beside the snapshot's tick)
+        c.run(g, b);
+        const f = c.straight(); c.run(f, c.bot());
+        const card = `; to the card ${c.done(s)} at tick ${s.clock.tick}, the lane straight ${c.done(f.state)} at ${f.state.clock.tick} (the snapshot's ${c.tick})`;
+        console.log(`      ${name}: ${old.meta.scenario} at tick ${old.clock.tick}, ${json.length} bytes; saved again at once ${saved === json ? 'byte for byte (no key gained)' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; ${g.errors.length} errors; a save at 300 carried on ${carried ? 'byte for byte' : 'DIFFERENTLY'}${card}`);
+        assert(saved === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried, JSON.stringify({ same: saved === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 2), carried }));
+        assert(c.done(s) && c.done(f.state) && f.state.clock.tick === (c.straightTick ?? c.tick) && s.clock.tick === c.tick, JSON.stringify({ tick: s.clock.tick, straight: f.state.clock.tick, want: c.tick, wantStraight: c.straightTick ?? c.tick }));
       }
     },
   },

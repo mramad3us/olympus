@@ -54,7 +54,8 @@ export const COOK_NOTE_RUNG = 3;
 /** The hot wash's weights of D2's faults (see the header). */
 export const ONE_WEIGHTS = Object.freeze({ burst: 120, fragged: 95, concussed: 85, through: 80, exposed: 35 });
 
-const legsOf = (H) => (H ? [...H.rooms, H.hall] : []);
+// (no hall on the Wreck, H.hall null)
+const legsOf = (H) => (H ? [...H.rooms, ...(H.hall ? [H.hall] : [])] : []);
 const fill = (line, map) => Object.entries(map).reduce((t, [k, v]) => t.replaceAll(`{${k}}`, String(v)), line);
 const pick = (state, lines, ...key) => hashPick(lines, 'house-chief', state.meta.seed, ...key);
 const listWords = (xs) => (xs.length <= 1 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs.at(-1)}`);

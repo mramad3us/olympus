@@ -45,7 +45,7 @@ function integrate(yM, g0G, g1G, onsetGs) {
 
 export default [
   {
-    name: 'F112: a burn\'s events to the tick (the warning 15 s before, the onset, the ramp at 0.5 G/s a tick at a time to 1 G in 2 s, the hold of 20 s, the end and the off ramp back to 0 G), and the 1MC\'s words said as text',
+    name: 'F112: a burn\'s events to the tick (the warning 15 s before, the onset, the ramp at 0.5 G/s a tick at a time to 1 G in 2 s, the hold of 20 s, the end and the off ramp back to 0 G), and the 1MC\'s words said as text (from v0.0.25\'s burn polish with the size, and at the onset too)',
     fn() {
       const G = game([{ kind: 'burn', toG: 1, atS: 20, warnS: 15 }]), { s, t0 } = G, said = [];
       G.g.bus.on('say', (f) => said.push({ text: f.text, speaker: f.speaker, kind: f.kind, ms: s.clock.ms }));
@@ -58,7 +58,8 @@ export default [
       console.log(`      after: ${gravityAt(s).gG} G, phase ${s.places.live.env.profile.phase}, the profile ${JSON.stringify(profileOf(s))}`);
       assert(at('warn') === 5000 && at('onset') === 20000 && at('hold') === 22000 && at('end') === 42000, JSON.stringify(G.seen.map(f => [f.phase, f.ms - t0])));
       assert(!bad.length && ramp.find(r => r[1] === 1)?.[0] === 22050, `the ramp at 0.5 G/s: ${JSON.stringify(bad.slice(0, 3))}`);
-      assert(said.length === 2 && said[0].text === 'Brace, brace, brace. Secure for burn. Burn in fifteen seconds.' && said[0].speaker === '1MC' && said[0].kind === 'pa' && said[0].ms - t0 === 5000 && said[1].text === 'Burn complete. Coasting.' && said[1].ms - t0 === 42000, JSON.stringify(said));
+      // (v0.0.25's burn polish: the warning names the size, "Secure for burn: one G.", and the 1MC says it again at the onset, "Burning. One G.")
+      assert(said.length === 3 && said[0].text === 'Brace, brace, brace. Secure for burn: one G. Burn in fifteen seconds.' && said[0].speaker === '1MC' && said[0].kind === 'pa' && said[0].ms - t0 === 5000 && said[1].text === 'Burning. One G.' && said[1].ms - t0 === 20000 && said[2].text === 'Burn complete. Coasting.' && said[2].ms - t0 === 42000, JSON.stringify(said));
       assert(gravityAt(s).gG === 0 && s.places.live.env.profile.phase === 'done' && gravNow(s) === null, 'back to coasting, the profile done');
     },
   },

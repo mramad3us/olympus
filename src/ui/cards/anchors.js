@@ -70,6 +70,9 @@ export function burnSaid(bn, { fmtS = S } = {}) {
   const o = bn.onset;
   if (o?.what) out.push(throwLine('The burn', o, fmtS));
   if (o?.loose) out.push(`${o.loose} item${o.loose === 1 ? '' : 's'} adrift when the drive lit`);
+  // (the user's score of test-burn: the warned manoeuvre, how you were secured as it came in and what it did; the boots torn off said first)
+  const ev = bn.evade;
+  if (ev?.atMs) out.push(`${throwLine('The manoeuvre', ev, fmtS)}${ev.how ? ` (${ev.how === 'strapped' ? 'strapped in' : ev.how === 'boots' ? 'on your mag boots' : 'on a hold'} as it came in)` : ' (not secured as it came in)'}`);
   if (bn.jink?.what) out.push(throwLine('The jink', bn.jink, fmtS));
   else if (!bn.jinks) out.push('No surprise on this seed');
   return out.filter(Boolean);
@@ -79,8 +82,10 @@ function throwLine(what, o, fmtS) {
   void fmtS;
   // (impactOf's record in its own words: the worst state and the named injuries, impact.js impactWords)
   const hurt = o.injuries?.length ? `: ${impactWords(o.injuries, 'you').replace(/^you: /, '').replace(/\.$/, '')}` : '';
-  const W = { couched: 'you rode it strapped in', rode: 'you rode it on your feet', held: 'you held on', down: `you went down at ${o.vMs?.toFixed(2)} m/s`, pulled: 'it pulled you off the hold', fell: `you fell ${o.fromM ? `${o.fromM.toFixed(1)} m ` : ''}to the deck at ${o.vMs?.toFixed(2)} m/s, ${o.first ?? 'body'} first`, slid: 'you slid across the deck' };
-  return `${what}: ${W[o.what] ?? o.what}${hurt}`;
+  const W = { couched: 'you rode it strapped in', rode: 'you rode it on your feet', held: 'you held on', down: `you went down at ${o.vMs?.toFixed(2)} m/s`, pulled: 'it pulled you off the hold', fell: `you fell ${o.fromM ? `${o.fromM.toFixed(1)} m ` : ''}to the deck at ${o.vMs?.toFixed(2)} m/s, ${o.first ?? 'body'} first`, slid: 'you slid across the deck',
+    // (the user's score of test-burn: the boots torn off the deck by a push across it, and a body thrown into a face or caught on a hold)
+    torn: 'your boots tore off the deck', thrown: `you were thrown into the compartment's side at ${o.vMs?.toFixed(2)} m/s`, caught: 'you caught a hold' };
+  return `${what}: ${o.torn && o.what !== 'torn' ? `${W.torn}; ` : ''}${W[o.what] ?? o.what}${hurt}`;
 }
 
 /** "Secure for burn"'s aspects (see the header). */
@@ -88,7 +93,7 @@ export function burnAspects(bn, { fmtS = S } = {}) {
   if (!bn) return [];
   return [
     ['warning', bn.secured ? `secured ${fmtS(bn.secured.inMs)} after the 1MC` : bn.warn ? 'the 1MC heard, not secured in time' : 'no warning came'],
-    ['fall', bn.onset?.what ? throwLine('the burn', bn.onset, fmtS) : 'nothing thrown'],
+    ['fall', [bn.onset?.what ? throwLine('the burn', bn.onset, fmtS) : 'nothing thrown', bn.evade?.what ? throwLine('the manoeuvre', bn.evade, fmtS) : null].filter(Boolean).join('; ')],
     ['feel', 'the berth, the float, the siren'],
   ];
 }

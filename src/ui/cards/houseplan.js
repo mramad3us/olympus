@@ -1,4 +1,5 @@
 // OLYMPUS cards: the shoot house's plan view, the lane replayed from above and linked to the run sheet (the build sheet v0.0.20 §1 item 26; card C2; COMBAT §25.10.4).
+// v0.0.25: a place of panels far apart in one plan (the Wreck's two decks, 60 m apart) is drawn a panel each, side by side (planFrame's cuts).
 //
 // "CORNER MISSED · DOORWAY 0.30 S" says what, never where. The plan view draws the lane on the house seen from above, north up as the
 // stage draws it (x to the right, z down), at PLAN_PX_M 16 px/m (480 × 320 px for the 30 × 20 m house; 20 px/m in a window 1,600
@@ -61,14 +62,30 @@ export function planAt(d, ms) {
   };
 }
 
-/** The view's frame: { pxM, w, h, x0, z0 } for the house rect (m) at a scale. */
+/** v0.0.25: an empty band of the plan wider than this along x is cut to PANEL_SEP_M, so a place of panels apart is drawn a panel each, side by side (m). */
+export const PANEL_GAP_M = 10, PANEL_SEP_M = 1;
+/**
+ * The view's frame: { pxM, w, h, x0, z0, cuts } for the house rect (m) at a scale. v0.0.25 ("Hold to hold": the Wreck's two decks lie 60 m
+ * apart in one plan, its build sheet §1 item 13): every empty band along x between the walls wider than PANEL_GAP_M is cut to
+ * PANEL_SEP_M, `cuts` [{ atM, shiftM }] (each x past atM drawn shiftM to the west), so the plan is a panel a deck; the house has none,
+ * and its frame and every pixel are as before.
+ */
 export function planFrame(d, pxM = PLAN_PX_M) {
   const xs = d.walls.flatMap(w => [w.rect[0], w.rect[2]]), zs = d.walls.flatMap(w => [w.rect[1], w.rect[3]]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), z0 = Math.min(...zs), z1 = Math.max(...zs);
-  return { pxM, x0, z0, w: Math.ceil((x1 - x0) * pxM) + 2 * MARGIN_PX, h: Math.ceil((z1 - z0) * pxM) + 2 * MARGIN_PX };
+  // (the walls' x spans merged, west to east; a gap between two of over PANEL_GAP_M is a cut)
+  const spans = d.walls.map(w => [w.rect[0], w.rect[2]]).sort((a, b) => a[0] - b[0]), cuts = [];
+  let end = spans[0]?.[1] ?? x0, shift = 0;
+  for (const [a, b] of spans.slice(1)) {
+    if (a - end > PANEL_GAP_M) { shift += a - end - PANEL_SEP_M; cuts.push({ atM: end, shiftM: shift }); }
+    end = Math.max(end, b);
+  }
+  return { pxM, x0, z0, cuts, w: Math.ceil((x1 - x0 - shift) * pxM) + 2 * MARGIN_PX, h: Math.ceil((z1 - z0) * pxM) + 2 * MARGIN_PX };
 }
+// (the shift a point's x takes past the frame's cuts, m: 0 on the house)
+const shiftAt = (F, x) => { let s = 0; for (const c of F.cuts ?? []) if (x > c.atM) s = c.shiftM; return s; };
 /** A point of the house in the plan's pixels. */
-export const toPx = (F, x, z) => [Math.round(MARGIN_PX + (x - F.x0) * F.pxM), Math.round(MARGIN_PX + (z - F.z0) * F.pxM)];
+export const toPx = (F, x, z) => [Math.round(MARGIN_PX + (x - F.x0 - shiftAt(F, x)) * F.pxM), Math.round(MARGIN_PX + (z - F.z0) * F.pxM)];
 
 /** Draw the plan at ms on a Canvas2D g (its pixels F.w × F.h), with a ghost (house-ghosts.js) under you if given. Returns the stands' hit boxes for a click: [{ key, x, y, r }]. */
 export function drawPlan(g, d, ms, F = planFrame(d), ghost = null) {

@@ -9,8 +9,14 @@
 // 48213, from the fill) and holds that no held command starts inside the chain and that the text the chain timed is the 'say'
 // fact's own; it fails without the wait. The heavy case plays 20 seeds a sheet from the fill twice, with the wait and with the
 // chain zeroed every tick (the stage-0 tree's tower, to the byte: the chain is read nowhere else), and holds the lane from GO
-// within chance of it (the mean lane a sheet within 2%, every fault's rate within 5 points), printed side by side: GO moves
-// about 20 s and the dice keyed by absolute ms move with it (§0 item 30), so the lanes cannot be byte for byte.
+// within chance of it (every fault's rate within 5 points, and the lane by its paired difference, below), printed side by side: GO
+// moves about 20 s and the dice keyed by absolute ms move with it (§0 item 30), so the lanes cannot be byte for byte.
+// v0.0.25 (its build sheet §1 E, §6 E; the carried lens §2.5): the lane's bound is the paired difference, seed by seed (the same
+// seed with the wait and without), its mean within two of its own standard errors, the differences printed, on a sheet where that
+// bound sees a real effect: a 3% wait injected into every lane with the wait (each lane with the wait lengthened by 3% of its own
+// without) fails it. On a sheet where it would not, the bound is no looser: the mean lane within 2% is kept there, and the line
+// says so. Before, the mean lane a sheet was held within 2% of the mean without, whatever the twenty lanes' spread: the seeds are
+// fixed, so the boot recruit by the keys, the slowest and most spread sheet, was red on every run (+2.14%), not by chance.
 import { assert, fmt } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { houseBot, runHouse } from './bots/house.mjs';
@@ -20,6 +26,14 @@ import { TICK_MS } from '../src/core/clock.js';
 // (the commands the wait holds: those posted after a command outside the lane; GO and Stop are not)
 const HELD = new Set(['load', 'ready', 'standby', 'clear', 'wash', 'end']);
 const modeOf = (tier) => (tier === 'recruit' || tier === 'private' ? 'keys' : 'T');
+/** v0.0.25: the wait the paired bound must see, injected into every lane with the wait (a share of the lane without). */
+export const INJECT_K = 0.03;
+// (the paired differences' mean and its standard error (sample deviation over √n), and whether the mean is within two of them)
+function paired(ds) {
+  const n = ds.length, mean = ds.reduce((a, b) => a + b, 0) / Math.max(1, n);
+  const sd = n > 1 ? Math.sqrt(ds.reduce((a, d) => a + (d - mean) ** 2, 0) / (n - 1)) : 0, se = n > 0 ? sd / Math.sqrt(n) : 0;
+  return { n, mean, se, met: Math.abs(mean) <= 2 * se };
+}
 const factsOf = (game) => (game.bus.events ?? []).map(e => (Array.isArray(e) ? { type: e[0], p: e[1] } : { type: e.type, p: e.payload ?? e.data ?? e }));
 
 /**
@@ -77,7 +91,7 @@ export default [
     },
   },
   {
-    name: 'the wait moves the lane from GO by chance only: 20 seeds a sheet from the fill, with the wait and with the chain zeroed (the stage-0 tree\'s tower), the mean lane a sheet within 2% and every fault\'s rate within 5 points, printed side by side',
+    name: 'the wait moves the lane from GO by chance only: 20 seeds a sheet from the fill, with the wait and with the chain zeroed (the stage-0 tree\'s tower), the lane\'s paired difference within two of its standard errors (a 3% wait injected fails it, every sheet) and every fault\'s rate within 5 points, printed side by side',
     heavy: true,
     timeoutMs: 30 * 60_000,
     fn() {
@@ -88,8 +102,14 @@ export default [
         const kinds = [...new Set([...on, ...off].flatMap(r => Object.keys(r.faults)))].sort();
         const rate = (rs, k) => (100 * rs.filter(r => r.faults[k]).length) / rs.length;
         const dLane = (100 * (lane(on) - lane(off))) / lane(off), worst = kinds.map(k => [k, rate(on, k) - rate(off, k)]).sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))[0] ?? ['none', 0];
+        // (the paired difference, seed by seed, s; and the same with a 3% wait injected: the lane with the wait 3% of its own without longer)
+        const pairs = on.map((r, i) => [r.laneS, off[i].laneS]).filter(([a, b]) => Number.isFinite(a) && Number.isFinite(b));
+        const P = paired(pairs.map(([a, b]) => a - b)), J = paired(pairs.map(([a, b]) => a + INJECT_K * b - b));
         console.log(`      ${tier.padEnd(8)} lane ${fmt(lane(on), 2)} s with the wait, ${fmt(lane(off), 2)} without (${dLane >= 0 ? '+' : ''}${fmt(dLane, 2)}%); GO ${fmt(mean(on.map(r => r.goS)), 1)} s against ${fmt(mean(off.map(r => r.goS)), 1)}; faults ${kinds.map(k => `${k} ${fmt(rate(on, k), 0)}/${fmt(rate(off, k), 0)}%`).join(', ') || 'none'}; to the card ${on.filter(r => r.end).length}/${off.filter(r => r.end).length}; the worst rate ${worst[0]} ${fmt(worst[1], 0)} points`);
-        if (Math.abs(dLane) > 2 || Math.abs(worst[1]) > 5 || on.some(r => !r.end)) bad.push({ tier, dLane, worst });
+        // (the paired bound where it sees the injected wait, else the 2% bound kept)
+        const sees = !J.met, laneOk = sees ? P.met : Math.abs(dLane) <= 2;
+        console.log(`        paired over ${pairs.length} seeds: ${fmt(P.mean, 2)} s on the mean, its standard error ${fmt(P.se, 2)} s, ${P.met ? 'within' : 'OUTSIDE'} two (${fmt(P.mean / Math.max(P.se, 1e-9), 2)} SE); a ${fmt(100 * INJECT_K, 0)}% wait injected: ${fmt(J.mean, 2)} s, ${fmt(J.mean / Math.max(J.se, 1e-9), 2)} SE, ${sees ? 'seen: the paired bound holds the lane' : 'NOT SEEN: the 2% bound kept'} (${laneOk ? 'met' : 'MISSED'}); the differences ${pairs.map(([a, b]) => fmt(a - b, 2)).join(' ')}`);
+        if (!laneOk || Math.abs(worst[1]) > 5 || on.some(r => !r.end)) bad.push({ tier, dLane, paired: P, injected: J, sees, worst });
       }
       assert(!bad.length, JSON.stringify(bad));
     },

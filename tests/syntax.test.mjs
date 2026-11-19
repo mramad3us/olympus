@@ -235,7 +235,9 @@ const MAY_IMPORT = {
 /** The pure sim helpers the stage may read (TECH §2.2's SIM_FOR_VIEW, with the 0.0.2 sheet's places/plan.js, the 0.0.3 sheet's §1: the sun, the clocks, the doors, people's perception and figures, and the 0.0.4 sheet's §1: the alert's beacon). */
 // 0.0.23 (the build sheet v0.0.23 §0 item 15): src/sim/places/known.js, what the stage may draw of a place and its people before
 // they are seen (familiarOf, footprintOf, knownRoomsOf, hostKind, seenEver), read by view.js directly as it reads perception.
-const SIM_FOR_VIEW = new Set(['src/sim/places/plan.js', 'src/sim/places/light.js', 'src/sim/places/sun.js', 'src/sim/places/clocks.js', 'src/sim/places/doors.js', 'src/sim/people/perception.js', 'src/sim/people/figure.js', 'src/sim/time/alerts.js', 'src/sim/arms/look.js', 'src/sim/body/blood.js', 'src/sim/places/known.js']);
+const SIM_FOR_VIEW = new Set(['src/sim/places/plan.js', 'src/sim/places/light.js', 'src/sim/places/sun.js', 'src/sim/places/clocks.js', 'src/sim/places/doors.js', 'src/sim/people/perception.js', 'src/sim/people/figure.js', 'src/sim/time/alerts.js', 'src/sim/arms/look.js', 'src/sim/body/blood.js', 'src/sim/places/known.js',
+  // (v0.0.25, the build sheet §1 D: the body's face, sim/body/footing.js bodySpanOf, read by the view for a man planted on the deckhead)
+  'src/sim/body/footing.js']);
 /** SKILLS §5.12: the one pace helper's home (paceOf); a name with "pace" as a word is defined nowhere else in src. */
 const PACE_HOME = 'src/sim/skills/skills.js';
 // (a name's words: camelCase, PascalCase, snake_case and SCREAMING_CASE split; "pace" one of them)
@@ -839,6 +841,23 @@ export default [
       const probe = importsIn("import { ghostOf } from '../../ui/cards/house-ghosts.js';", path.join(root, 'src/sim/scenarios/probe.js')).filter(m => m === GHOSTS).length;
       console.log(`      ${simFiles().length} sim and core modules: ${bad.length} importing the ghosts${bad.length ? `: ${bad.join(', ')}` : ''}; the module ${existsSync(path.join(root, GHOSTS)) ? 'built' : 'not built yet (v0.0.22 D)'}; the probe ${probe}/1`);
       assert(probe === 1 && !bad.length, JSON.stringify({ bad, probe }));
+    },
+  },
+  {
+    name: 'rules: the runner\'s gates and warm-up (the build sheet v0.0.25 §2 step 4): tests/run.mjs parses, reads GATES and WARM from the environment and warms a worker with its WARM_LANES; every test marked gate: true is heavy, and they are the drawn and eight-room sweeps\' four',
+    fn() {
+      execFileSync(process.execPath, ['--check', path.join(root, 'tests/run.mjs')], { stdio: ['ignore', 'pipe', 'pipe'] });
+      const src = readFileSync(path.join(root, 'tests/run.mjs'), 'utf8');
+      const has = { gates: /const GATES = process\.env\.GATES === '1'/.test(src), warm: /const WARM = process\.env\.WARM !== '0'/.test(src), lanes: /const WARM_LANES = /.test(src), skip: /if \(t\.gate && !GATES\)/.test(src), warmUp: /async function warmUp\(/.test(src) };
+      // (each test object marked gate: true, found by its marker, with the heavy flag in the same object before it)
+      const gates = [];
+      for (const f of readdirSync(path.join(root, 'tests')).filter(x => x.endsWith('.test.mjs') && x !== 'syntax.test.mjs')) {
+        const t = readFileSync(path.join(root, 'tests', f), 'utf8');
+        for (const m of t.matchAll(/\n {4}gate: true,/g)) { const head = t.slice(Math.max(0, t.lastIndexOf('\n  {\n', m.index)), m.index); gates.push({ f, heavy: /\n {4}heavy: true,/.test(head) }); }
+      }
+      const by = gates.reduce((a, g) => ({ ...a, [g.f]: (a[g.f] ?? 0) + 1 }), {});
+      console.log(`      the runner: ${Object.entries(has).map(([k, v]) => `${k} ${v ? 'yes' : 'NO'}`).join(', ')}; gates ${gates.length} (${Object.entries(by).map(([f, n]) => `${f.replace('.test.mjs', '')} ${n}`).join(', ')}), heavy ${gates.filter(g => g.heavy).length}`);
+      assert(Object.values(has).every(Boolean) && gates.length === 4 && gates.every(g => g.heavy) && by['house-drawn.test.mjs'] === 2 && by['house-drawn8.test.mjs'] === 2, JSON.stringify({ has, by }));
     },
   },
 ];

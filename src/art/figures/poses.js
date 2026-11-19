@@ -118,6 +118,7 @@
 // Pure: no DOM, no three.js.
 import { cyclePose, beatPose, bandSpec, cycleAt, cycleOfLook, RUN_FPS } from './walk.js';
 import { HELD_POSES } from './templates.js';
+import { stageTurnOf } from '../../data/faces.js';
 
 export const DIRS = Object.freeze(['down', 'up', 'right', 'left']);
 export const FPS = 8;
@@ -486,6 +487,22 @@ export function tumbleFrame(rollRad) {
   const k = mod(Math.round(rollRad / (Math.PI / 4)), 8);
   return k ? `tumble${k}` : 'float0';
 }
+
+/**
+ * v0.0.25 (the build sheet items 7 and 8, §3.4; PC§3.2): the standing card of a body or a board on a face, as the stage draws it:
+ * { cardFacing, quarter, flip } for a face (src/data/faces.js ON_FACES; absent the deck) and a facing (the sim's four words: the plan
+ * heading of a body on the deck or the deckhead, 'down' a board's front to the camera). The card is the facing's own, drawn as
+ * samples/wreck-faces draws every candidate (src/data/faces.js STAGE_TURNS): on the deck and the ventral bulkhead upright; on the
+ * deckhead and the dorsal bulkhead flipped top to bottom about the feet, head down, the facing kept (a man walking east on the
+ * deckhead drawn nose east); on starboard and port a quarter turn (counter-clockwise, clockwise), the feet to the face. One instance
+ * matrix, no new cell (render/figures.js). FACE_CARDS holds all 24 rows, frozen (wreck-look pins them whole).
+ */
+export const FACE_CARDS = Object.freeze(Object.fromEntries(['deck', 'deckhead', 'port', 'starboard', 'dorsal', 'ventral'].map(face => [face, Object.freeze(Object.fromEntries(['up', 'down', 'left', 'right'].map(facing => {
+  const t = stageTurnOf(face);
+  return [facing, Object.freeze({ cardFacing: facing, quarter: t.quarter, flip: t.flip })];
+})))])));
+/** A face's row of FACE_CARDS (see above): unknown faces and facings read as the deck's and 'down'. */
+export const faceCard = (face, facing) => (FACE_CARDS[face] ?? FACE_CARDS.deck)[facing] ?? (FACE_CARDS[face] ?? FACE_CARDS.deck).down;
 
 const HEAD = { right: 0, down: Math.PI / 2, left: Math.PI, up: -Math.PI / 2 };
 /**

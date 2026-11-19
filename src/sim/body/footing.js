@@ -15,8 +15,9 @@
 //          src/sim/places/profile.js couchedOf, gravity's light half), anchor 'braced' (the couch takes the push), hold 'couch'.
 // anchor   WEAPONS §7.8's row, which src/sim/arms/shot.js anchorOf turns into the recovery's and the climb's
 //          factors: 'planted' at 0.3 G and up whatever the stance (friction or structure takes the push), and in
-//          low g when braced; 'light' standing, kneeling or prone in low g (my call: friction is μ m g whatever
-//          the posture, so kneeling skates as standing does; the table names standing); 'magBoots' (boots locked
+//          low g when braced; 'light' standing, kneeling or prone on the deck in low g (my call: friction is μ m g whatever
+//          the posture, so kneeling skates as standing does; the table names standing), never a body off the deck hanging
+//          by a hand or a lanyard there, which is 'handhold' (v0.0.25's review of C and D); 'magBoots' (boots locked
 //          on a ferrous face, in free fall or low g), 'handhold' (a hold, one hand; a lanyard, both hands on the
 //          gun: COMBAT §14.8), 'braced' (the wedge, a teammate's brace) and 'floating'.
 // hold     what holds: 'feet' (the gravity), 'boots', 'handhold', 'tether', 'braced', 'buddy' or 'none'.
@@ -76,17 +77,49 @@
 // left of the body's motion (its drift under REST_MS, its tumble, the aim's tumble record), and the boots put it on the deck
 // (floatY cleared: a body at a standing man's height has its soles on the plate). noFootingWhy names Let go first where a
 // lanyard, a wedge or a buddy holds you (the keys push off a hand's hold only), and the grab while you drift.
-// Pure but setAnchor, which writes the actor.
+// Pure but its writers of the actor: setAnchor, and from v0.0.25 setOnFace and lockOnFace (the face a body stands on, below). The
+// view imports this module (render/view.js, main.js; tests/syntax.test.mjs SIM_FOR_VIEW) for its reads alone (onFaceOf,
+// bodySpanOf, footingOf), never a writer, which the view must not call (v0.0.25's fixer, the code review: the widening is on purpose).
+// v0.0.25, "Hold to hold" (its build sheet §1 B, §3.2, §5; PL§5, PL§7; COMBAT §14.8's six faces): **the face a body stands on**.
+// actor.onFace is absent on the deck and 'deckhead' on the deckhead (people stand on these two this round; boards on all six; never
+// actor.face, which is the facing, move.js faceOf's): onFaceOf(state, pid) reads it, setOnFace(state, pid, onFace) is its one writer
+// (the plant, the face's rows), and on the deckhead the body's free-fall height actor.floatY is the room's ceiling less
+// FREEFALL.FLOAT_Y_M (1.2 m under the Wreck's 2.2 m), actor.y untouched (the floor). bodySpanOf(state, a) is the body's height span,
+// the one helper for the sim (penetrate.js, burst.js), the figure, the bubble and the card: arms/carry.js SPAN_M[stance] over its floor
+// on the deck ([0, 1.75] standing), lifted by its float over FLOAT_Y_M while it floats, mirrored from the ceiling on the deckhead
+// ([0.45, 2.2] standing, head down: spanFrameOf's `inv`). Both faces overlap by 1.30 m, so one nav grid, one sight grid and one
+// collision serve them. On the deckhead booted the footing is 'magWalk' at any gravity under 0.3 G (never 'bound': the g pulls him
+// off the face, the boots hold him on it), and the boots lock there where the body is within OFF_DECK_Y_M of the deckhead (the height
+// measured from the face locked on: bootsLockWhy), keeping floatY at the ceiling less FLOAT_Y_M. A buddy's brace may be taken across a
+// deck hatch (setAnchor's `via`, actor.anchorVia: the hatch's id): his reach is then measured to the scuttle he holds you through (his
+// gap to its end on his deck: buddyGapM), while you are in its trunk, so your #2 on the deck above holds your harness while you hang
+// through the scuttle 60 m off in the plan (the Wreck's two decks are one area), and the grip goes with you through the transit (no SLIP_M). A face being
+// changed is actor.faceTo (the face the boots go to, plain data, saved; faceChangeOf), written by the face's rows and beats, cleared at
+// the lock. Every shipped scene's actors carry neither field, so nothing they read moves.
+// The review of v0.0.25's E, A and B: a body is on a face only while it stands there. The faces are a decked area's (the area's
+// `decks`, the Wreck's; facesHere): elsewhere setOnFace refuses the deckhead and the rows offer none, so Testudo's 2.4 m berth keeps
+// its scene. A face change ends on lockOnFace(state, pid, onFace), which checks the lock against the face it goes to (the boots worn,
+// steel there, no drift) before it writes the face, so a body that pushed off or drifts keeps the face it had and nothing is
+// recorded standing in mid-air. Any anchor but the boots taken on the deckhead with no face being changed (the boots released, a
+// hold, a push-off's let go) leaves the face (setOnFace(state, pid, null): onFace cleared, floatY kept, the body floating where it
+// was). At BOUND_BELOW_G 0.3 G and over the magnets no longer hold a man on the deckhead (600 N against his weight, the header's
+// band): his footing there is the float's, nothing holding him. A bulkhead hatch's head (the bulkhead over its opening, a leaf
+// 'hatch' door's strip, plan.js leafRect) stands in the way of a body on the deckhead, whose span reaches the deckhead:
+// hatchHeadGapM(state, x, z) is the gap to the nearest, which move.js keeps a deckhead walker out of (headStop) and the face rows
+// strike the deckhead's row within.
 import { playerActor } from '../../core/ids.js';
 import { q } from '../../core/num.js';
-import { FOOTING, MAG_BOOTS, GAIT_G, HANDS } from '../../data/body/needs.js';
+import { FOOTING, MAG_BOOTS, GAIT_G, HANDS, FREEFALL, VOID, GRAV_BODY } from '../../data/body/needs.js';
 import { SURFACES } from '../../data/places/env.js';
-import { gravityAt, surfaceAt } from '../places/env.js';
-import { areaOf, groundSurfaceOf, holdNear, passageAt } from '../places/model.js';
+import { gravityAt, surfaceAt, liveEnvOf } from '../places/env.js';
+import { areaOf, groundSurfaceOf, holdNear, passageAt, roomOf } from '../places/model.js';
 import { SKILLS, mitigated } from '../skills/skills.js';
 import { valueOf } from '../skills/templates.js';
 import { gaitModeOf } from './motion.js';
 import { couchedOf } from '../places/profile.js';
+import { SPAN_M } from '../arms/carry.js';
+import { hatchOf, HATCH_REACH_M } from '../places/hatch.js';
+import { leafRect } from '../places/plan.js';
 
 /** The anchors an actor can take (PEOPLE §2.4, with COMBAT §14.8's wedge and buddy brace). */
 export const ANCHOR_KINDS = Object.freeze(['boots', 'handhold', 'tether', 'braced', 'buddy']);
@@ -115,14 +148,20 @@ export const bootsLocked = (state, pid) => actorOf(state, pid)?.anchor === 'boot
 const driftMs = (a) => Math.hypot(a.v?.[0] ?? 0, a.v?.[1] ?? 0);
 const floatG = (state, a) => gravityAt(state, null, a.x, a.z).gG < GAIT_G.FLOAT_BELOW_G;
 const drifting = (state, a) => floatG(state, a) && (!!a.push || driftMs(a) > FOOTING.REST_MS);
-const offDeck = (a) => a.floatY > FOOTING.OFF_DECK_Y_M;
+// (off the face the body would lock on: its centre over OFF_DECK_Y_M from the deck, or from the deckhead on it (v0.0.25; see the header))
+const offDeck = (state, a) => (a.onFace === 'deckhead' ? (ceilingAt(state, a.x, a.z) ?? Infinity) - (a.floatY ?? 0) > FOOTING.OFF_DECK_Y_M : a.floatY > FOOTING.OFF_DECK_Y_M);
 /** Why a person's mag boots cannot lock where they are (see the header): 'no steel underfoot', 'no deck under the boots', or null. */
 export function bootsLockWhy(state, pid) {
   const a = actorOf(state, pid);
   if (!a || !state?.places?.live?.area) return 'no deck under the boots';
   if (!surfaceAt(state, null, a.x, a.z).ferrous) return 'no steel underfoot';
-  return offDeck(a) || drifting(state, a) ? 'no deck under the boots' : null;
+  // (nor while a push across the deck over the boots' limit acts: they would tear off again at once (gravity.js throwOne's rule, the
+  // fixer of v0.0.25's play review: a marine torn off by the 3 G jink locked them again against the bulkhead and rode the rest of it))
+  if ((liveEnvOf(state)?.profile?.lat ?? 0) > GRAV_BODY.BOOTS_SHEAR_G) return BOOTS_SHEAR_WHY;
+  return offDeck(state, a) || drifting(state, a) ? 'no deck under the boots' : null;
 }
+/** Why the boots will not lock under a push across the deck over GRAV_BODY.BOOTS_SHEAR_G (bootsLockWhy). */
+export const BOOTS_SHEAR_WHY = 'the deck is pulling away sideways: the boots will not hold';
 /** Whether a person drifts now (see the header): under 0.05 G, moving over REST_MS or pushing off. */
 export function driftingNow(state, pid) {
   const a = actorOf(state, pid);
@@ -132,7 +171,8 @@ export function driftingNow(state, pid) {
 export const DRIFT_WHY = 'drifting: grab a hold (L)';
 // (an anchor taken under 0.05 G stops what is left of the body's motion (see the header); the boots put it on the deck)
 function stilled(state, a, kind) {
-  if (kind === 'boots') delete a.floatY;
+  if (kind === 'boots' && a.onFace !== 'deckhead') delete a.floatY;
+  else if (kind === 'boots') a.floatY = deckheadY(state, a);
   if (!floatG(state, a)) return;
   delete a.v; delete a.push; delete a.tumble; delete a.tumbleRad; delete a.aimFrom;
 }
@@ -145,11 +185,12 @@ function heldBy(state, pid, a, s, depth) {
   const k = a.anchor;
   if (!k) return null;
   if (k === 'boots') return bootsOf(state, pid) && s.ferrous ? 'boots' : null;
-  if (!stillAt(a)) return null;
+  // (a brace across a hatch goes with you through the transit (v0.0.25; see the header): his reach measured through the hatch)
+  if (!(k === 'buddy' && a.anchorVia) && !stillAt(a)) return null;
   if (k === 'buddy') {
     if (depth > 0) return null;
     const b = actorOf(state, a.anchorRef);
-    if (!b || Math.hypot(b.x - a.x, b.z - a.z) > FOOTING.BUDDY_M + 1e-9) return null;
+    if (!b || buddyGapM(state, a, b, a.anchorVia) > FOOTING.BUDDY_M + 1e-9) return null;
     const F = footingAt(state, a.anchorRef, b, depth + 1);
     return F.anchor === 'floating' || F.anchor === 'light' ? null : 'buddy';
   }
@@ -160,10 +201,18 @@ function footingAt(state, pid, a, depth) {
   const g = gravityAt(state, null, a.x, a.z);
   const gG = g.gG;
   if (couchedOf(state, pid)) return Object.freeze({ mode: 'couched', anchor: 'braced', hold: 'couch', gG, regime: g.regime, surface: null, ferrous: null, grip: null, oneHand: false, placed: true });
+  // (from BOUND_BELOW_G the magnets hold no man on the deckhead: nothing holds him there (see the header))
+  if (gG >= GAIT_G.BOUND_BELOW_G && a.onFace === 'deckhead') return Object.freeze({ mode: 'float', anchor: 'floating', hold: 'none', gG, regime: g.regime, surface: null, ferrous: null, grip: null, oneHand: false, placed: true });
   if (gG >= GAIT_G.BOUND_BELOW_G) return plantedOf(g);
   const s = surfaceAt(state, null, a.x, a.z), held = heldBy(state, pid, a, s, depth);
   const base = { gG, regime: g.regime, surface: s.id, ferrous: s.ferrous, grip: s.grip, oneHand: false, placed: true };
   if (gG >= GAIT_G.FLOAT_BELOW_G) {
+    // (booted on the deckhead the boots hold him on the face the g pulls him off: 'magWalk', never 'bound' (see the header))
+    if (held === 'boots' && a.onFace === 'deckhead') return Object.freeze({ ...base, mode: 'magWalk', anchor: 'magBoots', hold: 'boots' });
+    // (off the deck (floatY set) with a hand on a hold or a tether, he hangs by it: 'light' is a body standing on the deck (the
+    // review of C and D: hanging one-handed from the hold's coaming under the tug, the private's pair was booked 'light', standing,
+    // and rolled as standing, not one-handed −4))
+    if ((held === 'handhold' || held === 'tether') && Number.isFinite(a.floatY)) return Object.freeze({ ...base, mode: 'handhold', anchor: 'handhold', hold: held, oneHand: held === 'handhold' });
     const anchor = held === 'braced' || held === 'buddy' ? 'planted' : held === 'boots' ? 'magBoots' : 'light';
     return Object.freeze({ ...base, mode: 'bound', anchor, hold: held === 'boots' || held === 'braced' || held === 'buddy' ? held : 'feet' });
   }
@@ -186,15 +235,16 @@ export function footingOf(state, pid) {
  * Returns { ok, why }: why 'no mag boots on', 'no ferrous plate underfoot', 'no deck under the boots', DRIFT_WHY, 'nothing to
  * hold here', 'no one to brace you' or 'no such anchor' when the place or the kit refuses it (nothing written).
  */
-export function setAnchor(state, pid, kind, { ref = null } = {}) {
+export function setAnchor(state, pid, kind, { ref = null, via = null } = {}) {
   const a = actorOf(state, pid);
   if (!a) return { ok: false, why: 'no actor' };
-  if (!kind) { delete a.anchor; delete a.anchorRef; delete a.anchorAt; return { ok: true, why: null }; }
+  if (!kind) { delete a.anchor; delete a.anchorRef; delete a.anchorAt; delete a.anchorVia; offDeckhead(state, pid, a); return { ok: true, why: null }; }
   if (!ANCHOR_KINDS.includes(kind)) return { ok: false, why: 'no such anchor' };
   if (kind === 'boots') {
     if (!bootsOf(state, pid)) return { ok: false, why: 'no mag boots on' };
     if (!surfaceAt(state, null, a.x, a.z).ferrous) return { ok: false, why: 'no ferrous plate underfoot' };
-    if (offDeck(a) || drifting(state, a)) return { ok: false, why: 'no deck under the boots' };
+    if ((liveEnvOf(state)?.profile?.lat ?? 0) > GRAV_BODY.BOOTS_SHEAR_G) return { ok: false, why: BOOTS_SHEAR_WHY };
+    if (offDeck(state, a) || drifting(state, a)) return { ok: false, why: 'no deck under the boots' };
   } else if ((kind === 'handhold' || kind === 'tether' || kind === 'braced') && drifting(state, a)) {
     return { ok: false, why: DRIFT_WHY };
   } else if (kind === 'handhold' || kind === 'tether') {
@@ -204,14 +254,18 @@ export function setAnchor(state, pid, kind, { ref = null } = {}) {
     if (!wedgeFits(state, a.x, a.z)) return { ok: false, why: 'no passage to wedge across' };
   } else if (kind === 'buddy') {
     const b = actorOf(state, ref);
-    if (!b || ref === pid || Math.hypot(b.x - a.x, b.z - a.z) > FOOTING.BUDDY_M + 1e-9) return { ok: false, why: 'no one to brace you' };
+    if (!b || ref === pid || buddyGapM(state, a, b, via) > FOOTING.BUDDY_M + 1e-9) return { ok: false, why: 'no one to brace you' };
   }
   a.anchor = kind;
   if (kind === 'buddy') a.anchorRef = ref; else delete a.anchorRef;
+  if (kind === 'buddy' && via) a.anchorVia = via; else delete a.anchorVia;
   if (kind === 'boots') delete a.anchorAt; else a.anchorAt = [q(a.x, 0.001), q(a.z, 0.001)];
+  if (kind !== 'boots') offDeckhead(state, pid, a);
   stilled(state, a, kind);
   return { ok: true, why: null };
 }
+// (off the boots on the deckhead with no face being changed, the body leaves the face (see the header))
+function offDeckhead(state, pid, a) { if (a.onFace === 'deckhead' && !a.faceTo) setOnFace(state, pid, null); }
 
 /** The mag boots' extra hold on the floor, N (BODY §16.6: one boot always locked as you walk), 0 unless they are locked and holding on a ferrous face. */
 export function bootsHoldN(state, pid, x, z) {
@@ -301,10 +355,12 @@ export function noFootingWhy(state, pid) {
 /** What a viewer sees of a person's anchor (see the header): null | 'hold' | 'lanyard' | 'wedge' | 'buddy' | 'boots'; the record checked against the place as the footing checks it, at any gravity. */
 export function gearAnchorOf(state, pid) {
   const a = actorOf(state, pid), k = a?.anchor;
+  // (the user's score of test-burn: strapped into a rack or a couch (profile.js setStrapped) shows as the harness, whatever else holds)
+  if (a?.strapped) return 'straps';
   if (!k) return null;
   if (k === 'boots') return bootsOf(state, pid) ? 'boots' : null;
-  if (!stillAt(a)) return null;
-  if (k === 'buddy') { const b = actorOf(state, a.anchorRef); if (!b || Math.hypot(b.x - a.x, b.z - a.z) > FOOTING.BUDDY_M + 1e-9) return null; }
+  if (!(k === 'buddy' && a.anchorVia) && !stillAt(a)) return null;
+  if (k === 'buddy') { const b = actorOf(state, a.anchorRef); if (!b || buddyGapM(state, a, b, a.anchorVia) > FOOTING.BUDDY_M + 1e-9) return null; }
   return ANCHOR_SEEN[k] ?? null;
 }
 /** The hold a person's hand is on (a hold or a lanyard taken and still held): { x, z, kind } by model.js holdNear's arithmetic, or null. */
@@ -312,4 +368,105 @@ export function anchorHoldOf(state, pid) {
   const a = actorOf(state, pid), k = a?.anchor;
   if ((k !== 'handhold' && k !== 'tether') || !stillAt(a)) return null;
   return holdNear(state, a.anchorAt[0], a.anchorAt[1], FOOTING.REACH_M, { kind: k === 'tether' ? 'padEye' : null });
+}
+
+// ---- v0.0.25, the face a body stands on (see the header) ----
+
+/** The faces a person may stand on this round (COMBAT §14.8: the deck and the deckhead; the boards' six are arms/turners.js'). */
+export const PEOPLE_FACES = Object.freeze(['deck', 'deckhead']);
+/** The ceiling over a point of the live area (m): its room's ceilingM, or null where the room names none (every shipped indoor area but Echo's, Well A's and the Wreck's). */
+export function ceilingAt(state, x, z) {
+  const r = roomOf(state?.places?.live?.area, x, z);
+  return Number.isFinite(r?.ceilingM) ? r.ceilingM : null;
+}
+// (a body's free-fall height on the deckhead: the ceiling less a standing man's centre, to the millimetre)
+const deckheadY = (state, a) => q((ceilingAt(state, a.x, a.z) ?? 0) - FREEFALL.FLOAT_Y_M, 0.001);
+/** The face a person stands on (see the header): 'deck' (actor.onFace absent) or 'deckhead'. */
+export const onFaceOf = (state, pid) => actorOf(state, pid)?.onFace ?? 'deck';
+/** Whether the live area has faces a person may stand on but the deck (see the header): a decked area's (its `decks`, the Wreck's). */
+export const facesHere = (state) => !!areaOf(state?.places?.live?.area)?.decks?.length;
+/**
+ * The face a person stands on, written (see the header; the field's one writer): 'deckhead' sets actor.onFace and floatY at the
+ * ceiling less FLOAT_Y_M; 'deck' clears both (the soles on the plate); null leaves the face for free fall (onFace cleared, floatY
+ * kept: the body floats where it was). The deckhead is refused off a decked area ('no deckhead here') and where there is no deckhead
+ * in reach (no ceiling, or one over VOID.PUSH_LOW_CEIL_M: a taller compartment keeps the float's height only). Returns { ok, why }.
+ * The anchor is the caller's (lockOnFace takes both).
+ */
+export function setOnFace(state, pid, onFace) {
+  const a = actorOf(state, pid);
+  if (!a) return { ok: false, why: 'no actor' };
+  if (onFace === null) { delete a.onFace; return { ok: true, why: null }; }
+  if (!PEOPLE_FACES.includes(onFace)) return { ok: false, why: 'no such face' };
+  if (onFace === 'deck') { delete a.onFace; delete a.floatY; return { ok: true, why: null }; }
+  if (!facesHere(state)) return { ok: false, why: 'no deckhead here' };
+  const c = ceilingAt(state, a.x, a.z);
+  if (c === null || c > VOID.PUSH_LOW_CEIL_M + 1e-9) return { ok: false, why: 'no deckhead in reach' };
+  a.onFace = onFace;
+  a.floatY = deckheadY(state, a);
+  return { ok: true, why: null };
+}
+/**
+ * A face change's end (see the header): the boots locked on the face they go to, checked first (worn, steel there, no drift: the
+ * reasons setAnchor gives), the face written only then (setOnFace) and the boots locked on it. Refused, nothing is written: the body
+ * keeps the face it had. Returns { ok, why }.
+ */
+export function lockOnFace(state, pid, onFace) {
+  const a = actorOf(state, pid);
+  if (!a) return { ok: false, why: 'no actor' };
+  if (!bootsOf(state, pid)) return { ok: false, why: 'no mag boots on' };
+  if (!surfaceAt(state, null, a.x, a.z).ferrous) return { ok: false, why: 'no ferrous plate underfoot' };
+  if (drifting(state, a)) return { ok: false, why: 'no deck under the boots' };
+  const was = { onFace: a.onFace, floatY: a.floatY }, f = setOnFace(state, pid, onFace);
+  if (!f.ok) return f;
+  const r = setAnchor(state, pid, 'boots');
+  // (refused all the same: the face put back as it was, nothing recorded standing where the boots hold nothing)
+  if (!r.ok) for (const k of ['onFace', 'floatY']) { if (was[k] === undefined) delete a[k]; else a[k] = was[k]; }
+  return r;
+}
+// (a bulkhead hatch's head (see the header): the strips of a decked area's hatch leaves, kept by area record)
+const HEADS = new WeakMap();
+const headsOf = (area) => { let r = HEADS.get(area); if (!r) HEADS.set(area, (r = (area?.openings ?? []).filter(o => o.leaf === 'hatch').map(leafRect))); return r; };
+/** The gap from a point to the nearest bulkhead hatch's head of the live area (m; see the header), Infinity where it has none. */
+export function hatchHeadGapM(state, x, z) {
+  const area = areaOf(state?.places?.live?.area);
+  if (!area?.decks?.length) return Infinity;
+  let gap = Infinity;
+  for (const R of headsOf(area)) gap = Math.min(gap, Math.hypot(Math.max(R.x0 - x, 0, x - R.x1), Math.max(R.z0 - z, 0, z - R.z1)));
+  return gap;
+}
+/**
+ * A body's vertical frame (see the header): { base, span, inv }, its span SPAN_M[stance] from `base` (m over the deck), `inv` head
+ * down. On the deck base is the floor it stands on (actor.y), lifted by its float over FLOAT_Y_M while it floats; on the deckhead the
+ * ceiling less the span's top. The deck's arithmetic is the hit model's and the blast's as built (base actor.y + 0).
+ */
+export function spanFrameOf(state, a) {
+  const span = SPAN_M[a?.stance ?? 'stand'] ?? SPAN_M.stand;
+  if (a?.onFace === 'deckhead') {
+    const c = ceilingAt(state, a.x, a.z) ?? (a.floatY ?? FREEFALL.FLOAT_Y_M) + FREEFALL.FLOAT_Y_M;
+    return { base: c - span[1], span, inv: true };
+  }
+  const lift = Number.isFinite(a?.floatY) ? a.floatY - FREEFALL.FLOAT_Y_M : 0;
+  return { base: (a?.y ?? 0) + lift, span, inv: false };
+}
+/** A body's height span (m over the deck), [y0M, y1M]: the one helper (see the header). */
+export function bodySpanOf(state, a) {
+  const F = spanFrameOf(state, a);
+  return [F.base + F.span[0], F.base + F.span[1]];
+}
+/** The face a person's boots are going to while a face is changed (actor.faceTo: the rows' and the beats'), or null. */
+export const faceChangeOf = (state, pid) => { const a = actorOf(state, pid); return a?.faceTo ? { from: a.onFace ?? 'deck', to: a.faceTo } : null; };
+/** A body in a deck hatch's trunk is within this of one of its ends' centres, metres: places/hatch.js HATCH_REACH_M, the transit's own reach (one figure; v0.0.25's review). */
+export const TRUNK_REACH_M = HATCH_REACH_M;
+/**
+ * Two bodies' gap in the plan (m), the brace's reach (see the header): with no hatch named, the plan's; through a deck hatch (via its
+ * id), the holder's reach to the scuttle he holds you through, his gap to its end on his deck (your harness is in the scuttle, your
+ * body past it on the other face), while you are in the trunk (within TRUNK_REACH_M of its other end); Infinity out of it.
+ */
+export function buddyGapM(state, a, b, via = null) {
+  const d0 = Math.hypot(b.x - a.x, b.z - a.z), h = via ? hatchOf(state, via) : null;
+  if (!h?.far) return d0;
+  const ends = [h.at, h.far.at], dist = (p, e) => Math.hypot(p.x - e[0], p.z - e[1]);
+  const eb = dist(b, ends[0]) <= dist(b, ends[1]) ? 0 : 1, ea = 1 - eb;
+  if (dist(a, ends[ea]) > TRUNK_REACH_M + 1e-9 && dist(a, ends[eb]) > TRUNK_REACH_M + 1e-9) return Infinity;
+  return Math.min(d0, dist(b, ends[eb]));
 }

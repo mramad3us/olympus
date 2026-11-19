@@ -30,6 +30,11 @@
 // record with `live`. He is a body seen from any side, so facingOf is 1 for him (0 once the instructor has ruled him out,
 // T.live.st 'out'), and what is seen of him is combat/men.js seenK's exposure, never this closed form; turnerTargets carries
 // `live: true` and his person (`who`) on his target only. A stand's facing and target are as built.
+// v0.0.25 ("Hold to hold", its build sheet §1 item 7): a board of the Wreck stands on one of a compartment's six faces, its record
+// gaining `onFace` ('deckhead', 'port', 'starboard', 'dorsal', 'ventral'; absent the deck) and `pop` (a pop-up, absent a turner), which
+// turnerTargets carries where the record has them. A pop-up's facing is its rise from flat on its face, the same closed form over
+// POPUP_MS 400 in place of TURN_MS (seenAtMs and edgeOnMs with it), so the sim and the picture read one number; no shipped board has
+// either field, so every bay's and house's target, facing and digest is as built.
 // Pure but turnTo and turnAway, which write the record's times.
 import { onTick } from '../../core/clock.js';
 import { q } from '../../core/num.js';
@@ -37,6 +42,10 @@ import { SEEN } from '../people/perception.js';
 
 /** A turn's length, either way (COMBAT §25.10.2: "turners that face in 0.3 s"). */
 export const TURN_MS = 300;
+/** A pop-up's rise from flat on its face, either way (ms; v0.0.25, my call: a sprung board a little slower than a turner's motor). */
+export const POPUP_MS = 400;
+/** A board's turn or rise (ms): POPUP_MS for a pop-up, else TURN_MS. */
+export const spanOf = (T) => (T?.pop ? POPUP_MS : TURN_MS);
 /** The target key of a lane's turner. */
 export function turnerKey(lane) { return `turner:${lane}`; }
 /** The lane of a turner's key, or null. */
@@ -51,10 +60,10 @@ export function turnerOf(state, key) { return turnersOf(state).find(T => T.key =
 export function facingOf(T, ms) {
   if (T?.live) return T.live.st === 'out' ? 0 : 1;
   if (!T || T.turnAtMs === null || T.turnAtMs === undefined || ms < T.turnAtMs) return 0;
-  const kIn = Math.min(1, (ms - T.turnAtMs) / TURN_MS);
+  const span = spanOf(T), kIn = Math.min(1, (ms - T.turnAtMs) / span);
   let f = Math.sin(Math.PI / 2 * kIn);
   if (T.awayAtMs !== null && T.awayAtMs !== undefined && ms >= T.awayAtMs) {
-    const kOut = Math.min(1, (ms - T.awayAtMs) / TURN_MS);
+    const kOut = Math.min(1, (ms - T.awayAtMs) / span);
     f = Math.min(f, 1 - Math.sin(Math.PI / 2 * kOut));
   }
   return q(Math.max(0, Math.min(1, f)), 1e-6);
@@ -63,12 +72,12 @@ export function facingOf(T, ms) {
 /** When a turner's turn away falls below SEEN (a closed form of facingOf's away half), or null when it is not turning away. */
 export function edgeOnMs(T) {
   if (!T || T.awayAtMs === null || T.awayAtMs === undefined) return null;
-  return T.awayAtMs + Math.round(TURN_MS * (2 / Math.PI) * Math.asin(1 - SEEN));
+  return T.awayAtMs + Math.round(spanOf(T) * (2 / Math.PI) * Math.asin(1 - SEEN));
 }
 /** When a turner first faces at SEEN (turnAtMs + 100), or null. */
 export function seenAtMs(T) {
   if (!T || T.turnAtMs === null || T.turnAtMs === undefined) return null;
-  return T.turnAtMs + Math.round(TURN_MS * (2 / Math.PI) * Math.asin(SEEN));
+  return T.turnAtMs + Math.round(spanOf(T) * (2 / Math.PI) * Math.asin(SEEN));
 }
 
 /** The turn to face the line begun at atMs (whole ticks), any turn away forgotten. Returns T. */
@@ -95,6 +104,9 @@ export function turnerTargets(state, ms = state.clock.ms) {
     if (T.room !== undefined) t.room = T.room;
     if (T.stand !== undefined) t.stand = T.stand;
     if (T.slot !== undefined) t.slot = T.slot;
+    // (the Wreck's board on a face other than the deck, and a pop-up, only where the record has them)
+    if (T.onFace !== undefined) t.onFace = T.onFace;
+    if (T.pop) t.pop = true;
     // (v0.0.19: a live man's, only on his record, so a stand's target is as built)
     if (T.live) { t.live = true; t.who = T.live.who; }
     return t;

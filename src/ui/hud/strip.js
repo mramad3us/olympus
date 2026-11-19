@@ -31,6 +31,14 @@
 // is the body's own sign (BODY's "what the player knows": weight is felt), not a gauge. gLineText(facts) formats the facts of
 // src/sim/places/gravity.js gLineOf (gravityAt for the g to 0.01 G, footingOf for the word: one quantity, one helper; the count to
 // the onset in whole seconds, rounded up, as the 1MC counts); createGLine(parent) the DOM, written only on a change.
+// v0.0.25's burn polish (the user's score of test-burn, 2026-11-19: "We should have some indication of how strong is the burn and
+// evasive maneuvers"): with an event pending or under way the line gives its size and direction, "BRACE 0:08 · JINK 3.0 G ↓ PORT"
+// through the warning and "2.40 G ↓ jink to port" or "1.00 G ▼ burn" while it acts (the arrow the screen's way the push throws a
+// body, ▼ a felt change onto the deck: src/data/onemc.js dirOf), and the G meter under it (gMeterOf, pure): a bar over GMETER_MAX_G
+// 3 G, filled to the push acting now (to the coming size, hatched, through the warning), a mark at what locked boots hold (the
+// boots' shear limit across the deck, BRACE_G onto it) and, where they will not, "BOOTS WILL NOT HOLD" in red beside it ("STRAPPED IN"
+// in green once you are).
+import { GRAV_BODY, BRACE_G } from '../../data/body/needs.js';
 
 /** The glyphs' rows, top to bottom, 1 an ink pixel (VIEWS §9.1; the look glyphs of the outcome strip my calls). */
 export const GLYPHS = Object.freeze({
@@ -182,32 +190,65 @@ export function createStrip(parent, { scale = STRIP_SCALE, className = 'strip' }
 /** The G line's words for gravity.js gLineOf's facts, '' when there are none (nominal). */
 export function gLineText(g) {
   if (!g) return '';
+  const sized = Number.isFinite(g.toG) && g.dir;
   if (g.phase === 'warn' && Number.isFinite(g.leftMs)) {
-    const s = Math.ceil(g.leftMs / 1000);
-    return `BRACE ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    const s = Math.ceil(g.leftMs / 1000), count = `BRACE ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    if (!sized) return count;
+    return `${count} · ${g.kind.toUpperCase()} ${g.toG.toFixed(1)} G ${g.dir.arrow}${g.lateral ? ` ${g.dir.word.toUpperCase()}` : ''}`;
   }
   const gG = Number.isFinite(g.gG) ? g.gG.toFixed(2) : '?';
+  if (g.phase && g.kind && sized) return g.lateral ? `${(g.pushG ?? 0).toFixed(2)} G ${g.dir.arrow} ${g.kind} ${g.dir.to}` : `${gG} G ${g.dir.arrow} ${g.kind}`;
   return g.phase && g.kind ? `${gG} G · ${g.kind}` : `${gG} G · ${g.word ?? ''}`.trim();
 }
 
-/** The G line in parent: { el, update(facts) → its text }; hidden when nominal, the DOM written only on a change. */
+/** The G meter's scale, G (see the header). */
+export const GMETER_MAX_G = 3;
+/** The note beside the meter where locked boots will not hold the event, and where you ride it strapped in. */
+export const NO_HOLD_WORDS = 'BOOTS WILL NOT HOLD', STRAPPED_WORDS = 'STRAPPED IN';
+/**
+ * The G meter for gravity.js gLineOf's facts (see the header): null with no event pending or under way, else { k (the fill, 0 to 1
+ * of GMETER_MAX_G), markK (what locked boots hold, on the same scale), target (through the warning: the coming size), over (boots
+ * will not hold it), note }.
+ */
+export function gMeterOf(g) {
+  if (!g?.phase || !Number.isFinite(g.toG) || !g.dir) return null;
+  const clamp = (v) => Math.max(0, Math.min(1, v / GMETER_MAX_G)), target = g.phase === 'warn';
+  const now = target ? g.toG : g.lateral ? g.pushG ?? 0 : g.gG;
+  const over = g.holds === false, safe = g.word === 'strapped in';
+  return { k: clamp(now), markK: clamp(g.lateral ? GRAV_BODY.BOOTS_SHEAR_G : BRACE_G), target, over, safe, note: safe ? STRAPPED_WORDS : over ? NO_HOLD_WORDS : '' };
+}
+
+/** The G line in parent: { el, update(facts) → its text }; hidden when nominal, the DOM written only on a change (the meter's on a change of its rounded fill). */
 export function createGLine(parent, { className = 'gline' } = {}) {
-  const root = Object.assign(globalThis.document.createElement('div'), { className });
-  root.hidden = true;
+  const doc = globalThis.document, mk = (tag, cls) => Object.assign(doc.createElement(tag), { className: cls });
+  const root = mk('div', className), text = mk('div', 'gtext'), row = mk('div', 'gmrow'), note = mk('span', 'gnote'), meter = mk('span', 'gmeter'), fill = mk('i', 'fill'), mark = mk('b', 'mark');
+  meter.append(fill, mark); row.append(note, meter); root.append(text, row);
+  root.hidden = true; row.hidden = true;
   parent.append(root);
-  let shown = null;
+  let shown = null, meterKey = null;
   return {
     el: root,
     update(facts = null) {
-      const text = gLineText(facts);
-      if (text !== shown) {
-        shown = text;
-        root.textContent = text;
-        root.hidden = !text;
+      const words = gLineText(facts);
+      if (words !== shown) {
+        shown = words;
+        text.textContent = words;
+        root.hidden = !words;
         root.classList.toggle('brace', !!facts && facts.phase === 'warn');
       }
-      return text;
+      const m = words ? gMeterOf(facts) : null, key = m ? `${Math.round(m.k * 100)}|${Math.round(m.markK * 100)}|${m.target}|${m.over}|${m.safe}` : '';
+      if (key !== meterKey) {
+        meterKey = key;
+        row.hidden = !m;
+        if (m) {
+          fill.style.width = `${(m.k * 100).toFixed(0)}%`; mark.style.left = `${(m.markK * 100).toFixed(0)}%`;
+          meter.classList.toggle('target', m.target); meter.classList.toggle('over', m.over);
+          note.textContent = m.note; note.classList.toggle('safe', m.safe);
+        }
+      }
+      return words;
     },
     get shown() { return shown; },
+    get meter() { return meterKey; },
   };
 }

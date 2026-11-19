@@ -33,6 +33,10 @@
 // fill (the fixer's of 0.0.12: the picker showed "{two}"); the scene's toast names your number two (shoothouse.js houseGoal). A stub's spec (built false) is left out of SCENE_IDS (the Tests menu) and refused by
 // newGame. STARTS are the two starts that are not test scenes: the career's barracks
 // and the sandbox's test rooms (the title and ?play= start them; the Tests menu never lists them).
+// v0.0.25's test-zerocqb, "Hold to hold" (its build sheet §1 item 1; ROADMAP §4.2's 0.0.7e): the shoot house's lane on the Wreck at Phobos,
+// its own scenario, `ship: 'wreck'` (the operation record's one field the lane branches on), `tug` (the yard tug's pull, set at GO),
+// `familiar: 'walls'` (the walls briefed, every compartment black until seen) and `menu` (false: played by its URL only, left off the
+// Tests menu by main.js scenes(), until its ship rule is met).
 // The hud reads every field; scenes save nothing (the sheet §8, item 24): their scores alone are kept.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 // (every shipped scene stands on Base Melas in the site's own environment: v0.0.10's, byte for byte)
@@ -179,12 +183,46 @@ export const SCENES = deepFreeze({
     // (the profile (src/sim/places/gravity.js's: atS the onset, drawn in whole seconds from the seed): the burn's onset 40 to 60 s in, so
     // the 1MC's warning, warnS 15 s before it, comes 25 to 45 s in (AW§5); 1 G for 20 s; then, on half the seeds, a surprise jink of
     // 0.4 G across the compartment toward the south bulkhead (dirDeg 90), after the burn's off ramp is done (its onset by 60 + 2 + 20 + 2 s))
+    // v0.0.25's burn polish (the user's score of 2026-11-19: "mag boots won't save you from a 3G sideways maneuver"): on every seed a
+    // warned evasive manoeuvre after the burn, 3 G to port (dirDeg 90, the south bulkhead: onemc.js dirOf) for 2 s, in at 3 G/s, the
+    // 1MC's warning 10 s before it (so 85 to 90 s in, after the burn is done by 84 s): over the boots' hold across the deck
+    // (needs.js GRAV_BODY.BOOTS_SHEAR_G 1.0 G), so only a marine strapped in his rack rides it. Listed third, so the surprise keeps its
+    // draw (profile.js drawProfile's stream(seed, 'grav', k) by the list's index: the same seeds have it); the surprise moved to 115 to
+    // 130 s, after the manoeuvre (done by 100 + 1 + 2 + 1 s), its chance roll unchanged (the stream's second draw)
     host: { site: 'mcrn-testudo', area: 'testudo.deck-b.berth-2' }, hour: 14.0,
-    env: { preset: 'ship-coast', profile: [{ kind: 'burn', toG: 1.0, atS: [40, 60], warnS: 15, holdS: 20 }, { kind: 'jink', toG: 0.4, atS: [95, 110], surprise: true, chance: 0.5, dirDeg: 90 }] },
-    goal: 'Testudo, coasting to Phobos, at 0 G. Stow your three items in your locker. When the burn is called: strapped in your rack, or boots locked.',
+    env: { preset: 'ship-coast', profile: [{ kind: 'burn', toG: 1.0, atS: [40, 60], warnS: 15, holdS: 20 }, { kind: 'jink', toG: 0.4, atS: [115, 130], surprise: true, chance: 0.5, dirDeg: 90 }, { kind: 'jink', toG: 3.0, atS: [95, 100], warnS: 10, onsetGs: 3, holdS: 2, dirDeg: 90 }] },
+    goal: 'Testudo, coasting to Phobos, at 0 G. Stow your three items in your locker. Then heed the 1MC: boots hold you through a burn, only your rack\'s straps through a hard manoeuvre.',
     aspects: [['warning', 'the warning: the siren and the 1MC, read in time'], ['fall', 'the fall: a body thrown, felt and shown'], ['feel', 'the feel: the berth, the float, the sound']],
     body: {}, outfit: 'utilities',
     endOn: { fact: 'burn', phase: ['done'] },
+  },
+  // ("Hold to hold" (its build sheet §1 item 1, §3.3; ROADMAP §4.2's 0.0.7e; COMBAT §14.5, §14.8): the shoot house's lane on the
+  // Wreck at Phobos (PLACES §5.7), its two decks one authored area of the void site, at the site's own free fall, with your number two on
+  // mag boots: the brig's two cells, the trunk head first in his grip, the hold and its store. Its own scenario (game.js specOf refuses one
+  // scenario at two hosts: the house's stands in the Wheel), whose fill is the house's with `ship: 'wreck'` (shoothouse.js testZerocqb);
+  // the house's course, so the house's tower, card, pars and bots play it. `tug` the yard tug's pull set at GO (the scene's env carries no
+  // profile: one in env is drawn at the fill, its t0 the start): its onset (`atS`) 60 s after GO, the warning 15 s before, 0.2 G for 3 s
+  // toward the deck. The window is the build sheet's [60, 150] brought in to the honest tier one's lane less 30 s and never under 60 (§1
+  // item 10): his lane on 48213 is 83.3 s (73.3 s on 1111, the fastest of the four seeds' honest lanes, 24 of 24 to the card), so its upper
+  // bound is 60 too; [lo, hi] kept, so a slower lane after a change of the drill widens it again by this rule.
+  // `familiar: 'walls'`: the walls briefed, every compartment black until seen (PC§4). `menu`: on the Tests menu once its ship rule is met
+  // (zerocqb-nodead and F124 green); false is by URL only (main.js scenes())
+  'test-zerocqb': {
+    id: 'test-zerocqb', title: 'Hold to hold', scenario: 'test-zerocqb', ship: 'wreck',
+    host: { site: 'phobos-void', area: 'phobos.void.wreck' }, env: SITE_ENV, hour: 10.0,
+    goal: 'The Wreck at Phobos, in free fall on mag boots, with your number two, on GO: the brig, the trunk, the hold. Anchor before you fire. Threats down, no-shoots untouched.',
+    aspects: [['anchor', 'the anchor: does the footing hold the gun, and do the rows say so'], ['faces', 'the faces: a compartment with no floor, read from above'],
+      ['pace', 'the pace: the boots, the hatches, the pars'], ['team', 'your number two: his grip in the hatch, his face, his calls'],
+      ['panel', 'the keys: the panel, its rows, every press'], ['feel', 'the feel: the boots, the hatch, the look']],
+    body: {}, outfit: 'combatSuit', course: 'house', sheets: ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone'], sheet: 'private',
+    pars: ['basic', 'advanced', 'operator'],
+    // (the Wreck is shot as set, with the standard kit: no drawn house, no layout, no role-players (§1 item 1))
+    draws: ['set'],
+    tug: { kind: 'burn', toG: 0.2, atS: [60, 60], warnS: 15, holdS: 3 },
+    familiar: 'walls',
+    // (on the Tests menu, last, from the integration of v0.0.25: its ship rule met, zerocqb-nodead (F125) and env-noregress (F124) green
+    // in the full run on the merged tree; by URL only (`menu: false`) until then)
+    endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
 });
 

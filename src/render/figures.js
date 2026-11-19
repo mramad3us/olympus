@@ -51,6 +51,12 @@
 //     painted for a look with none is forgotten, so it is asked again once the look has one; and a figure whose
 //     band is not up yet is drawn from its twin's sheet (p.twin: the same figure with the magazine in or out)
 //     when that has it, so a shooter changing magazines prone never stands up while the new sheet paints.
+// v0.0.25 (the build sheet items 8 and 14, §3.4; PC§3.2): A CARD ON A FACE. A person drawn planted on a face other than the deck (p.turn,
+// p.flip: the face's turn from art/figures/poses.js faceCard; view.js) is the same instance of the same card, its matrix turned about
+// the anchor in the card's plane by render/faces.js cardTurn (whole pixels: no atlas cell, no band, no program, the rifle the rifle's
+// shape turned with the man), the held card and the flash turned with it; p.blobLift the lift its blob is drawn for (heightLookOf's,
+// not the card's height), p.ring its blob drawn as a dashed ring (the overhead's footprint, samples/wreck-faces K-b: the blob draw's
+// own shader, aRing, every other blob as before).
 // Frames follow the sim (poses.js gaitFrame(): walks by distance, idles at 2 fps by a person's phase).
 //   - STANCE SHEETS (R8, VIEWS §3.10.8; the third option, my call: no new texture): an armed mover in a stance has a sheet a carry
 //     (low, high, aimed) of the stance pool (poses.js STANCE_BANDS: the glide, Assault, the beats), its own look (sheet 'stance')
@@ -76,6 +82,7 @@ const CARRY_FREE = new Set(CARRY_FREE_BANDS);
 import { wear } from '../art/figures/outfits.js';
 import { paintSleeper, sleeperKey, BERTH_M } from '../art/figures/bedding.js';
 import { paint } from '../art/paint.js';
+import { cardTurn } from './faces.js';
 
 export const ATLAS_PX = 4096;
 export const SHEETS_PER_FRAME = 2;
@@ -88,6 +95,8 @@ export const RIFLE_SLOTS_MIN = 4;
 export const BERTH_ATLAS_PX = 512;
 /** The part a berth's sleeper writes (outlined against the rack, not against the people standing by). */
 export const BERTH_PART = PEOPLE_PART + 1;
+/** v0.0.25: the overhead's ring under a body on the deckhead (K-b): its inner edge as a share of the blob's radius, and its dashes round. */
+export const BLOB_RING_IN = 0.72, BLOB_DASHES = 12;
 /** Who a flash lights, and the most it lights them (tradecraft's: linear, a warm white). */
 export const FLASH_LIT_M = 3, FLASH_LIGHT = Object.freeze([1.0, 0.85, 0.55]);
 const INK = 0x14151c, TOWARD = new THREE.Vector3(0, Math.SQRT1_2, Math.SQRT1_2).multiplyScalar(0.15);
@@ -150,6 +159,8 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
         if (!worst) return null;
         slots.delete(worst[0]); i = worst[1].slot;
         forget(worst[1]);
+        // (a slot given to another look counted, so the bench and the page's tests say when a prepared sheet was evicted)
+        stats.evicted = (stats.evicted ?? 0) + 1;
       }
       s = { slot: i, rslot: null, key, raw: look, look: look?.top ? look : wear(look), bands: new Set(), asked: new Map(), got: new Map(), seen: frameNo, job: null, jobBand: null, gone: false };
       slots.set(key, s);
@@ -230,6 +241,8 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
     const bytes = b.rect.w * b.rect.h * 4, ms = performance.now() - t0;
     stats.uploads++; stats.uploadBytes += bytes; stats.uploadMs += ms; stats.bandsPainted++;
     stats.lastFrame.uploads++; stats.lastFrame.bytes += bytes; stats.lastFrame.uploadMs += ms;
+    // (which band went up, so the bench card names a band that went late (its look's outfit, the band, yours or not))
+    (stats.lastFrame.bands ??= []).push(`${s.raw?.outfit ?? 'look'}/${b.band}${s.raw?.carry ? `/${s.raw.carry}` : ''}${s.raw?.sheet ? `/${s.raw.sheet}` : ''}${s.own ? '/own' : ''}:${Math.round(bytes / 1024)}KB`);
   }
 
   /** Where a slot's sheet for a band's pool lies in the atlas: [x, y] of its top-left. */
@@ -255,17 +268,25 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
   // ---------- the blobs (an ink ellipse a person, opacity by height, long for a body lying down) ----------
   const bgeo = new THREE.CircleGeometry(0.42, 18).rotateX(-Math.PI / 2).scale(1, 1, 0.6);
   const aAlpha = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople), 1);
-  bgeo.setAttribute('aAlpha', aAlpha);
+  // (1 draws the blob as the overhead's dashed ring (K-b), BLOB_RING_IN of its radius in, BLOB_DASHES dashes round; 0 as before)
+  const aRing = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople), 1);
+  bgeo.setAttribute('aAlpha', aAlpha); bgeo.setAttribute('aRing', aRing);
   const bmat = new THREE.ShaderMaterial({
     uniforms: { ink: { value: new THREE.Color(INK) } },
     transparent: true, depthWrite: false,
     vertexShader: /* glsl */`
-      attribute float aAlpha; varying float vA; varying vec3 vOlyWorld; flat varying float vOlyPart;
-      void main() { vA = aAlpha; vOlyPart = 0.0; vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0); vOlyWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+      attribute float aAlpha; attribute float aRing; varying float vA; varying float vRing; varying vec2 vLocal; varying vec3 vOlyWorld; flat varying float vOlyPart;
+      void main() { vA = aAlpha; vRing = aRing; vLocal = position.xz; vOlyPart = 0.0; vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0); vOlyWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: /* glsl */`
       ${FRAG_DECL}
-      uniform vec3 ink; varying float vA;
-      void main() { gl_FragColor = vec4(ink, vA); pc_fragId = vec4(0.0); }`,
+      uniform vec3 ink; varying float vA; varying float vRing; varying vec2 vLocal;
+      void main() {
+        if (vRing > 0.5) {
+          vec2 e = vLocal / vec2(0.42, 0.252);
+          if (length(e) < ${BLOB_RING_IN.toFixed(2)} || fract((atan(e.y, e.x) / 6.2831853 + 0.5) * ${BLOB_DASHES.toFixed(1)}) > 0.5) discard;
+        }
+        gl_FragColor = vec4(ink, vA); pc_fragId = vec4(0.0);
+      }`,
   });
   bmat.userData.oly = { blob: true };
   const blobs = new THREE.InstancedMesh(bgeo, bmat, maxPeople);
@@ -327,8 +348,11 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
   batlas.source.dataReady = false; batlas.needsUpdate = true;
   const bgeo2 = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   const bRect = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople * 4), 4), bTint = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople * 3), 3);
-  bgeo2.setAttribute('aRect', bRect); bgeo2.setAttribute('aTint', bTint); bgeo2.setAttribute('aPartK', new THREE.InstancedBufferAttribute(new Float32Array(maxPeople), 1));
-  const berthMat = cardMaterial(batlas, BERTH_ATLAS_PX, BERTH_PART);
+  // (bSee: 1 where the see-through may thin a berth, 0 for your own: lying in your rack, your berth is you, never a thing in front
+  // of you; v0.0.25's fixer, the play review's "you strapped in are almost invisible" under the checkerboard)
+  const bSee = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople).fill(1), 1);
+  bgeo2.setAttribute('aRect', bRect); bgeo2.setAttribute('aTint', bTint); bgeo2.setAttribute('aPartK', new THREE.InstancedBufferAttribute(new Float32Array(maxPeople), 1)); bgeo2.setAttribute('aSee', bSee);
+  const berthMat = cardMaterial(batlas, BERTH_ATLAS_PX, BERTH_PART, { seeAttr: true });
   const berths = new THREE.InstancedMesh(bgeo2, berthMat, maxPeople);
   berths.frustumCulled = false; berths.count = 0; berths.userData.part = BERTH_PART;
   const berthCells = new Map();                                      // key → cell index
@@ -378,6 +402,7 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
         bRect.setXYZW(nBerth, (c % BCOLS) * bw, Math.floor(c / BCOLS) * bh, bw, bh);
         const t = p.tint ?? [1, 1, 1];
         bTint.setXYZ(nBerth, t[0], t[1], t[2]);
+        bSee.setX(nBerth, p.own ? 0 : 1);
         nBerth++;
         continue;
       }
@@ -396,7 +421,12 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
         if (ss && ensureBand(ss, band, p.own)) { from = ss; stanceUp = true; }
         else { frame = p.fallback ?? 'idle0'; band = BAND_OF[frame] ?? 'gait'; stats.stanceFallback = (stats.stanceFallback ?? 0) + 1; }
       }
-      if (!stanceUp && !ensureBand(s, band, p.own)) {
+      // (F73: a carry-free band not on this sheet but on the same figure's sheet in another gait carry (p.sibs: the same
+      // pixels, the rework's R2) is drawn from that one, yours too, rather than painted now and sent whole mid-lane (the bench's
+      // house-kit and house-live sent your look's rifle band, 144 KB, the first time you walked at the high ready))
+      const sib0 = !stanceUp && !s.bands.has(band) && CARRY_FREE.has(band) && p.sibs ? p.sibs.map(k => slots.get(k)).find(x => x?.bands.has(band)) ?? null : null;
+      if (sib0) { from = sib0; sib0.seen = frameNo; stats.sib = (stats.sib ?? 0) + 1; }
+      else if (!stanceUp && !ensureBand(s, band, p.own)) {
         // (its band not up yet: its twin's (the same figure with the magazine in or out, p.twin) if that one has it, so a
         // prone shooter changing magazines never stands up for the frames the new sheet takes (the 0.0.7 integrator's);
         // a carry-free band from the sheet of the same figure in another gait carry (p.sibs: the same pixels, the rework's
@@ -417,14 +447,26 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
       const sk = p.scaleK ?? 1, cw = sk === 1 ? c.w : Math.round(c.w * sk), chh = sk === 1 ? c.h : Math.round(c.h * sk), cay = sk === 1 ? c.ay : Math.round(c.ay * sk), cax = sk === 1 ? c.ax : Math.round(c.ax * sk);
       const nb = (chh - cay) / ppm, ys = p.y ?? 0, yb = snap(Math.max(0, ys - nb)), zc = snap(p.z - ys + yb + nb);
       const left = snap(p.x) - cax / ppm;
-      m4.makeScale(cw / ppm, chh / ppm, 1).setPosition(left, yb, zc);
+      // (a card on a face turned about its anchor (see the header); a sub-card (the held device, the flash) by the same map. A
+      // card flipped top to bottom is flipped in its atlas rectangle (a negative height: the quad's winding kept, so it is never culled
+      // as a back face), its anchor then cay rows over its foot; the quarter turn is the quad's)
+      const flip = !!p.flip, TT = p.turn || flip ? cardTurn({ cw, ch: chh, ax: cax, ay: flip ? cay : chh - cay, quarter: p.turn ?? 0, at: { x: p.x, y: ys, z: p.z }, ppm }) : null;
+      const sub = (ox, oy0, w, h, toward = null) => {
+        const oy = flip ? chh - oy0 - h : oy0, u0 = ox / cw, v0 = 1 - (oy + h) / chh, su = w / cw, sv = h / chh;
+        m4.set(TT.a * su, TT.b * sv, 0, TT.a * u0 + TT.b * v0 + TT.tx, TT.c * su, TT.d * sv, 0, TT.c * u0 + TT.d * v0 + TT.ty, 0, 0, 1, TT.tz, 0, 0, 0, 1);
+        if (toward) { m4.elements[12] += toward.x; m4.elements[13] += toward.y; m4.elements[14] += toward.z; }
+        return m4;
+      };
+      if (TT) sub(0, 0, cw, chh);
+      else m4.makeScale(cw / ppm, chh / ppm, 1).setPosition(left, yb, zc);
       cards.setMatrixAt(i, m4);
-      aRect.setXYZW(i, ox + c.x, oy + c.y, c.w, c.h);
+      if (flip) aRect.setXYZW(i, ox + c.x, oy + c.y + c.h, c.w, -c.h);
+      else aRect.setXYZW(i, ox + c.x, oy + c.y, c.w, c.h);
       const t = p.tint ?? [1, 1, 1];
       aTint.setXYZ(i, t[0], t[1], t[2]);
       aPartK.setX(i, i % PEOPLE_PARTS);
       // (the blob: under the body on the floor; long under a body lying side on, deep under one lying end on)
-      const lift = c.kind === 'float' ? ys : Math.max(0, ys - (p.seat ?? 0)), floorY = p.floorY ?? 0;
+      const lift = Number.isFinite(p.blobLift) ? p.blobLift : c.kind === 'float' ? ys : Math.max(0, ys - (p.seat ?? 0)), floorY = p.floorY ?? 0;
       let bx = snap(p.x), bz = snap(p.z), sx = 1, sz = 1;
       if (c.kind === 'long') { bx = left + c.w / 2 / ppm; sx = 2.3; sz = 0.9; }
       else if (c.kind === 'tall') { bz = snap(p.z) - c.ay / 2 / ppm; sx = 0.95; sz = 3.2; }
@@ -432,15 +474,20 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
       m4.makeScale(sx * k, 1, sz * k).setPosition(bx, floorY + 0.012, bz);
       blobs.setMatrixAt(i, m4);
       aAlpha.setX(i, p.noBlob ? 0 : Math.max(0.15, 0.4 - 0.083 * lift));
+      aRing.setX(i, p.ring ? 1 : 0);
       // (the device in the hands, its card by the frame drawn; none where the body hides it whole)
       if (p.held) {
         if (!held || !heldShapes.includes(p.held.shape)) { prepareHeld([p.held.shape]); stats.heldLate = (stats.heldLate ?? 0) + 1; }
         const hc = held.index.get(heldKey(p.held.shape, p.held.colour, frame, face));
         if (hc?.w) {
-          m4.makeScale(hc.w / ppm, hc.h / ppm, 1).setPosition(left + hc.ox / ppm, yb + (c.h - hc.oy - hc.h) / ppm, zc);
-          m4.elements[12] += HELD_TOWARD.x; m4.elements[13] += HELD_TOWARD.y; m4.elements[14] += HELD_TOWARD.z;
+          if (TT) sub(hc.ox, hc.oy, hc.w, hc.h, HELD_TOWARD);
+          else {
+            m4.makeScale(hc.w / ppm, hc.h / ppm, 1).setPosition(left + hc.ox / ppm, yb + (c.h - hc.oy - hc.h) / ppm, zc);
+            m4.elements[12] += HELD_TOWARD.x; m4.elements[13] += HELD_TOWARD.y; m4.elements[14] += HELD_TOWARD.z;
+          }
           helds.setMatrixAt(nh, m4);
-          hRect.setXYZW(nh, hc.x, hc.y, hc.w, hc.h);
+          if (flip) hRect.setXYZW(nh, hc.x, hc.y + hc.h, hc.w, -hc.h);
+          else hRect.setXYZW(nh, hc.x, hc.y, hc.w, hc.h);
           hTint.setXYZ(nh, t[0], t[1], t[2]);
           hPartK.setX(nh, i % PEOPLE_PARTS);
           nh++; stats.heldDrawn++;
@@ -451,10 +498,13 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
       if (p.flash && gun && nf < MAX_FLASHES) {
         const fl = strip.index.get(`${gun}|${face}|${frame}`);
         if (fl) {
-          const fy = yb + (c.h - fl.oy - FS) / ppm;
-          m4.makeScale(FS / ppm, FS / ppm, 1).setPosition(left + fl.ox / ppm, fy, zc);
           const kk = fl.behind ? -1 : 1;
-          m4.elements[12] += TOWARD.x * kk; m4.elements[13] += TOWARD.y * kk; m4.elements[14] += TOWARD.z * kk;
+          if (TT) sub(fl.ox, fl.oy, FS, FS, { x: TOWARD.x * kk, y: TOWARD.y * kk, z: TOWARD.z * kk });
+          else {
+            const fy = yb + (c.h - fl.oy - FS) / ppm;
+            m4.makeScale(FS / ppm, FS / ppm, 1).setPosition(left + fl.ox / ppm, fy, zc);
+            m4.elements[12] += TOWARD.x * kk; m4.elements[13] += TOWARD.y * kk; m4.elements[14] += TOWARD.z * kk;
+          }
           flashes.setMatrixAt(nf, m4);
           aSlot.setX(nf, fl.slot);
           nf++;
@@ -464,7 +514,7 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
     }
     cards.count = blobs.count = i; flashes.count = nf; berths.count = nBerth; helds.count = nh;
     // (only the instances drawn are sent: a frame's few hundred bytes, not MAX_PEOPLE's 16 KB a matrix buffer)
-    for (const [a, n] of [[cards.instanceMatrix, i], [blobs.instanceMatrix, i], [flashes.instanceMatrix, nf], [aRect, i], [aTint, i], [aPartK, i], [aAlpha, i], [aSlot, nf], [berths.instanceMatrix, nBerth], [bRect, nBerth], [bTint, nBerth], [helds.instanceMatrix, nh], [hRect, nh], [hTint, nh], [hPartK, nh]]) {
+    for (const [a, n] of [[cards.instanceMatrix, i], [blobs.instanceMatrix, i], [flashes.instanceMatrix, nf], [aRect, i], [aTint, i], [aPartK, i], [aAlpha, i], [aRing, i], [aSlot, nf], [berths.instanceMatrix, nBerth], [bRect, nBerth], [bTint, nBerth], [bSee, nBerth], [helds.instanceMatrix, nh], [hRect, nh], [hTint, nh], [hPartK, nh]]) {
       if (!n) continue;
       a.clearUpdateRanges(); a.addUpdateRange(0, n * a.itemSize); a.needsUpdate = true;
     }
@@ -545,16 +595,18 @@ function stripMaterial(tex, [w, h], part) {
       }`,
   });
 }
-function cardMaterial(atlas, size, part) {
+function cardMaterial(atlas, size, part, { seeAttr = false } = {}) {
+  // (seeAttr: an instance attribute aSee, 0 where the see-through leaves the instance whole (your own berth), else 1)
   return new THREE.ShaderMaterial({
     uniforms: { atlas: { value: atlas }, size: { value: size }, part: { value: part } },
     defines: { OLY_SEE: '' },
     vertexShader: /* glsl */`
-      attribute vec4 aRect; attribute vec3 aTint; attribute float aPartK;
-      varying vec2 vPx; varying vec3 vTint; varying vec3 vOlyWorld; flat varying float vOlyPart;
+      attribute vec4 aRect; attribute vec3 aTint; attribute float aPartK;${seeAttr ? ' attribute float aSee;' : ''}
+      varying vec2 vPx; varying vec3 vTint; varying vec3 vOlyWorld; flat varying float vOlyPart; varying float vSee;
       uniform float part;
       void main() {
         vPx = aRect.xy + vec2(uv.x, 1.0 - uv.y) * aRect.zw;          // (atlas pixels, rows top-down as painted)
+        vSee = ${seeAttr ? 'aSee' : '1.0'};
         vTint = aTint; vOlyPart = part + aPartK * ${PEOPLE_PART_STEP.toFixed(1)};
         vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0);
         vOlyWorld = w.xyz;
@@ -563,9 +615,9 @@ function cardMaterial(atlas, size, part) {
     fragmentShader: /* glsl */`
       ${FRAG_DECL}
       uniform sampler2D atlas; uniform float size;
-      varying vec2 vPx; varying vec3 vTint;
+      varying vec2 vPx; varying vec3 vTint; varying float vSee;
       void main() {
-        olySee(vOlyWorld);
+        if (vSee > 0.5) olySee(vOlyWorld);
         vec4 c = texture2D(atlas, (floor(vPx) + 0.5) / size);
         float a = floor(c.a * 255.0 + 0.5);
         if (a < 128.0) discard;

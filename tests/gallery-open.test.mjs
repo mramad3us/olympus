@@ -25,7 +25,7 @@ export default [
     },
   },
   {
-    name: 'toScore lists the open sets only, this round\'s first, then the oldest, its defaults named, a default naming no view flagged',
+    name: 'toScore lists the open sets only, the newest round\'s first (the game\'s To score page\'s order: v0.0.25\'s fixer), then the oldest, its defaults named, a default naming no view flagged',
     fn() {
       const index = { samples: [
         indexEntry('late', { title: 'Late', open: { default: ['L1'], since: '2026-11-17', decides: 'l', builtIn: 'v0.0.24' } }, views('L1', 'L2')),
@@ -34,10 +34,11 @@ export default [
         indexEntry('now', { title: 'Now', open: { default: ['N1', 'N9'], since: '2026-11-17', decides: 'n', builtIn: 'v0.0.23' } }, views('N1', 'N2')),
       ] };
       const rows = toScore(index);
-      assert(JSON.stringify(rows.map(r => r.id)) === JSON.stringify(['now', 'old', 'late']), JSON.stringify(rows.map(r => r.id)));
-      assert(JSON.stringify(rows[0].defaults.map(d => d.id)) === '["N1"]' && JSON.stringify(rows[0].missing) === '["N9"]' && rows[1].views === 3, JSON.stringify(rows));
+      assert(JSON.stringify(rows.map(r => r.id)) === JSON.stringify(['old', 'late', 'now']), JSON.stringify(rows.map(r => r.id)));
+      const now = rows[2];
+      assert(JSON.stringify(now.defaults.map(d => d.id)) === '["N1"]' && JSON.stringify(now.missing) === '["N9"]' && rows[0].views === 3, JSON.stringify(rows));
       const text = toScoreText(rows);
-      assert(text.split('\n').length === 3 && text.startsWith('now (2 views, since 2026-11-17, drawn in v0.0.23): default N1'), text);
+      assert(text.split('\n').length === 3 && text.split('\n')[2].startsWith('now (2 views, since 2026-11-17, drawn in v0.0.23): default N1'), text);
       console.log(`      ${rows.length} rows of 4 sets: ${rows.map(r => `${r.id} (${r.builtIn}, ${r.since})`).join(', ')}; "${text.split('\n')[0]}"`);
     },
   },

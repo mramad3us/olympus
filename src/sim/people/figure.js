@@ -49,7 +49,7 @@ import { bodyOf } from '../body/body.js';
 import { cuesOf } from '../body/cues.js';
 import { poseAt } from './place.js';
 import { hairStepOf } from '../body/hair.js';
-import { gpOf, bodyRadOf, stepMOf, legMOf, cycleOf } from '../body/loco.js';
+import { gpOf, bodyRadOf, stepMOf, legMOf, cycleOf, bootsWalk } from '../body/loco.js';
 import { gravityAt } from '../places/env.js';
 import { TICK_MS } from '../../core/clock.js';
 
@@ -84,12 +84,12 @@ function cuesFor(state, pid, ms) {
   return b ? { ...NO_CUES, ...cuesOf(b, ms, siteDayOf(state)) } : NO_CUES;
 }
 
-/** The gait phase's step and the place's gravity for the view (see the header): { stepM, gMs2, vMs, cycle }. */
+/** The gait phase's step and the place's gravity for the view (see the header): { stepM, gMs2, vMs, cycle, magWalk? (v0.0.25: on locked mag boots, walked, never bounded: loco.js bootsWalk) }. */
 export function stepOf(state, a) {
   const dx = a.x - (a.$px ?? a.x), dz = a.z - (a.$pz ?? a.z), vMs = Math.hypot(dx, dz) / (TICK_MS / 1000);
-  const gMs2 = gravityAt(state, null, a.x, a.z).gMs2, cycle = cycleOf(state);
+  const gMs2 = gravityAt(state, null, a.x, a.z).gMs2, cycle = cycleOf(state), boots = bootsWalk(a, gMs2);
   const gait = a.gait === 'run' || a.gait === 'bound' ? 'run' : 'walk';
-  return { stepM: stepMOf({ gait, stance: a.moveStance ?? null, vMs, gMs2, legM: legMOf(state, a.who), cycle }).stepM, gMs2, vMs, cycle };
+  return { stepM: stepMOf({ gait, stance: a.moveStance ?? null, vMs, gMs2, legM: legMOf(state, a.who), cycle, boots }).stepM, gMs2, vMs, cycle, ...(boots ? { magWalk: true } : {}) };
 }
 
 /** What the stage draws for an actor at ms (see the header). */

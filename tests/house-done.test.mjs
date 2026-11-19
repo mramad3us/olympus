@@ -11,8 +11,9 @@
 // (done.md §2 finding 1).
 import { assert } from './helpers.mjs';
 import { ALL, DONE, GAUGE_ROWS, GAUGE_LAST, GAUGE_ROUNDS, OPEN_GAUGES, resolveRow } from './house-done.mjs';
+import { WRECK_GAUGES, WRECK_FIRST, WRECK_LAST } from './wreck-done.mjs';
 
-const GROUPS = Object.freeze({ A: 'the user\'s verdict', B: 'the user\'s complaints', C: 'the gauges', D: 'never a dead end', E: 'the ladder and the verdict', F: 'the moments', G: 'saves and replay', H: 'performance', I: 'the scored scenes', J: 'the hand-off', K: 'docs', L: 'the drawn house', M: 'v0.0.22\'s rooms, lane\'s end, blast and page', N: 'v0.0.23\'s portraits, knowledge and carried fixes', O: 'v0.0.24\'s void, its scenes and the picks' });
+const GROUPS = Object.freeze({ A: 'the user\'s verdict', B: 'the user\'s complaints', C: 'the gauges', D: 'never a dead end', E: 'the ladder and the verdict', F: 'the moments', G: 'saves and replay', H: 'performance', I: 'the scored scenes', J: 'the hand-off', K: 'docs', L: 'the drawn house', M: 'v0.0.22\'s rooms, lane\'s end, blast and page', N: 'v0.0.23\'s portraits, knowledge and carried fixes', O: 'v0.0.24\'s void, its scenes and the picks', P: 'v0.0.25\'s Wreck and the carried fixes' });
 
 export default [
   {
@@ -56,6 +57,17 @@ export default [
       for (const v of rounds) counts[v] = (counts[v] ?? 0) + 1;
       console.log(`      ${GAUGE_ROWS.length} gauges by round: ${Object.entries(counts).map(([v, n]) => `${v} ${n}`).join(', ')}`);
       assert(!wrong.length && !none.length && !back.length && covered, JSON.stringify({ wrong, none, back, covered }));
+    },
+  },
+  {
+    name: 'v0.0.25\'s gauges frozen (its build sheet §2 step 5, §8): tests/wreck-done.mjs lists F124 to F137 in order, one row a gauge with its files, owner and when, and they follow house-done\'s last homed gauge (GAUGE_LAST 123 until the round\'s last merge homes them; then each must be a house-done row); group P is listed',
+    fn() {
+      const ns = WRECK_GAUGES.map(g => Number(g.F.slice(1))), rows = new Set(GAUGE_ROWS.map(r => r.id));
+      const homed = ns.filter(n => rows.has(`CF${n}`));
+      console.log(`      ${WRECK_GAUGES.length} gauges F${WRECK_FIRST} to F${WRECK_LAST}; GAUGE_LAST ${GAUGE_LAST}; homed in house-done ${homed.length}; owners ${[...new Set(WRECK_GAUGES.map(g => g.owner))].join(', ')}; group P ${GROUPS.P ? 'listed' : 'MISSING'}`);
+      assert(ns.length === WRECK_LAST - WRECK_FIRST + 1 && ns.every((n, i) => n === WRECK_FIRST + i) && WRECK_GAUGES.every(g => g.what && g.files.length && g.owner && g.when), JSON.stringify(ns));
+      assert(GAUGE_LAST === WRECK_FIRST - 1 ? homed.length === 0 : GAUGE_LAST === WRECK_LAST && homed.length === ns.length, JSON.stringify({ GAUGE_LAST, homed }));
+      assert(!!GROUPS.P, 'group P');
     },
   },
 ];

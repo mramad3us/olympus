@@ -1,0 +1,64 @@
+{
+ "title": "A room with no floor, read from above: a man and a board on any face of the Wreck, the pop-up, the hatches and the trunk",
+ "about": "v0.0.25, \"Hold to hold\", takes the shoot house's drill aboard the Wreck at Phobos: two decks of a stripped hull at micro-g on mag boots, where you go head first down a trunk into the hold and plant your boots on its deckhead, and a target can stand out of any of six faces. The stage draws from 45° above, so a thing 2.2 m up on the deckhead is drawn 35 px up the screen, over the floor north of it. Every figure here is the game's own (the shoot house's marine in the black combat EVA suit; the khaki turner boards), turned by the face it stands on: the deck upright, the deckhead and the dorsal (north) bulkhead flipped top to bottom, the ventral (south) bulkhead upright, starboard and port a quarter turn with the feet to the face; the deck is void-look's plate at 16 px/m, snapped to the stage's palette. K (the default K-b) is how a thing on the deckhead reads: the hold with the marine on all six faces and the trunk's two scuttles, beside it a slice of the brig with a board on a cell's deckhead drawn over the passage (the case that reads wrong), and the deckhead man three times larger; K-a the projection alone (the float pick's shadow under each body off the deck), K-b and the overhead's footprint dashed on the deck below everything on the deckhead, K-c and your compartment's deckhead edge, K-d drawn at its plan spot, flipped and dotted (VIEWS §3.5's own sentence: it would also change how v0.0.24 draws a floating body's height). T (T-a) a board on each face, turned out of it or foreshortened by its tilt; P (P-a) the pop-up rising over 400 ms, hinged out or sliding from a slot; H (H-a) the deck hatch, square with four dogs and a yellow coaming or round with a wheel; B (B-a) the bulkhead hatch, oval with dogs or square with a lever, face on and from above; X (X-a) the deck change through the trunk in seven frames, the stair's wipe with the camera held or the camera held on you and gliding back. The game builds at the defaults until you score; each pick lands in one table.",
+ "open": {"default": ["K-b", "T-a", "P-a", "H-a", "B-a", "X-a"], "since": "2026-11-19", "decides": "how the Wreck draws a thing on the deckhead (K), a board on a face (T), the pop-up (P), the deck and bulkhead hatches (H, B) and the deck change through the trunk (X)", "builtIn": "v0.0.25"},
+ "pixel": true,
+ "groups": [
+  {
+   "id": "K",
+   "title": "K: a thing on the deckhead, read from above",
+   "about": "The hold (deck 6, 9.2 × 7.2 m) with the marine on the deck, the deckhead, the dorsal bulkhead at 1.1 m, starboard, port and the ventral bulkhead at 1.4 m; the trunk's two scuttles at 4.6, 3.6 (the deck's dogged under the deckhead's open); two cargo stacks and two lamps. Beside it the brig (deck 5): a board on the deckhead of a south cell by its cut wall, drawn over the passage; your #2 in the passage; a man half out of the deck's scuttle. Then the deckhead man three times larger. The legend under the picture names each body's face.",
+   "views": [
+    { "id": "K-b", "name": "K-b: the overhead's footprint dashed on the deck (the default)", "query": "k=K-b", "pixel": "471x217" },
+    { "id": "K-a", "name": "K-a: the projection alone", "query": "k=K-a", "pixel": "471x217" },
+    { "id": "K-c", "name": "K-c: K-b and your compartment's deckhead edge", "query": "k=K-c", "pixel": "471x217" },
+    { "id": "K-d", "name": "K-d: at its plan spot, flipped, dotted", "query": "k=K-d", "pixel": "471x217" }
+   ]
+  },
+  {
+   "id": "T",
+   "title": "T: a target on a face",
+   "about": "The hold with a turner board on each of its six faces (K-b's footprints), and the six boards three times larger.",
+   "views": [
+    { "id": "T-a", "name": "T-a: turned out of its face (the default)", "query": "t=T-a", "pixel": "519x281" },
+    { "id": "T-b", "name": "T-b: foreshortened by its tilt", "query": "t=T-b", "pixel": "519x281" }
+   ]
+  },
+  {
+   "id": "P",
+   "title": "P: the pop-up",
+   "about": "A pop-up on the deckhead (head down) and one on the starboard bulkhead, at 0, 25, 50, 75 and 100% of its 400 ms rise, three times larger.",
+   "views": [
+    { "id": "P-a", "name": "P-a: hinged out (the default)", "query": "p=P-a", "pixel": "474x219" },
+    { "id": "P-b", "name": "P-b: sliding from a slot", "query": "p=P-b", "pixel": "474x219" }
+   ]
+  },
+  {
+   "id": "H",
+   "title": "H: the deck hatch (the trunk's scuttle, Ø 0.8 m)",
+   "about": "In a deck dogged, in a deck open (the leaf folded back, the shaft's rungs), in a deckhead open (drawn 2.2 m up, the leaf hanging, its footprint dashed below), three times larger.",
+   "views": [
+    { "id": "H-a", "name": "H-a: square, four dogs, a yellow coaming (the default)", "query": "h=H-a", "pixel": "232x182" },
+    { "id": "H-b", "name": "H-b: round, a hand wheel", "query": "h=H-b", "pixel": "232x182" }
+   ]
+  },
+  {
+   "id": "B",
+   "title": "B: the bulkhead hatch (0.8 m, a 0.3 m coaming)",
+   "about": "In the dorsal bulkhead seen face on, shut and open; in a cut wall from above, shut and swung open; three times larger.",
+   "views": [
+    { "id": "B-a", "name": "B-a: oval with dogs (the default)", "query": "b=B-a", "pixel": "308x158" },
+    { "id": "B-b", "name": "B-b: square with a lever", "query": "b=B-b", "pixel": "308x158" }
+   ]
+  },
+  {
+   "id": "X",
+   "title": "X: through the trunk",
+   "about": "Seven frames of the deck change, you head first down the trunk from deck 5's passage into deck 6's hold: on deck 5 your head in the deck's scuttle, on deck 6 hanging under the deckhead's.",
+   "views": [
+    { "id": "X-a", "name": "X-a: the stair's wipe, the camera held (the default)", "query": "x=X-a", "pixel": "592x116" },
+    { "id": "X-b", "name": "X-b: the camera holds you, then glides", "query": "x=X-b", "pixel": "592x116" }
+   ]
+  }
+ ]
+}

@@ -49,6 +49,8 @@ import { composeFrame } from '../art/figures/compose.js';
 import { FLAG, TOWER } from '../data/places/range.js';
 import { COURSES } from '../data/courses.js';
 import { CUT_H_M } from './walls.js';
+import { turnPixels, OVERHEAD_LOOK } from './faces.js';
+import { stageTurnOf } from '../data/faces.js';
 
 /** The flag's hoist and lowering, and its flutter's step, game milliseconds. */
 export const FLAG_HOIST_MS = 600, FLAG_FLAP_MS = 400;
@@ -749,6 +751,52 @@ export function turnerPixels(t, ms, ppm, gMs2) {
   return out;
 }
 /**
+ * v0.0.25 (the build sheet item 7, §3.4; PC§3.3): a pop-up rising from flat on its face, hinged at its base (P-a, samples/wreck-faces'
+ * default until scored): its face foreshortened in height by riseK (0 flat, 1 up: the sim's facingK, which turners.js turns over
+ * POPUP_MS for a pop-up), the base row where it stands; up, it is turnerPixels' own, its holes and puffs with it. In the board's frame
+ * (as on the deck: boardPixels turns it by its face).
+ */
+export function popupPixels(t, riseK, ms, ppm = PX_PER_M, gMs2) {
+  if (!t?.face) return [];
+  const k = Math.max(0, Math.min(1, Number(riseK) || 0));
+  if (k >= 1) return turnerPixels({ ...t, facingK: 1 }, ms, ppm, gMs2);
+  needG(gMs2);
+  const ta = turnerAt({ ...t, facingK: 1 }, ppm), pf = turnerFace(t.face, t.holds ?? null, ppm), out = [];
+  const part = TURNER_PART + (t.lane ?? 0), P = 1 / ppm, L = TURNER_LIFT_M, dh = Math.max(1, Math.round(pf.h * k));
+  for (let r = 0; r < dh; r++) {
+    const j = Math.min(pf.h - 1, Math.floor((r + 0.5) * pf.h / dh));
+    for (let i = 0; i < pf.w; i++) {
+      const c = pf.cells[j * pf.w + i];
+      if (c === null || c === undefined) continue;
+      out.push({ x: ta.x0 + (i + 0.5) * P, y: ta.yBot + (dh - r - 0.5) * P + L, z: ta.z + L, c, part, noLine: false });
+    }
+  }
+  return out;
+}
+/**
+ * v0.0.25: a board as the stage draws it on its face (the build sheet items 7 and 8; render/faces.js turnPixels): a turner's pixels
+ * (turnerPixels, by its facingK) or a pop-up's (popupPixels, its rise its facingK), turned by its stand's face (onFace: src/data/
+ * faces.js STAGE_TURNS, samples/wreck-faces T-a's: absent the deck, turnerPixels' own list, untouched) about its face's centre, a
+ * pixel corner, as a man standing on that face is (the deckhead's and the dorsal's flipped head down, a side bulkhead's a quarter turn).
+ */
+export function boardPixels(t, ms, ppm = PX_PER_M, gMs2) {
+  const { quarter: q, flip } = stageTurnOf(t?.onFace);
+  const list = t?.pop ? popupPixels(t, t.facingK ?? 0, ms, ppm, gMs2) : turnerPixels(t, ms, ppm, gMs2);
+  if ((!q && !flip) || !list.length) return list;
+  // (about the face's own centre in its plane: each pixel's lift toward the camera (its z over the stand's) taken off and put back)
+  const ta = turnerAt({ ...t, facingK: 1 }, ppm), cy = ta.yTop - Math.round(ta.h / 2) / ppm;
+  return turnPixels(list, ta.cx, cy, q, (p) => p.z - ta.z, flip);
+}
+/** The overhead's footprint of a board on the deckhead (K-b: dashed on the deck below, every other pixel, its width across): [{ x, y, z, c }], none off the deckhead or under K-a. */
+export function overheadPixels(t, ppm = PX_PER_M) {
+  if (t?.onFace !== 'deckhead' || OVERHEAD_LOOK === 'K-a') return [];
+  const ta = turnerAt({ ...t, facingK: 1 }, ppm), P = 1 / ppm, out = [];
+  for (let i = 0; i < ta.w; i += 2) for (const dz of [-1, 1]) out.push({ x: ta.x0 + (i + 0.5) * P, y: 0.012, z: ta.z + dz * 2 * P, c: OVERHEAD_C });
+  return out;
+}
+/** The overhead's dashes on the deck (the deck's ink at 40% on the plate: K-b's). */
+export const OVERHEAD_C = 0x4d525c;
+/**
  * The steel's spark for a round that rang (a hole { xCm, yCm, ring, atMs }) at game time ms: [{ x, y, z, c }] metres, unlit:
  * the strike's flash (a plus, white) for SPARK_FLASH_MS, then SPARK_N sparks flung off the plate (their ways by hash,
  * SPARK_V_MS, falling at gMs2, the place's (Mars' 3.7 m/s² on the pad), fading from white to orange) until SPARK_MS. None off steel or past its time.
@@ -1146,6 +1194,26 @@ export function jambMarks(marks, { kind = JAMB_DRAWN_AS, ppm = PX_PER_M } = {}) 
       out.push({ x: x0 + i * P, y: y0 + i * P, z, c: JAMB_CHALK });
       if (i !== 0) out.push({ x: x0 + i * P, y: y0 - i * P, z, c: JAMB_CHALK });
     }
+  }
+  return out;
+}
+
+/** v0.0.25: the void range's station ring and its line to the turner (the anchors' safety yellow, the line a paler one). */
+export const STATION_C = Object.freeze({ ring: 0xf0c840, line: 0xd0b050 });
+/**
+ * A station's pixels on the stage (v0.0.25, the user's report of 2026-11-19: "translate what I have to do for the 0G shooting training";
+ * anchors.js anchorsLook's `station` while its command stands): M { x, z, rM, to: [x, z] } → [{ x, y, z, c }]: a ring two pixels wide of
+ * radius rM on the deck at the mark, a pixel every 1/ppm round it, and a dotted line (a pixel every other) from the ring's edge to the
+ * turner. World metres, y up.
+ */
+export function stationPixels(M, ppm) {
+  const out = [], P = 1 / ppm, y = 0.02;
+  if (!M) return out;
+  const n = Math.max(12, Math.ceil(2 * Math.PI * M.rM * ppm));
+  for (const r of [M.rM, M.rM - P]) for (let i = 0; i < n; i++) { const a = (i / n) * 2 * Math.PI; out.push({ x: M.x + Math.cos(a) * r, y, z: M.z + Math.sin(a) * r, c: STATION_C.ring }); }
+  if (M.to) {
+    const dx = M.to[0] - M.x, dz = M.to[1] - M.z, L = Math.hypot(dx, dz);
+    if (L > M.rM) for (let d = M.rM + 2 * P; d < L - 0.3; d += 2 * P) out.push({ x: M.x + (dx / L) * d, y, z: M.z + (dz / L) * d, c: STATION_C.line });
   }
   return out;
 }

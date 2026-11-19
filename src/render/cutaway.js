@@ -27,6 +27,12 @@
 // stencil is painted whole in the density's alphabet (src/art/kit/type.js fontFor: 0.0.3, after the look
 // round's "2ND SQUAD" read "EUND"), where decorRect() says. Everything goes into an area (src/render/batch.js): one draw call,
 // or a collector of plain specs (src/art/jobs.js createCollector), which is how the paint worker builds it.
+// v0.0.25 (the build sheet items 2, 8 and 9, §3.4; PC§3.1, PC§3.4): a deck plan flagged wallsToCeiling (the Wreck's: its area's
+// look, carried by sim/places/plan.js planOf) stands its north band to its rooms' own ceiling (2.2 m, the deckhead, so a man on it
+// has his boots level with the wall's top) rather than WALL_H_M, one band a run of north rooms (the Wreck's two decks sixty metres
+// apart in one plan: no wall across the void between them); every shipped plan as before, to the byte. The overhead's footprints
+// (render/faces.js OVERHEAD_LOOK, K-b until scored): each thing fixed to a deckhead (opts.overhead: the scuttle, the speaker; the
+// plan's lamps under a flagged deckhead) draws its footprint dashed on the deck below it, in the deck's ink, baked here.
 // Pure. No three.js and no DOM in its imports, so the paint worker's closure may hold it (TECH §2.2).
 import { wallsOf, wallRect, WALL_H_M, CUT_H_M, OUTER_T_M } from './walls.js';
 import { tile } from '../art/tiles.js';
@@ -36,6 +42,7 @@ import { bevel, rivet, hazard, plate, mottle } from '../art/brush.js';
 import { text, textWidth } from '../art/font.js';
 import { fontFor } from '../art/kit/type.js';
 import { SHIP_GLOWS } from '../art/palette.js';
+import { OVERHEAD_LOOK } from './faces.js';
 
 export { WALL_H_M, CUT_H_M };
 /** A cut wall's top and the edge-on walls' ends: the dark of a section drawing. */
@@ -156,7 +163,7 @@ function paintDecor(px, d, x, y, w, h, f, ppm) {
  * wall painted, strips and lamps. { deck: the ship's look (FINISHES.bulkhead), finish: a finish to use
  * (by name or object), strips, battle, seed }. Returns { walls, rooms } for the caller's reference.
  */
-export function buildCutaway(area, plan, { deck = false, finish = null, strips = true, battle = true } = {}) {
+export function buildCutaway(area, plan, { deck = false, finish = null, strips = true, battle = true, overhead = null } = {}) {
   const ppm = area.ppm;
   const F = typeof finish === 'string' ? FINISHES[finish] : finish ?? (deck ? FINISHES.bulkhead : FINISHES.block);
   const fin = (r) => (r.finish ? (typeof r.finish === 'string' ? FINISHES[r.finish] : r.finish) : F);
@@ -182,7 +189,18 @@ export function buildCutaway(area, plan, { deck = false, finish = null, strips =
     }
     for (const o of doorsN) paintDoor(px, X(o.a), X(o.b) - X(o.a), h, F, ppm, o.label);
   };
-  area.box({ x0: bx0, x1: bx1, y0: 0, y1: WALL_H_M, z0: plan.z0 - OUTER_T_M, z1: plan.z0, faces: { front: northFace, sides: tone(CUT, 0.06), top: CUT } });
+  if (!plan.wallsToCeiling) area.box({ x0: bx0, x1: bx1, y0: 0, y1: WALL_H_M, z0: plan.z0 - OUTER_T_M, z1: plan.z0, faces: { front: northFace, sides: tone(CUT, 0.06), top: CUT } });
+  else {
+    // (one band a run of touching north rooms, as high as their ceiling, its face painted as the whole band's is (see the header))
+    const runs = [];
+    for (const r of [...roomsN].sort((a, b) => a.x0 - b.x0)) { const l = runs[runs.length - 1]; if (l && r.x0 <= l.x1 + 0.01) { l.x1 = Math.max(l.x1, r.x1); l.h = Math.max(l.h, r.ceilingM ?? WALL_H_M); } else runs.push({ x0: r.x0, x1: r.x1, h: r.ceilingM ?? WALL_H_M }); }
+    for (const R of runs) {
+      const rx0 = R.x0 - OUTER_T_M, rx1 = R.x1 + OUTER_T_M, X0 = Math.round((rx0 - bx0) * ppm);
+      // (the band's face is the plan's face read from this run's left edge: the rooms, the decor and the doors painted where they stand)
+      const face = (px, w, h) => northFace((x, ...rest) => px(x - X0, ...rest), w + X0, h);
+      area.box({ x0: rx0, x1: rx1, y0: 0, y1: R.h, z0: plan.z0 - OUTER_T_M, z1: plan.z0, faces: { front: face, sides: tone(CUT, 0.06), top: CUT } });
+    }
+  }
   // The other walls: side walls full height (edge on), the rest cut, their faces the room's in front.
   for (const w of runs.filter(w => w.side !== 'n')) {
     const q = wallRect(w);
@@ -229,12 +247,31 @@ export function buildCutaway(area, plan, { deck = false, finish = null, strips =
       if (battle && w.axis === 'x' && !w.outer) line('battle', q.x0, q.z1, q.x1, q.z1, INTO.s);   // (the strip is on its south face)
     }
   }
+  // (the overhead's footprints, dashed on the deck below (see the header))
+  if (OVERHEAD_LOOK !== 'K-a') {
+    const marks = [...(overhead ?? []), ...(plan.wallsToCeiling ? (plan.lamps ?? []).map(l => ({ x: l.x, z: l.z, w: 0.3, d: 0.3, round: true })) : [])];
+    for (const o of marks) overheadDash(area, o, ppm);
+  }
   // Lamps: the ceiling's, and an emergency lamp under each housing on the north wall.
   for (const l of plan.lamps ?? []) area.lamp(l);
   for (const d of (plan.decor ?? []).filter(d => d.kind === 'emergency')) area.lamp({ x: d.x, z: plan.z0 + 0.7, y: EMERGENCY_Y_M, r: 1.3, core: 0.55, ring: 0.2, kind: 'emergency', color: EMERGENCY_AMBER });
   return { walls: runs };
 }
 
+/** The overhead's dashes on the deck (the deck's ink at 40% on the plate, K-b's; range-items.js OVERHEAD_C, the boards' own). */
+export const OVERHEAD_C = 0x4d525c;
+/** v0.0.25: a deckhead thing's footprint dashed on the deck below ({ x, z, w, d, round }: its middle and size, metres), pixel dashes every other pixel round its outline. */
+function overheadDash(area, { x, z, w = 0.4, d = 0.4, round = false }, ppm) {
+  const P = 1 / ppm, put = (px, pz) => area.ground({ x0: Math.round(px * ppm) / ppm, z0: Math.round(pz * ppm) / ppm, x1: Math.round(px * ppm) / ppm + P, z1: Math.round(pz * ppm) / ppm + P, lift: 0.003, color: OVERHEAD_C });
+  if (round) {
+    const r = Math.max(w, d) / 2, n = Math.max(8, Math.round(2 * Math.PI * r * ppm / 2));
+    for (let i = 0; i < n; i++) { const t = i / n * 2 * Math.PI; put(x + Math.cos(t) * r - P / 2, z + Math.sin(t) * r - P / 2); }
+    return;
+  }
+  const x0 = x - w / 2, z0 = z - d / 2, nx = Math.max(1, Math.round(w * ppm)), nz = Math.max(1, Math.round(d * ppm));
+  for (let i = 0; i < nx; i += 2) { put(x0 + i * P, z0); put(x0 + i * P, z0 + d - P); }
+  for (let j = 2; j < nz - 1; j += 2) { put(x0, z0 + j * P); put(x0 + w - P, z0 + j * P); }
+}
 /** The building's outside, under a cut south wall: weathered block (a base), dark plate (a deck). */
 function outsideFace(F) {
   return (px, w, h, ppm) => {

@@ -69,6 +69,20 @@
 // (src/ui/hud/strip.js gLineText formats them): null at Mars and the Wheel with nothing pending (the strip shows nothing: the line
 // is the body's own sign, shown only when the gravity is not nominal), else { gG, word, phase, kind, leftMs }: gravityAt for the g,
 // footingOf for the word (one quantity, one helper).
+// v0.0.25's burn polish (the user's score of test-burn, 2026-11-19: "We should have some indication of how strong is the burn and
+// evasive maneuvers, especially if not straped in, mag boots won't save you from a 3G sideways maneuver"). The strength shown: the
+// 1MC's warning names the event's size and direction and, where locked boots will not hold it, "Strap in: boots will not hold three
+// G." (src/data/onemc.js warnWords with the event), and at the onset says it again ("Jinking. Three G to port.", onsetWords, a
+// surprise's too); gLineOf gives the strip the event's size, its direction (onemc.js dirOf: the ship's word and the screen's arrow)
+// and the push acting now (a jink's lateral G, not the felt 0.00 G it showed), and whether boots hold it (holds), for the G line
+// and its meter (src/ui/hud/strip.js). The boots' limit: locked mag boots hold a push along the deck's normal by the BRACE_G rule
+// and a push across the deck only up to GRAV_BODY.BOOTS_SHEAR_G 1.0 G (src/data/body/needs.js: the magnets' breakaway against the
+// soles' friction); over it (throwOne) the boots tear off the plate (setAnchor null, logged 'torn') and the body floats, pushed
+// across the compartment by the jink as an unsecured one, as is a body pulled off a hold by a jink (before, a pulled body went
+// down prone as if the deck held it). The flung (jinkTick's: every floating body it pushes, P.flung, saved): each is followed until
+// it meets a face (src/sim/body/freefall.js stops it there, its impact impactOf's), logged 'thrown' with the speed it had over
+// FREEFALL.LAND_MS ('caught' where a grab stopped it; at a landing's speed or less nothing: it came to rest there), and kept against that face while the push lasts, not pushed into it again each tick (before, a body
+// on a bulkhead under a 0.4 G jink met it twenty times a second, a log line each).
 // Pure but setProfile, setStrapped and the layer, the events and the action, which write the live environment and the actors.
 import { post, cancel } from '../../core/queue.js';
 import { TICK_MS, SEC_MS, isHeld } from '../../core/clock.js';
@@ -76,7 +90,7 @@ import { playerId } from '../../core/ids.js';
 import { q } from '../../core/num.js';
 import { G0_MS2 } from '../../core/phys.js';
 import { BRACE_G, SURPRISE_G, GRAV_BODY, FREEFALL, GAIT_G } from '../../data/body/needs.js';
-import { ONE_MC, END, DONE, warnWords } from '../../data/onemc.js';
+import { ONE_MC, END, DONE, warnWords, onsetWords, dirOf, DECK_DIR, bootsHold } from '../../data/onemc.js';
 import { gravityAt, liveEnvOf, setLiveEnv, setLiveG } from './env.js';
 import { footingOf, setAnchor } from '../body/footing.js';
 import { impactOf } from '../body/impact.js';
@@ -135,7 +149,7 @@ export function gravNow(state, ms = state?.clock?.ms) {
   if (!P || P.phase === 'done' || P.phase === 'wait') return null;
   const e = P.list[P.i];
   if (!e) return null;
-  return { i: P.i, kind: e.kind, phase: P.phase, toG: e.toG, atMs: e.atMs, warnS: e.warnS, leftMs: Math.max(0, e.atMs - ms), surprise: !!e.surprise };
+  return { i: P.i, kind: e.kind, phase: P.phase, toG: e.toG, atMs: e.atMs, warnS: e.warnS, leftMs: Math.max(0, e.atMs - ms), surprise: !!e.surprise, ...(e.dirDeg !== undefined ? { dirDeg: e.dirDeg } : {}) };
 }
 
 /** Whether a brace is pending (the warning out, or the change coming in): a skip is refused (TIME §5.1.6). */
@@ -143,17 +157,39 @@ export function bracePending(state) {
   const P = profileRec(state);
   return !!P && (P.phase === 'warn' || P.phase === 'onset');
 }
+/**
+ * Whether a skip is barred by the ship (v0.0.25's carried round; the v0.0.24 integration's open note, def-lead-edits §3): a brace
+ * pending (bracePending), or a surprise of the ship's profile still to come (its onset after now): a warned change stops a skip at its
+ * warning (the 1MC's A interrupt, F112), but a surprise has no warning and its onset is no interrupt of a skip, so a wait or a sleep
+ * begun before it, the debug handle's and a bot's included, would pass over the jink. time/activities.js refuses it ("Not now: secure
+ * for the burn."); before a warned change and under its hold a skip is still taken (F112).
+ */
+export function skipBarred(state) {
+  if (bracePending(state)) return true;
+  const P = profileRec(state), now = state.clock.ms;
+  return !!P && P.phase !== 'done' && P.list.slice(P.i).some(e => e.surprise && e.atMs > now);
+}
 
 /** The footing's word on the G line (the body's own sense of what holds it). */
 export const FOOTING_WORDS = Object.freeze({ magWalk: 'on mag boots', handhold: 'on a hold', braced: 'braced', float: 'floating', couched: 'couched', bound: 'low g', walk: 'standing', heavy: 'heavy' });
-/** The G line's facts (see the header): null when the gravity is nominal and nothing is pending, else { gG, word, phase, kind, leftMs }. */
+/**
+ * The G line's facts (see the header): null when the gravity is nominal and nothing is pending, else { gG, word, phase, kind,
+ * leftMs }, and with an event pending or under way (v0.0.25's burn polish) its size toG, lateral (a push across the deck), dir
+ * (onemc.js dirOf's { word, to, arrow }, the deck's for a felt change), pushG the push acting now (the felt g, or a jink's lateral
+ * G; 0 in the warning) and holds (whether locked boots hold it: onemc.js bootsHold, the gravity's own two rules).
+ */
 export function gLineOf(state, pid = playerId(state)) {
   const a = actorOf(state, pid);
   if (!a || !state?.places?.live?.area) return null;
   const g = gravityAt(state, null, a.x, a.z).gG, now = gravNow(state);
   if (g >= GAIT_G.BOUND_BELOW_G && !now) return null;
-  const F = footingOf(state, pid), word = F.hold === 'tether' ? 'clipped in' : couchedOf(state, pid) ? FOOTING_WORDS.couched : FOOTING_WORDS[F.mode] ?? F.mode;
-  return { gG: r4(g), word, phase: now?.phase ?? null, kind: now?.kind ?? null, leftMs: now?.phase === 'warn' ? now.leftMs : null };
+  const F = footingOf(state, pid), word = a.strapped ? 'strapped in' : F.hold === 'tether' ? 'clipped in' : couchedOf(state, pid) ? FOOTING_WORDS.couched : FOOTING_WORDS[F.mode] ?? F.mode;
+  const out = { gG: r4(g), word, phase: now?.phase ?? null, kind: now?.kind ?? null, leftMs: now?.phase === 'warn' ? now.leftMs : null };
+  if (!now) return out;
+  const P = profileRec(state), lateral = !GRAV_KINDS[now.kind]?.feltG, base = P.phase === 'warn' ? g : P.baseG ?? g;
+  // (the change as throwOne reads it: a jink's size, a felt event's toG less the gravity it comes from (a drop rides); a surprise's limit)
+  const pushG = lateral ? r4(P.lat ?? 0) : r4(g), change = lateral ? now.toG : now.toG - base;
+  return { ...out, toG: now.toG, lateral, dir: lateral ? dirOf(now.dirDeg) : DECK_DIR, pushG: now.phase === 'warn' ? 0 : pushG, holds: bootsHold(lateral, change, { surprise: !!P.list?.[P.i]?.surprise }) };
 }
 
 // ---- the events ----
@@ -163,7 +199,7 @@ function postNext(state, P, phase, atMs) {
   const e = P.list[P.i];
   P.next = phase;
   const prio = phase === 'warn' ? 1 : phase === 'onset' ? (e.surprise ? 0 : 1) : 5;
-  const line = phase === 'warn' ? warnWords(e.kind, e.warnS) : null;
+  const line = phase === 'warn' ? warnWords(e.kind, e.warnS, withFrom(state, e)) : null;
   post(state, { atMs, kind: `grav:${phase}`, src: SRC, prio, ...(line ? { line, tone: 'warn' } : {}), payload: { i: P.i } });
 }
 // (the event i's first: its warning if it has one, else its onset)
@@ -174,6 +210,8 @@ function postFirst(state, P) {
   if (e.warnS > 0) postNext(state, P, 'warn', Math.max(state.clock.ms, e.atMs - e.warnS * SEC_MS));
   else postNext(state, P, 'onset', Math.max(state.clock.ms, e.atMs));
 }
+// (an event with the gravity it comes from (fromG: the felt change is toG less it, onemc.js bootsHold), for the 1MC's warning)
+const withFrom = (state, e) => (GRAV_KINDS[e.kind]?.feltG ? { ...e, fromG: r4(gravityAt(state).gG) } : e);
 // (the ship's words as text: the radio box's line and the speaker's bubble, never a voice)
 const say = (bus, text, call) => bus?.emit('say', { who: null, speaker: ONE_MC, text, kind: 'pa', call });
 // (an event of the profile's, for the phase the cursor waits on: a stale one (another profile's, or its phase past) does nothing)
@@ -184,8 +222,8 @@ function onWarn(state, bus, ev) {
   if (!mine(P, ev, 'warn')) return;
   const e = P.list[P.i];
   P.phase = 'warn';
-  say(bus, warnWords(e.kind, e.warnS), 'grav:warn');
-  bus?.emit('grav', { phase: 'warn', i: P.i, kind: e.kind, toG: e.toG, atMs: e.atMs });
+  say(bus, warnWords(e.kind, e.warnS, withFrom(state, e)), 'grav:warn');
+  bus?.emit('grav', { phase: 'warn', i: P.i, kind: e.kind, toG: e.toG, atMs: e.atMs, ...(e.dirDeg !== undefined ? { dirDeg: e.dirDeg } : {}) });
   postNext(state, P, 'onset', e.atMs);
 }
 
@@ -197,7 +235,9 @@ function onOnset(state, bus, ev) {
   P.phase = 'onset'; P.baseG = r4(g0);
   if (K.feltG) P.ramp = { fromMs: now, fromG: r4(g0), toG: e.toG, gs: e.onsetGs, lat: false };
   else P.ramp = { fromMs: now, fromG: 0, toG: e.toG, gs: e.onsetGs, lat: true };
-  bus?.emit('grav', { phase: 'onset', i: P.i, kind: e.kind, toG: e.toG, atMs: now });
+  bus?.emit('grav', { phase: 'onset', i: P.i, kind: e.kind, toG: e.toG, atMs: now, ...(e.dirDeg !== undefined ? { dirDeg: e.dirDeg } : {}) });
+  // (the size said while it acts, a surprise's too (see the header))
+  say(bus, onsetWords(e), 'grav:onset');
   throwPass(state, bus, P, e);
   postNext(state, P, 'hold', now + Math.ceil(rampMs(P.ramp) / SEC_MS) * SEC_MS);
 }
@@ -261,7 +301,7 @@ function finishRamp(state, P) {
  */
 export function gravityTick(state, input, bus) {
   const P = profileRec(state);
-  if (!P || P.phase === 'done' && !P.falls.length) return;
+  if (!P || P.phase === 'done' && !P.falls.length && !P.flung?.length) return;
   if (P.next === null && P.phase === 'wait') postFirst(state, P);
   const now = state.clock.ms;
   if (P.ramp) {
@@ -270,6 +310,7 @@ export function gravityTick(state, input, bus) {
     if (g === P.ramp.toG && P.phase === 'off') { P.ramp = null; P.lat = 0; nextEvent(state, P); }
   }
   if (P.falls.length) fallsTick(state, bus, P, now);
+  if (P.flung?.length) flungTick(state, bus, P, now);
   if (P.lat > 0) jinkTick(state, P);
 }
 
@@ -317,6 +358,16 @@ function throwOne(state, bus, P, e, a, card) {
     if (dG <= GRAV_BODY.HOLD_MAX_G) { logIt(state, bus, P, { who: pid, what: 'held' }); return; }
     setAnchor(state, pid, null);
     logIt(state, bus, P, { who: pid, what: 'pulled' });
+    // (a jink pulls a body off its hold into the compartment, floating: jinkTick pushes it (see the header))
+    if (!K.feltG) return;
+  }
+  // (the boots' limit across the deck (see the header): torn off the plate, the body floats and the jink throws it)
+  if (!K.feltG && F.hold === 'boots' && dG > GRAV_BODY.BOOTS_SHEAR_G) {
+    setAnchor(state, pid, null);
+    // (torn off at the soles, the body pitches toward the push (GRAV_BODY.TORN_SPIN_RADS): freefall.js turns it until it meets a face)
+    a.tumble = Math.round(((a.tumble ?? 0) + (Math.sin(((e.dirDeg ?? 0) * Math.PI) / 180) >= 0 ? 1 : -1) * GRAV_BODY.TORN_SPIN_RADS) * 1000) / 1000;
+    logIt(state, bus, P, { who: pid, what: 'torn' });
+    return;
   }
   if (K.feltG && y > ON_DECK_M && (F.mode === 'float' || F.mode === 'handhold')) { startFall(state, bus, P, e, a, y); return; }
   if (!K.feltG && F.mode === 'float') { logIt(state, bus, P, { who: pid, what: 'slid' }); return; }
@@ -359,15 +410,42 @@ function fallsTick(state, bus, P, now) {
   P.falls = left;
 }
 
-// (the jink's push: every floating body's velocity across the deck plane, a tick of the lateral g at the event's heading)
+// (the jink's push: every floating body's velocity across the deck plane, a tick of the lateral g at the event's heading; a body it
+// pushes is followed (P.flung) until it meets a face, and one held against a face by the push is not pushed into it again)
 function jinkTick(state, P) {
   const e = P.list[P.i];
   if (!e || e.kind !== 'jink') return;
   const rad = ((e.dirDeg ?? 0) * Math.PI) / 180, dv = P.lat * G0_MS2 * (TICK_MS / SEC_MS);
+  P.flung ??= [];
   for (const a of actorsOf(state)) {
     if (!a.who || footingOf(state, a.who).mode !== 'float') continue;
+    let f = P.flung.find(x => x.who === a.who);
+    if (f?.met) continue;
+    if (!f) P.flung.push((f = { who: a.who, atMs: state.clock.ms, vMs: 0, met: false }));
     a.v = [q((a.v?.[0] ?? 0) + dv * Math.cos(rad), 0.001), q((a.v?.[1] ?? 0) + dv * Math.sin(rad), 0.001)];
+    f.vMs = q(Math.hypot(a.v[0], a.v[1]), 0.001);
   }
+}
+/** How long a flung body is followed at most before it is let be (ms: my call, a body that meets nothing in a closed compartment). */
+export const FLUNG_MAX_MS = 20_000;
+// (the flung followed (see the header): a body whose drift stopped since the last tick met a face at the speed it had ('thrown'),
+// or a hold it grabbed ('caught'); a body met is kept against its face until the push is over, then let be)
+function flungTick(state, bus, P, now) {
+  const left = [];
+  for (const f of P.flung) {
+    const a = actorOf(state, f.who);
+    if (!a) continue;
+    if (f.met) { if (P.lat > 0) left.push(f); continue; }
+    if (a.v) { f.vMs = q(Math.hypot(a.v[0], a.v[1]), 0.001); if (now - f.atMs < FLUNG_MAX_MS) left.push(f); continue; }
+    if (!(f.vMs > 0)) { if (now - f.atMs < FLUNG_MAX_MS) left.push(f); continue; }
+    // (a face met at a landing's speed or less is no throw: the body came to rest against it (freefall.js LAND_MS), nothing logged)
+    const hold = footingOf(state, f.who).hold;
+    if (hold === 'handhold' || hold === 'tether' || hold === 'buddy') logIt(state, bus, P, { who: f.who, what: 'caught', vMs: f.vMs });
+    else if (f.vMs > FREEFALL.LAND_MS) logIt(state, bus, P, { who: f.who, what: 'thrown', vMs: f.vMs });
+    f.met = true;
+    if (P.lat > 0) left.push(f);
+  }
+  P.flung = left;
 }
 
 // ---- the surprise's card ----

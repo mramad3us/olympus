@@ -85,7 +85,9 @@
 // holds and the #2's pick (by weight); gaps the turners' (a door's after its leaf is open, the hall's after the zone). The
 // rest are the scene's numbers (the sheet's §4). HOUSE_CHIEF is the instructor's words (two phrasings or more): his faults
 // as he calls them from the catwalk ("Don't stop in the door!", "Your corner!", "Muzzle!"), the hot wash's lines; HOUSE_NUDGE
-// what he says to a shooter the line waits on. Data only.
+// what he says to a shooter the line waits on. v0.0.25 ("Hold to hold"): SEQ_WRECK, the Wreck's sequence command for command SEQ_HOUSE's,
+// WRECK_CHIEF the cadre's words of the void (its faults: floating, the open middle, the hatch, feet aft), WRECK_LEGS the compartments'
+// words, WRECK_ROLES set A's roles, HOUSE_NUDGE's 'boots'. Data only.
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 
 /** The tower's commands in order (see the header). */
@@ -534,7 +536,9 @@ export const HOUSE_NUDGE = deepFreeze({ mag: 'a magazine in.', chamber: 'a round
   // (at Stop and SHOW CLEAR (shoothouse.js houseNudgeOf): the P-12 still out, or still loaded in its holster)
   'pistol:out': 'pistol away, rifle up.', 'pistol:loaded': 'your pistol too: show me clear.',
   // (your number two's own wants, said to him: "Number two, a round up." (shoothouse.js twoLacks; handling.js names him))
-  'two:busy': 'finish it.', 'two:mag': 'a magazine in.', 'two:chamber': 'a round up.', 'two:safe': 'on safe, finger off.', 'two:low': 'low ready.', 'two:show': 'show me clear.' });
+  'two:busy': 'finish it.', 'two:mag': 'a magazine in.', 'two:chamber': 'a round up.', 'two:safe': 'on safe, finger off.', 'two:low': 'low ready.', 'two:show': 'show me clear.',
+  // (on the Wreck, your mag boots not locked on the deck at MAKE READY (shoothouse.js houseWant))
+  boots: 'boots locked.' });
 
 /**
  * The instructor's words (see the header), each ≥ 2 phrasings: his faults from the catwalk as they happen, at most one
@@ -732,29 +736,67 @@ export const ROOM_PAR_K = deepFreeze({ room: [1.5, 1.3], hall: [1.0, 1.4] }), RO
  * to do to be anchored there, and where), Standby, the string's end, a station passed for its time, the floating string's grab
  * and the course's end. Every line is a text bubble at the cadre (the user, 2026-11-19: "forget about voices, those are all
  * terrible use text bubble only"), at least two phrasings each picked by hash. {n} is the station's number in words.
+ * v0.0.25 (the user's report of 2026-11-19: "instructions from the intructor tell you stuff like "push to north station", I don't
+ * know what is meant, translate what I have to do for the 0G shooting training"): the brief is followed by `how`, the three ideas
+ * said once (a push-off from rest against the deck, a wall or a hold in reach; the drift until you meet something, L the grab; you
+ * fire only from what holds you), and every command says what to press in the game's own terms: {key:<action>} is the key's label
+ * (core/keys.js label, AZERTY, read from the bindings so a remap never lies) and {row:<id>} the panel row's label (arms/shooting.js
+ * LABELS), filled by scenarios/anchors.js sayKeys; north is said as the top wall. VOID_STEP is the DI's line (T) while a station's
+ * command stands, its next step in the same terms (skills/instinct/void.js).
  */
 export const VOID_CADRE = deepFreeze({
   brief: [
-    'Well A. Five stations. Anchor before you fire: boots, lanyard, a hand, the wedge, and one floating. Boots are locked. Wait for my word.',
-    'Five stations, one anchor each. You fire from what holds you, never from nothing. Boots are locked. Wait for my word.',
+    'Well A, zero G. Five stations, one anchor each: you fire only from what holds you, never from nothing. Your boots are locked, so {key:up} {key:left} {key:down} {key:right} walk you. Each station is a yellow ring. Wait for my word.',
+    'Five stations in zero G, one anchor each. You fire from what holds you, never from nothing. Boots locked: {key:up} {key:left} {key:down} {key:right} walk you. Each station is a yellow ring. Wait for my word.',
+  ],
+  how: [
+    'Off your boots you float. From rest the move keys push you off the deck, a wall or a hold in reach, and you drift until you meet something. {key:grab} grabs a hold in reach. {key:stroll} pushes gently, {key:run} hard. {key:ready} opens the panel; {key:instinct} gives your next step.',
+    'Boots released, you float. Push off from rest with the move keys, against the deck, a wall or a hold in reach; you drift till you meet something, and {key:grab} grabs a hold. {key:stroll} for a gentle push, {key:run} a hard one. {key:ready} for the panel, {key:instinct} for your next step.',
   ],
   cmd: {
-    boots: ['Station one. Walk to the line, ten metres. Keep those boots locked.', 'Station one: the line, ten metres. Mag boots locked. Walk it.'],
-    lanyard: ['Station two. Release your boots, push off to the north face, take a pad-eye, clip in. Fifteen metres.', 'Station two: boots off, push to the north face, clip in at the pad-eye. Fifteen metres.'],
-    onehand: ['Station three. Along the face to the next pad-eye. One hand on the hold, the pistol in the other. Seven metres.', 'Station three: hand on a hold, the P-12 in the other. Seven metres.'],
-    wedge: ['Station four. Into the gap between the plates and wedge yourself. Back on one, boots on the other. Twenty metres.', 'Station four: the gap between the plates. Wedge in. Twenty metres.'],
-    floating: ['Station five. The north face over the plates, then push off into the open. One round from nothing, then grab the next pad-eye.', 'Station five: off the north face into the open, one round floating, then take the first hold you pass.'],
+    boots: ['Station one. Boots locked, walk right ({key:right}) to the ring on the deck and stop on it. The target at ten metres.', 'Station one: the ring on the deck to your right. Walk to it ({key:right}), boots locked, and stop on it. The target at ten metres.'],
+    lanyard: ['Station two, the ring at the top wall. {row:boots:release} (the panel), push off up and left ({key:up} and {key:left} together), grab a pad-eye at the wall ({key:grab}), then {row:anchor:clip} (the panel). The target at fifteen metres.',
+      'Station two: the top wall, up and left. {row:boots:release} (the panel), push up and left ({key:up} with {key:left}), {key:grab} to grab the pad-eye at the ring, then {row:anchor:clip} (the panel). The target at fifteen metres.'],
+    onehand: ['Station three, the ring along the top wall to your right. {row:anchor:letgo} (the panel), push right ({key:right}), grab the hold at the ring ({key:grab}), then {row:weapon:transition} (the panel): one hand on the hold, the pistol in the other. The target at seven metres.',
+      'Station three: right along the top wall. {row:anchor:letgo} (the panel), push right ({key:right}), {key:grab} at the ring, then {row:weapon:transition} (the panel). A hand on the hold, the P-12 in the other. The target at seven metres.'],
+    wedge: ['Station four, the gap between the two plates. Push down ({key:down}), grab a pad-eye level with the gap ({key:grab}), push left into it ({key:left}), grab ({key:grab}), then {row:anchor:wedge} (the panel): back on one plate, boots on the other. The target at twenty metres.',
+      'Station four: the gap between the plates, down and left. Push down ({key:down}), {key:grab} at the pad-eye level with it, push left into the gap ({key:left}), {key:grab}, then {row:anchor:wedge} (the panel). The target at twenty metres.'],
+    floating: ['Station five, the ring at the top wall over the plates. {row:anchor:letgo} (the panel), out of the gap left ({key:left}), up to the top wall ({key:up}), right to the ring ({key:right}), grabbing ({key:grab}) at each stop. Then push off down ({key:down}), one round as you drift, and grab the first hold you pass.',
+      'Station five: the top wall over the plates. {row:anchor:letgo} (the panel); left out of the gap ({key:left}), up to the top wall ({key:up}), right to the ring ({key:right}), {key:grab} at each stop. Then push off down ({key:down}) into the open, one round floating, and {key:grab} the first hold you pass.'],
   },
-  pistol: ['Pistol.', 'Pistol. The rifle stays slung.'],
+  pistol: ['Pistol. {row:weapon:transition} (the panel).', 'Pistol. The rifle stays slung: {row:weapon:transition}.'],
+  // (at a rifle station with the P-12 still in the hand, once a station)
+  rifle: ['Rifle. {row:weapon:rifle-up} (the panel).', 'The rifle for this one: {row:weapon:rifle-up}.'],
   standby: ['Standby.', 'Standby, standby.'],
   stop: ['Stop. Next station.', 'Stop. Good, next.'],
   short: ['Target gone. Next station.', 'Too slow, it is gone. Next.'],
   passed: ['Station passed. We move on.', 'Out of time on that one. Next station.'],
-  drift: ['Now grab a pad-eye before you drift off.', 'Take the next hold. Now.'],
+  drift: ['Now grab a pad-eye ({key:grab}) before you drift off.', 'Take the next hold ({key:grab}). Now.'],
   grabbed: ['Got a hold. That is the drift one round leaves you.', 'Holding. Remember what one round did.'],
   lost: ['Stay put, the safety boat is coming to you.', 'Hands in, the boat will fetch you.'],
   towed: ['On the boat\'s line. Take the pad-eye and carry on.', 'There. Hold on and carry on.'],
   end: ['Well A complete. Unload, show clear at the gallery.', 'Course complete. Weapons on safe.'],
+});
+/**
+ * v0.0.25 (the user's report of 2026-11-19, above): the DI's line on the void range while a station's command stands, its next step
+ * (skills/instinct/void.js voidStepOf): by its variant, filled as the cadre's are ({key:…}, {row:…}) and {dir}, the push's keys
+ * toward the next point of the station's route ("{key:up} and {key:left}").
+ */
+export const VOID_STEP = deepFreeze({
+  short: 'Station',
+  lock: ['Station {n}: {row:boots:lock} first.', 'Station {n}: boots down, {row:boots:lock}.'],
+  walk: ['Station {n}: walk {dir} to the yellow ring, and stop on it.', 'Station {n}: the yellow ring, {dir}. Stop on it.'],
+  release: ['Station {n}: {row:boots:release}, then push off toward the ring.', 'Station {n}: {row:boots:release} to float, then push toward the ring.'],
+  letgo: ['Station {n}: {row:anchor:letgo}, then push off toward the ring.', 'Station {n}: {row:anchor:letgo} first, then push.'],
+  push: ['Station {n}: push off {dir}, toward the ring.', 'Station {n}: from rest, push {dir}.'],
+  grab: ['Station {n}: {key:grab} now, grab the hold.', 'Station {n}: grab ({key:grab}), now.'],
+  drift: ['Station {n}: drifting. {key:grab} when the ring or the pad-eye is in reach.', 'Station {n}: drifting; grab ({key:grab}) as you reach it.'],
+  stop: ['Station {n}: stop first. Grab a hold ({key:grab}).', 'Station {n}: grab something ({key:grab}) to stop.'],
+  anchor: ['Station {n}: {row} (the panel).', 'Station {n}: on the ring. {row}.'],
+  gun: ['Station {n}: {row} (the panel).', 'Station {n}: the gun, {row}.'],
+  out: ['Station {n}: push off {dir} into the open.', 'Station {n}: off the wall, {dir}, into the open.'],
+  away: ['Station {n}: drifting in the open. Wait for Standby, then one round.', 'Station {n}: let it drift. One round on Standby.'],
+  wait: ['Station {n}: ready. Wait for Standby.', 'Station {n}: set. Wait for the turn.'],
 });
 
 /**
@@ -766,19 +808,92 @@ export const BURN_NCO = deepFreeze({
   warn: ['Burn! Strap in or lock your boots, now!', 'You heard it! Racks or boots, move!'],
   loose: ['Who left gear adrift? That is a missile in a burn.', 'Loose gear! Stow it before the drive lights, every time.'],
   end: ['Secure from burn. Square your gear away.', 'Coasting. Check your kit, check your mates.'],
+  // (the user's score of test-burn: at the warned manoeuvre's warning, as he straps into rack 1 himself)
+  evade: ['Racks! Boots will not hold three G sideways. Strap in!', 'Into your rack and strap in! Your boots are no good for this one.'],
 });
 
 /**
  * v0.0.24 (the fixer of D's review): the instinct's line aboard while test-burn runs, in place of the barracks' day lines ("Free time.
  * Spend it like it costs something." through the 1MC's warning): by the ship's phase, before the warning, warned, and from the onset to
  * the scene's end. No act: R does the scene's acts (burn.js burnOffer). skills/instinct.js offBurn reads them; short is the line's chip word.
+ * v0.0.25's burn polish: `evade` from the warned manoeuvre's warning to its onset (the boots' limit said: only the rack's straps hold 3 G
+ * across the deck), and the barracks' "Up. The rack will still be here tonight." quiet while the scene runs (instinct.js offBurnWoke).
  */
 export const BURN_T = deepFreeze({
-  short: { before: 'Stow', warned: 'Secure', after: 'Hold on' },
+  short: { before: 'Stow', warned: 'Secure', after: 'Hold on', evade: 'Strap in' },
   before: ['Stow your gear; when the 1MC calls it, strap in.', 'Helmet, seabag and rifle case in your locker. Then your rack.'],
   warned: ['Burn coming. Strap in at your rack, or lock your boots.', 'The drive lights soon. Rack or boots, now.'],
   after: ['Stay secured until the drive is quiet.', 'Hold on. The ship is not done with you yet.'],
+  // (the user's score of test-burn: from the warned manoeuvre's warning to its onset, the boots' limit said)
+  evade: ['Hard manoeuvre coming. Your boots will not hold it: strap in at your rack.', 'Three G sideways tears boots off the deck. Rack and straps, now.'],
 });
+
+/**
+ * v0.0.25, "Hold to hold" (its build sheet §1 items 1, 11 and 13; ROADMAP §4.2's 0.0.7e; COMBAT §14.5, §14.8): the Wreck's sequence,
+ * SEQ_HOUSE command for command (handling.js seqOf reads it where the house record carries `ship: 'wreck'`), its readinesses the
+ * house's (MAKE READY's houseStart wants the boots locked too: shoothouse.js houseWant), its words the cadre's in the Shed's gallery:
+ * every line a text bubble at the 1MC speaker of your compartment (the user, 2026-11-19: "forget voice synthesis, no voices."), never a
+ * sound that speaks. No live words: the Wreck has turners and pop-ups only (0.0.7g brings role-players in boots).
+ */
+export const SEQ_WRECK = deepFreeze([
+  { id: 'brief', ready: 'always', say: ['The Wreck. Two decks of a Tharsis-class at zero G: the brig, then down the trunk into the hold. Boots locked, you and your number two. On my GO you clear it hold to hold, every face. Anchor before you fire. Threats down, no-shoots untouched.',
+    'This is the Wreck: deck five, the trunk, deck six, in free fall. You and your number two on your boots. On my GO, every compartment, every face, hold to hold. Anchor before you fire. Threats down, no-shoots alone.'],
+    sayAgain: ['Same Wreck, same rules. Anchor before you fire.', 'Again. Same Wreck. Anchor before you fire.'] },
+  { id: 'load', ready: 'magIn', short: 'Ten rounds, LOAD.', say: ['Frangible. With a magazine of ten, LOAD.', 'Frangible today. Your first magazine, ten rounds. LOAD.'] },
+  { id: 'ready', ready: 'houseStart', short: 'MAKE READY. Boots locked, on safe, low ready.', say: ['MAKE READY. Boots locked, on safe, low ready, on your mark.', 'MAKE READY. On safe, low ready, boots locked, your number two behind you.'] },
+  { id: 'standby', ready: 'goArm', say: ['Standby.', 'The Wreck. Standby.'] },
+  { id: 'go', ready: 'laneDone', say: ['GO!', 'GO, GO, GO!'] },
+  { id: 'stop', ready: 'houseSafe', short: 'Stop. On safe.', say: ['Stop. On safe, finger off.', 'Stop, stop. Make safe.'] },
+  { id: 'clear', ready: 'shown', say: ['UNLOAD, SHOW CLEAR.', 'UNLOAD, SHOW CLEAR to me.'] },
+  { id: 'wash', ready: 'washed', say: ['Weapons clear. Hot wash, right here.', 'The Wreck is clear. Hot wash, where you stand.'],
+    sayEnd: { clear: ['Weapons clear. Hot wash, right here.', 'The Wreck is clear. Hot wash, where you stand.'], other: ['Weapons clear. Hot wash, right here.', 'Guns are clear. Hot wash, where you stand.'] } },
+  { id: 'end', ready: 'never', say: ["That's the Wreck.", 'Done. Off the Wreck.'] },
+]);
+/**
+ * The Wreck's words beside the house's (HOUSE_CHIEF stays the instructor's book; shoothouse.js reads a key here first on the
+ * Wreck's lane): the brief's beside-you line and the gravity (free fall named, never "0.00 G on this deck"), the four faults of the
+ * void (a round fired floating, the open middle, hanging in the hatch, not feet aft at the tug's onset: shoothouse.js houseRules), a
+ * compartment's and a deck's "clear!", the stand's words by its face, and the hot wash's one thing for each fault. Each ≥ 2 phrasings,
+ * picked by hash; text bubbles, never a voice.
+ */
+export const WRECK_CHIEF = deepFreeze({
+  brief: ['Your number two takes your harness at the deck hatch. Through head first, then your boots on the nearest face.', 'At the trunk he holds you, you go through first. Plant your boots before you walk.'],
+  zero: ['Nothing holds you in here but your boots and your hands.', 'Free fall in here: your boots, a hold or your number two, nothing else.'],
+  float: ['Anchor before you fire!', 'You fired floating! Anchor first.'],
+  open: ['Get on a face! Hold to hold.', 'Off the open middle! Hold to hold.'],
+  hatch: ["Don't hang in the hatch!", 'Out of the hatch! You are a target in it.'],
+  aft: ['Feet aft! Boots on the deck.', 'Feet aft! Not on the deckhead in a burn.'],
+  deck: ['Deck {n} clear!', 'Deck {n} clear! Next.'],
+  // (the hot wash after SEQ_WRECK's "Hot wash, where you stand.": nobody sits in free fall (the review of C and D))
+  wash: ['Hot wash. Here is your lane, compartment by compartment.', 'Hot wash. Keep your boots down and look at the board.'],
+  one: {
+    float: ['You fired floating. Boots, a hold or your number two first, then the trigger.', 'A round from nothing pushes you off the line. Anchor, then fire.'],
+    open: ['You hung in the open middle. Hold to hold: a face or a hold always in reach.', 'Nothing in reach is nothing to stop you. Hold to hold, never the middle.'],
+    hatch: ['You hung in the hatch. Through it, plant, then look.', 'The hatch is where they shoot you. Through and onto a face.'],
+    aft: ['The tug found you on the deckhead. At the siren, boots to the deck.', 'Feet aft means boots on the deck before the pull, every time.'],
+  },
+});
+/** The Wreck's legs' words (the card's row word, what the cadre says of it, and its entry), in the lane's order (its build sheet §1 item 13). */
+export const WRECK_LEGS = deepFreeze([
+  { word: 'CELL 2', said: 'cell 2', entry: 'bulkhead hatch', deck: 5 },
+  { word: 'CELL 5', said: 'cell 5', entry: 'bulkhead hatch', deck: 5 },
+  { word: 'THE HOLD', said: 'the hold', entry: 'deck hatch', deck: 6 },
+  { word: 'THE STORE', said: 'the store', entry: 'bulkhead hatch', deck: 6 },
+]);
+/**
+ * The Wreck's set A's roles (its build sheet §5): ten boards, the house's form of id (the leg's number then a letter, two.js legOf's
+ * `stand[0]`), each its face, its trigger (a no-shoot and the hostage facing from GO, every other turning on its compartment's hatch open
+ * and a gap) and its name, the card's word (C2a, H1, S1 …); where each stands, on which face, and which pops are A's (data/places/wreck.js).
+ */
+export const WRECK_ROLES = deepFreeze({
+  '1a': { face: 'threat', trigger: 'door', name: 'C2a' }, '1b': { face: 'noshoot', trigger: 'go', name: 'C2b' },
+  '2a': { face: 'threat', trigger: 'door', name: 'C5a' }, '2b': { face: 'threat', trigger: 'door', name: 'C5b' },
+  '3a': { face: 'threat', trigger: 'door', name: 'H1' }, '3b': { face: 'threat', trigger: 'door', name: 'H2' },
+  '3c': { face: 'noshoot', trigger: 'go', name: 'H3' }, '3d': { face: 'threat', trigger: 'door', name: 'H4' },
+  '4a': { face: 'armoured', trigger: 'door', name: 'S1' }, '4b': { face: 'hostage', trigger: 'go', name: 'S2' },
+});
+/** Words for a deck's number. */
+export const DECK_WORDS = deepFreeze({ 5: 'five', 6: 'six' });
 
 export const VERDICT_WHY = deepFreeze({
   setup: 'a lane set up is no lane', casualty: 'a casualty', hostage: 'the hostage', noshoot: 'a no-shoot', stopped: 'the safety stop', muzzle: 'your muzzle',

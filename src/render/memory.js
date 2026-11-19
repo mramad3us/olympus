@@ -25,6 +25,8 @@
 // you watched) is gone from where you last saw him, so he is hidden, not drawn where he truly is in the dim, until he is in
 // sight again (`gone` on his entry, cleared by the next keep). Out of a combat scene recall is v0.0.22's to the letter: the
 // base's people keep PEOPLE's no-pop box (overhaul question 2's default).
+// v0.0.25's fixer (the play review: the NCO strapped in drawn walking beside rack 1): the view keeps a man in a transition at where it
+// is drawn, not at its end, and one getting into his berth as lying in it, so a berth out of your sight never freezes him half way in.
 // Pure: no DOM, no three.js (node tests drive it on the headless game).
 
 /** recall's answer for a man the view does not draw (see the header). */

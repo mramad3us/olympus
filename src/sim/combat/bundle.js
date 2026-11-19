@@ -195,6 +195,29 @@
 // rows alike, is struck "a charge is on the door" (breach.js CHARGE_ON_WHY); the door beat never waits on a #2 held at his
 // charge safe point, and that hold ends once your leg is another door's. #1's tell reads the door's swing for every way in but
 // the kick ("Opens out" on a pried pull door).
+// v0.0.25, "Hold to hold" (its build sheet §1 B, §3.2, items 3 to 6; COMBAT §14.8, §25.3's `void` family; PL§5 to PL§7): **the void's
+// beats on this engine**. The catalogue is read through one local defOf(id) (a house row's bundleDef, else the void's: drills/void.js
+// VOID_DRILL.muscle) and a beat through beatDefOf (the house's, else the void's), so every house row plans as it did. At a hatch
+// (a plan entered by a deck hatch, plan.hatch the hatch's id: places/hatch.js hatchOf; or a door whose leaf is a 'hatch', the
+// bulkhead's) a row's beats are rewritten by hatchBeats, as the kit's are by kitBeats: on a bulkhead hatch the door beat follows
+// `undog` while it is dogged (the door's how 'undog': UNDOG_MS, no roll, op.js breakOpening, so lockedOf reads it open) and the entry
+// steps over the coaming first (`coaming`, COAMING_MS); on a deck hatch the door beat is `undog` and `lift` (the hatch swung up,
+// OPEN_HATCH_MS) and the entry is the transit and the plant (`hatch`, `plant`): the transit takes your #2's grip on your harness at its
+// start where he stands ready within FOOTING.BUDDY_M of the scuttle ("Got you.": footing.js setAnchor 'buddy' with `via`), waiting on his
+// hand at most TWO_WAIT_MS as the door's hand waits on him, else the coaming's hold one-handed, and changes the deck with you as your
+// eyes pass its plane (places/hatch.js crossHatch, the only writer of a deck change), onto the plan's landing, your height under the far
+// deckhead; the plant swings your boots onto it beside the scuttle and locks them (footing.js lockOnFace: the lock checked against the
+// face before it is written), but waits
+// in the grip while a man is being taken in, so the pause comes on the brace and the pair goes from it. The #2's stack row ends with his hand out (`brace`), his entry with "Through."
+// (`let`) and his own transit and plant, cued by your plant or by the grip let go 0.2 s after your first round from it (entryGo; two.js
+// voidTick lets go). The review of v0.0.25's E, A and B: "Through the hatch" is offered within HATCH_REACH_M of the scuttle (the
+// transit's own reach, places/hatch.js), a transit refused puts your anchor back as it was and says why in your words ("Not through:
+// get to the scuttle."), never crossHatch's; his "Got you." is said once the deck has changed with you, and his lines through the
+// trunk ("Got you.", "Through.") carry the place you hear them, the scuttle on your deck (heardAt), since he stands 60 m off in the plan. A row whose first walk goes to the deck from the deckhead begins with the face change (`onface`, 1.5 s from
+// boots: release, tuck and turn, lock), so "Undog, clear the compartment" from the hold's deckhead goes down to the deck first. A kick at
+// a hatch is struck KICK_VOID_WHY ("no kick in free fall"); in the Wreck the rows are the void's ("Stack on the hatch", "Undog the
+// hatch", "Open the hatch", "Through the hatch", "Undog, clear the compartment"), each run as the house row it names (`as`). Away
+// from a hatch nothing here is read but defOf and beatDefOf, so no house lane moves.
 // v0.0.24's step 5 (AW§4.1 item 5; the build sheet v0.0.24 §1 A): the move kind's struck row. Where the legs have nothing to push
 // on (under 0.05 G and not on locked mag boots: footing.js noFootingWhy; AW measured the house on ship-coast at 4.0 m walked and
 // every room "passed" at 500 s, nothing said), moveStruck(state, pid, rows) strikes every row that would walk (a move single, a
@@ -205,6 +228,14 @@
 // your #2's slot walk holds the same way (runSlot: where noFootingWhy gives him a reason, his move's time is shifted a tick and
 // his place kept), so under 0.05 G only the boots walk, his as yours (the reviewer measured him walking 4.37 m at 0 G in 400
 // ticks while you could not); a drift he shares with a man holding him is free fall's.
+// v0.0.25 (its build sheet §1 E, the carried lens's C1 and §2.1; F4 on drawn houses): **your #2 never holds you in a doorway**. Coming
+// out of a room whose door your running walk is passing (the hall leg from a room clear, on a drawn house with a room north of the
+// hall), his body met your next place at the funnel's edge and the body gap held your walk two ticks in the doorway (the tier one on
+// drawn seed 3; 30 of 200 honest lanes on drawn seeds 1 to 100). zoneGate's pass gate (passGate) holds him where he stands, outside
+// every zone, while his next place would come within the body gap, its guard and a tick of your walk of your walk's places over the
+// next PASS_LOOK_MS 500 inside a live doorway, and where he stands is not: he yields at the edge of your way and goes on once you are
+// past (counted on rec.gate, its holds on rec.gate.pass); one already inside it walks on out, as before. Drawn seeds 1 to 100 by the
+// honest tier one and sergeant: your doorway stops 30 lanes and 3.00 s to none; nothing on the set moves (the house pins).
 // Pure but startBundle, stopBundle, carryOn, startSingle, runSlot, flowIn, flowAfter, crossTick, startleTick and the beat handlers,
 // which write the doing records, the actors, the doors and the facts.
 import { holdTime, releaseTime, TICK_MS } from '../../core/clock.js';
@@ -216,7 +247,7 @@ import { paceOf } from '../skills/skills.js';
 import { check, oddsOf } from '../skills/checks.js';
 import { sheetOf, valueOf, rungOf, offered } from '../skills/templates.js';
 import { legsAt, MOVE_STANCES } from '../body/motion.js';
-import { noFootingWhy } from '../body/footing.js';
+import { noFootingWhy, setAnchor, lockOnFace, bootsLocked, bootsOf, ceilingAt } from '../body/footing.js';
 import { gravityAt } from '../places/env.js';
 import { openingOf, openingArea, openingState, setOpening, leafClosed, areaOf } from '../places/model.js';
 import { DOOR_S, leafAt, LEAF_HOWS, stopAtOf } from '../places/doors.js';
@@ -251,7 +282,11 @@ import { swingFrom, KICK_PULL_WHY } from '../places/swing.js';
 import { locoStep } from '../body/loco.js';
 import { COURSES } from '../../data/courses.js';
 import { houseSpecOf } from '../scenes/assemble.js';
+import { wreckDeckAt } from '../../data/places/wreck.js';
 import { opOf, opRec, brokenOf, breakOpening, sessionOf } from './op.js';
+import { VOID_DRILL, VOID_BUNDLES, VOID_BEATS, voidDef, UNDOG_MS, OPEN_HATCH_MS, THROUGH_MS, COAMING_MS, faceMsOf, KICK_VOID_WHY } from './drills/void.js';
+import { hatchOf, hatchState, setHatch, crossHatch, deckAt, HATCH_REACH_M } from '../places/hatch.js';
+import { VOID, FREEFALL } from '../../data/body/needs.js';
 
 /** The beats' times (see the header), s at pace 1 unless named. */
 export const HIGH_READY_S = 0.3, HIGH_READY_K = 1.15, DOOR_HAND_S = 0.2, PULL_STEP_S = 0.3, KICK_S = 1.2, READ_S = 0.7, CALL_S = 0.8, CALL_FLOW_S = 0.2, MARK_S = 0.6;
@@ -267,6 +302,14 @@ export const KICK_DC_OPEN = 8, FAIL_K = 1.6, RUSH_K = 0.6, RUSH_V = -3;
 export const TWO_SLOT_M = 1.5, TWO_WAIT_MS = 3000;
 /** Your "Clear!" waits on the #2's entry and sweep of the room at most this long (ms; my call), and on his man without limit. */
 export const CLEAR_WAIT_MS = 5000;
+/**
+ * On a ship's lane (the Wreck: R.house.ship) the same wait at the boots' pace (ms): CLEAR_WAIT_MS by the house's combat walk over the
+ * mag boots' (1.23 m/s over 0.5 m/s, 2.5). Before, the tier one's "Clear!" in the store came while his #2 was still on his way to the
+ * threshold at 0.5 m/s, his corner unseen: "Corner! You never looked." on every raider and tier one lane by T (the review of C and D).
+ */
+export const CLEAR_WAIT_SHIP_MS = 12_500;
+// (the cap of the wait on your #2's side of the room: the ship's at the boots' pace, else the house's)
+const clearWaitOf = (state) => (houseOf(state)?.ship ? CLEAR_WAIT_SHIP_MS : CLEAR_WAIT_MS);
 /** The #2 away and not walking to his slot: the hand on the door looks again this often (ms; my call). */
 export const TWO_POLL_MS = 500;
 /** Stacked: within STACK_NEAR_M of the slot's stack point; the door's rows within DOOR_REACH_M of its middle. */
@@ -366,6 +409,79 @@ export const planOf = (state, door) => { if (!door) return null; try { return do
 // (the scene's room records, if the house rides the range session: shoothouse.js R.house.rooms)
 const houseOf = (state) => opOf(state);   // (the operation's record, op.js: the house's on the lane)
 const DONE_ROOM = new Set(['clear', 'passed']);
+
+// ---- v0.0.25, the void's catalogue and the hatch (see the header) ----
+
+/** A row of the catalogue by id, the house's (bundleDef) or the void's (drills/void.js): the one read of both (see the header). */
+export const defOf = (id) => bundleDef(id) ?? voidDef(id);
+/** A beat's definition by id: the house's (ENTER_AND_CLEAR.beats), else the void's (VOID_DRILL.beats). */
+export const beatDefOf = (bid) => ENTER_AND_CLEAR.beats[bid] ?? VOID_DRILL.beats[bid] ?? null;
+/** The deck hatch a plan is entered by (plan.hatch, a hatch's id: places/hatch.js), or null. */
+export const deckHatchOf = (plan) => plan?.hatch ?? null;
+/** Whether an opening is a hatch in a bulkhead (kind 'door', leaf 'hatch': the Wreck's, places/model.js). */
+export const hatchLeaf = (o) => !!o && o.leaf === 'hatch';
+/** Whether a plan is entered by a hatch of either kind (see the header). */
+export const atHatch = (plan) => !!deckHatchOf(plan) || hatchLeaf(plan?.door ? openingOf(plan.door) : null);
+/** A deck hatch's state (see the header): 'dogged' | 'closed' | 'open' (places/hatch.js hatchState's, its 'shut' read 'closed'; the save's, else its data's). */
+export function hatchStateOf(state, id) {
+  const st = hatchState(state, id);
+  return st === 'shut' ? 'closed' : st ?? 'dogged';
+}
+// (a hatch's dogs still on: a deck hatch's by its state, a bulkhead hatch's by its lock)
+const doggedOf = (state, plan) => (deckHatchOf(plan) ? hatchStateOf(state, deckHatchOf(plan)) === 'dogged' : !!plan?.door && lockedOf(state, plan.door));
+// (a hatch shut: a deck hatch not lifted, a bulkhead hatch's leaf not open)
+const shutOf = (state, plan) => (deckHatchOf(plan) ? hatchStateOf(state, deckHatchOf(plan)) !== 'open' : !!plan?.door && openingState(state, plan.door) !== 'open');
+/** Whether a point stands in one of a plan's rooms (its rects: room.js derive's). */
+export const inPlanRooms = (plan, x, z) => (plan?.rects ?? []).some(r => x >= r[0] - 1e-9 && x <= r[2] + 1e-9 && z >= r[1] - 1e-9 && z <= r[3] + 1e-9);
+/** Inside a plan's room (see the header): through a deck hatch, in its rooms on the far deck; else past its threshold (room.js pastThreshold). */
+export const insideOf = (plan, x, z) => (deckHatchOf(plan) ? inPlanRooms(plan, x, z) : pastThreshold(plan, x, z));
+/** The transit's time before its roll (ms): THROUGH_MS × the Zero-g pace (1.3 s for the sergeant). */
+export const throughMsOf = (state, pid) => Math.round(THROUGH_MS * paceOf(rollerOf(state, pid).value('zerog')));
+// (a row's walks that go to a point on the deck: a body on the deckhead changes face first (see the header))
+const DECK_WALKS = Object.freeze(['approach', 'restack', 'back', 'far', 'give', 'front', 'coaming', 'enter']);
+/**
+ * A row's beats rewritten at a hatch (see the header), as kitBeats rewrites them for the kit: a deck hatch's door the dogs and the
+ * lift, its entry the transit and the plant (none of either once through), its read, tell, muzzle and jamb mark dropped; a bulkhead
+ * hatch's door after the dogs while they are on, its entry over the coaming; the face change first where the body stands on the
+ * deckhead and the row walks to the deck. Away from a hatch the void's beats are dropped and a deck body's row is as it was.
+ */
+export function hatchBeats(state, pid, ids, plan) {
+  const deck = deckHatchOf(plan), bulk = hatchLeaf(plan?.door ? openingOf(plan.door) : null), a = actorOf(state, pid);
+  const out = [];
+  if (deck) {
+    const through = !!a && inPlanRooms(plan, a.x, a.z), dg = doggedOf(state, plan), shut = shutOf(state, plan);
+    for (const id of ids) {
+      if (id === 'door') { if (!through) out.push(...(dg ? ['undog'] : []), ...(shut ? ['lift'] : [])); }
+      else if (id === 'enter') { if (!through) out.push('let', 'hatch', 'plant'); }
+      else if (id === 'undog') { if (!through && dg) out.push(id); }
+      else if (id === 'lift') { if (!through && shut) out.push(id); }
+      else if (id === 'hatch' || id === 'brace') { if (!through) out.push(id); }
+      else if (id === 'approach') { if (!through) out.push(id); }
+      else if (id === 'squeeze') { if (!through) out.push('squeeze', 'brace'); }
+      else if (['read', 'tell', 'muzzle', 'mark', 'coaming', 'onface'].includes(id)) continue;
+      else out.push(id);
+    }
+  } else if (bulk) {
+    const dg = doggedOf(state, plan), inside = !!a && pastThreshold(plan, a.x, a.z);
+    for (const id of ids) {
+      if (id === 'door' && dg) out.push('undog', 'door');
+      else if (id === 'undog') { if (dg) out.push(id); }
+      else if (id === 'enter' && !inside) out.push('coaming', 'enter');
+      else if (VOID_BEATS.includes(id) && id !== 'onface') continue;
+      else out.push(id);
+    }
+  } else for (const id of ids) if (!VOID_BEATS.includes(id)) out.push(id);
+  // (from the deckhead to a walk on the deck: the face change first)
+  return a?.onFace === 'deckhead' && out.some(x => DECK_WALKS.includes(x)) ? ['onface', ...out] : out;
+}
+/** A void row's label at its hatch (see the header): '{undog}' the dogs ("Undog"), the lift or the hand ("Open"), or nothing once open; a bulkhead hatch's entry "in: your corner". */
+export function voidLabel(state, B, plan) {
+  let label = B?.label ?? '';
+  if (!label.includes('{undog}')) return label;
+  if (!deckHatchOf(plan)) label = label.replace('through: your face', 'in: your corner');
+  const way = doggedOf(state, plan) ? 'Undog' : shutOf(state, plan) ? 'Open' : null;
+  return way ? label.replace('{undog}', way) : cap(label.replace(/^\{undog\},\s*/, ''));
+}
 /**
  * The lane's door now (see the header): the scene's first room not clear, else (no scene) the plan nearest the actor
  * within 8 m: { door, plan, i, rec } or null.
@@ -478,7 +594,7 @@ export function doorSwing(state, plan, from = null) {
 // (an opening with a hinged leaf to read: a door; a doorway has none)
 const turnsLeaf = (o) => !!o && o.kind !== 'doorway' && Number.isFinite(o.at);
 /** Whether a door may be kicked from the side the plan clears it from: a push door only (see the header). */
-export const kickableOf = (state, plan, from = null) => doorSwing(state, plan, from)?.kickable !== false;
+export const kickableOf = (state, plan, from = null) => doorSwing(state, plan, from)?.kickable !== false && !hatchLeaf(plan?.door ? openingOf(plan.door) : null);
 /**
  * How a bundle opens the plan's door (see the header): the variant asked where the door allows it (a kick on a push door only;
  * push or pull only the way it swings), else a kick on a locked push door, else its swing ('push' with no leaf to read).
@@ -558,7 +674,7 @@ const entryStance = (rung, variant) => variant?.stance ?? (rung >= 3 ? 'assault'
  * with no side swapped it is the slot and the plan is v0.0.18's; a beat and the return carry `side` only where it differs.
  */
 export function planBundle(state, pid, bundleId, { door = null, slot = 1, side = null, variant = {}, rung = rungOf(state, pid, 'room'), atMs = state.clock.ms, from = null, v0 = 0, tempo = 'normal', hurry = false } = {}) {
-  const B = bundleDef(bundleId) ?? taskDef(bundleId);
+  const B = defOf(bundleId) ?? taskDef(bundleId);
   if (!B || B.offeredNow === false) return null;
   const a = actorOf(state, pid), here = from ?? [a?.x ?? 0, a?.z ?? 0], sk = skillsOf(state, pid);
   const lane = laneOf(state), out = [];
@@ -586,9 +702,12 @@ export function planBundle(state, pid, bundleId, { door = null, slot = 1, side =
   // (and from the stack's front point while he still has to reach it, out to the give line first: he never walks into you, and your
   // row is never a wait on a man waiting on you (the review of 2026-11-16: 15 s, both silent))
   const giveFirst = onHim && task.done?.front === undefined && dist(here, stackOf(plan, 1)) < BODY_GAP_M + GAP_GUARD_M;
-  const ids = onHim ? ids0.flatMap(x => (ON_HIM_SKIP.includes(x) ? [] : x === 'enter' ? [...(giveFirst ? ['give'] : []), 'cue', 'enter'] : [x])) : ids0;
+  const ids1 = onHim ? ids0.flatMap(x => (ON_HIM_SKIP.includes(x) ? [] : x === 'enter' ? [...(giveFirst ? ['give'] : []), 'cue', 'enter'] : [x])) : ids0;
+  // (at a hatch the row's beats rewritten (hatchBeats; see the header); a deck body's row away from one is as it was)
+  const ids = atHatch(plan) || a?.onFace === 'deckhead' || ids1.some(x => VOID_BEATS.includes(x)) ? hatchBeats(state, pid, ids1, plan) : ids1;
+  const deck = deckHatchOf(plan);
   // (the feet stop at the stack for a charge, a tool, a bang or a shot breach: the approach never flows into the entry past them)
-  const kitStop = ids.some(x => x === 'place' || x === 'force' || x === 'bang' || x === 'shoot');
+  const kitStop = ids.some(x => x === 'place' || x === 'force' || x === 'bang' || x === 'shoot' || x === 'undog' || x === 'coaming' || x === 'hatch');
   // (v0.0.19: the grenade the bang throws, the count's want (the variant, else '2' from rung 3), the charge the door takes)
   const gModel = bangV ? bangModelOf(state, pid, bangV) : null, cookMs = bangV && bangV !== 'flash' && (variant.cook ?? cookDefault(rung)) === '2' && cookOk(gModel, 2000) ? 2000 : 0;
   const charge = kitHow === 'charge' || kitHow === 'cut' ? chargeFor(state, pid, plan, kitHow) : null;
@@ -597,7 +716,7 @@ export function planBundle(state, pid, bundleId, { door = null, slot = 1, side =
   // (the #2 tops up by himself (COMBAT §25.19.5: a teammate's own decision; "nothing unasked" binds the player's rows))
   const reorg = (slot === 1 ? (variant.reorg ?? 'auto') === 'auto' : slot === 2 && isTwo(state, pid)) && ids.includes('reorg') ? reorgOf(state, pid) : null;
   for (const bid of ids) {
-    const D = ENTER_AND_CLEAR.beats[bid];
+    const D = beatDefOf(bid);
     if (!D) continue;
     if (D.slots && !D.slots.includes(slot)) continue;
     if (D.doer && slot !== by) continue;
@@ -622,8 +741,24 @@ export function planBundle(state, pid, bundleId, { door = null, slot = 1, side =
     const more = Object.entries(AFTER_D2).filter(([k, m]) => m[bid] && ids.includes(k) && (k !== 'cook' || cookMs)).map(([, m]) => m[bid]);
     const after0 = [...(D.after ?? []).map(x => (pullShut && bid === 'door' && x === 'approach@arrive' ? 'approach' : x)), ...more];
     // (a task bundle's hands wait on his walk to the front; your entry on his work waits on its cue)
-    const after = tdef && D.ch === 'hands' && bid !== 'front' ? [...after0, 'front'] : onHim && bid === 'enter' ? [...after0, 'cue', ...(giveFirst ? ['give'] : [])] : after0;
+    const after1 = tdef && D.ch === 'hands' && bid !== 'front' ? [...after0, 'front'] : onHim && bid === 'enter' ? [...after0, 'cue', ...(giveFirst ? ['give'] : [])] : after0;
+    // (through a deck hatch the corner's look from the coaming, after the transit; over a bulkhead hatch's coaming before the entry; every walk after a face change)
+    const after = deck && bid === 'corner' ? ['hatch'] : bid === 'enter' && ids.includes('coaming') ? [...after1, 'coaming'] : bid === 'door' && ids.includes('undog') ? [...after1, 'undog'] : ids[0] === 'onface' && bid !== 'onface' && D.ch === 'feet' ? [...after1, 'onface'] : after1;
     const beat = { key: bid, k: D.k, ch: D.ch, after, cut: !!D.cut, door: plan.door ?? null, plan: dr, slot, ...sideMore, st: 'wait', fromMs: null, untilMs: null, ...(Number.isFinite(D.flowFrom) ? { flowFrom: D.flowFrom } : {}) };
+    // (the void's beats (see the header): their times by drills/void.js, the hatch they work on the beat)
+    if (VOID_BEATS.includes(bid)) {
+      const hz = deck ? { hatch: deck } : {};
+      if (bid === 'undog') Object.assign(beat, { how: 'undog', ...hz, ms: Math.round(UNDOG_MS * k), passMs: Math.round(UNDOG_MS * k) });
+      else if (bid === 'lift') Object.assign(beat, { how: 'hatch', ...hz, ms: Math.round(OPEN_HATCH_MS * k), passMs: Math.round(OPEN_HATCH_MS * k) });
+      else if (bid === 'hatch') Object.assign(beat, { ...hz, ms: throughMsOf(state, pid) });
+      else if (bid === 'plant') Object.assign(beat, { ...hz, to: (deck ? hatchOf(state, deck)?.far?.onFace : null) ?? 'deckhead', ms: faceMsOf(false) });
+      else if (bid === 'onface') Object.assign(beat, { to: 'deck', ms: faceMsOf(bootsLocked(state, pid)) });
+      else if (bid === 'let') Object.assign(beat, { ...hz, ms: Math.round((rung >= 3 ? CALL_FLOW_S : CALL_S) * 1000 * k) });
+      else if (bid === 'coaming') Object.assign(beat, { ms: COAMING_MS });
+      else Object.assign(beat, { ...hz, ms: 0 });
+      out.push(beat);
+      continue;
+    }
     if (bid === 'back') {
       // (v0.0.18: to the safe point on the latch side's wall, the charge's stand-off away (breach.js safePointsOf), at Combat, to rest)
       const sp = safePointsOf(state, plan, charge?.model ?? 'sc1', charge ? { edge: charge.side } : {}), to = sp?.one ?? pos, path = wayOf(state, [pos, to], []), legs2 = legsOf(state, pid, pos[0], pos[1]);
@@ -741,7 +876,8 @@ export function planBundle(state, pid, bundleId, { door = null, slot = 1, side =
   if (!out.length) return null;
   const d = { beats: out, rung, atMs, fromMs: atMs, lanes: {}, subs: [] };
   const sim = simulate(d);
-  const label = onHim ? onHimLabel(B, task) : B.group === 'team' && B.task === 'breach' ? B.label.replace('{how}', variant.breach ?? 'pry') : labelOf(state, B, plan, how, { reorg: !!reorg, bang: ids.includes('bang') ? bangV ?? true : false });
+  const label0 = onHim ? onHimLabel(B, task) : B.group === 'team' && B.task === 'breach' ? B.label.replace('{how}', variant.breach ?? 'pry') : labelOf(state, B, plan, how, { reorg: !!reorg, bang: ids.includes('bang') ? bangV ?? true : false });
+  const label = B.family === 'void' ? voidLabel(state, B, plan) + (reorg ? ' · top up on the way' : '') : label0;
   return { beats: out, ms: sim, seams: [], odds, rung, door: dr, slot, ...sideMore, reorg: !!reorg, variant: { breach: null, entry: lane?.plans?.[dr]?.entry ?? null, stance: entryStance(rung, variant), ...variant }, label };
 }
 // ---- v0.0.19, the team's planning (team.js; TEAM 2 to 4) ----
@@ -920,6 +1056,8 @@ registerKind('aim:point', {
 registerKind('door', {
   run(state, bus, d, b, atMs) {
     if (dry(d)) return { ms: b.ms, passMs: b.passMs };
+    // (a hatch's dogs and a deck hatch's lift (see the header): their fixed times, no roll)
+    if (b.how === 'undog' || (b.how === 'hatch' && b.hatch)) return hatchHand(state, bus, d, b, atMs);
     const o = openingOf(b.door);
     if (!o) return { ms: 0, ok: true };
     if (openingState(state, o) === 'open' && leafAt(state, o.id, atMs) >= 1) return { ms: 0, passMs: 0, ok: true, routine: true, text: 'The door is open.' };
@@ -967,6 +1105,165 @@ registerKind('door', {
     return { ms, passMs, ok, grade, routine, text: b.how === 'kick' ? 'Kicked in.' : b.how === 'pull' ? 'Pulled open.' : 'Pushed open.' };
   },
 });
+// ---- v0.0.25, the void's beats (see the header) ----
+
+// (the dogs off a hatch, or a deck hatch lifted: a bulkhead hatch's lock broken (op.js breakOpening: lockedOf reads it open), a deck
+// hatch's state the place's (places/hatch.js setHatch: 'shut' once undogged, 'open' once lifted), written at the beat's start)
+function hatchHand(state, bus, d, b, atMs) {
+  const id = b.hatch ?? b.door;
+  if (!id) return { ms: 0, ok: true, routine: true };
+  if (b.how === 'undog') {
+    if (b.hatch) { if (hatchStateOf(state, id) === 'dogged') setHatch(state, id, 'shut', { atMs }); }
+    else if (lockedOf(state, id)) breakOpening(state, id, atMs);
+    return { ms: b.ms, passMs: b.ms, ok: true, routine: true, text: 'Dogs off.' };
+  }
+  const st = hatchStateOf(state, id);
+  if (st === 'dogged') return { ms: handMsOf(state, d.who), ok: false, halt: 'refused', again: true, text: 'Dogged. Undog it.' };
+  if (st !== 'open') setHatch(state, id, 'open', { atMs });
+  return { ms: b.ms, passMs: b.ms, ok: true, routine: true, text: 'Hatch up.' };
+}
+// (the transit's look for your #2's hand while it waits on it, ms (my call: two ticks))
+const BRACE_POLL_MS = 100;
+// (the landing a transit puts you on: the plan's point within this of where the cut leaves you, m (my call: a step))
+const LANDING_M = 0.5;
+// (the anchor's fields a refused transit puts back as they were)
+const ANCHOR_FIELDS = Object.freeze(['anchor', 'anchorRef', 'anchorAt', 'anchorVia']);
+/** A transit refused out of the trunk's reach, and for any other reason, in the player's words (v0.0.25's review: crossHatch's own reasons are internal). */
+export const THROUGH_REACH_WHY = 'Not through: get to the scuttle.', THROUGH_WHY = 'Not through: the hatch is not clear.';
+/** Whether a person is within a deck hatch's reach, places/hatch.js HATCH_REACH_M of either end's centre (crossHatch's own): the one reach "Through the hatch" is offered and run by (v0.0.25's review). */
+export function throughInReach(state, pid, hatchId) {
+  const a = actorOf(state, pid), H = hatchOf(state, hatchId);
+  if (!a || !H?.far) return false;
+  return [H.at, H.far.at].some(e => dist([a.x, a.z], e) <= HATCH_REACH_M + 1e-9);
+}
+/**
+ * Where a line said through a deck hatch is heard (v0.0.25's review): { at: { x, y, z } } the hatch's end on your deck, under its
+ * deckhead or over its deck, where you and the speaker are on different decks of it (places/hatch.js deckAt); else {} (heard at him).
+ */
+export function heardAt(state, whoPid, hatchId) {
+  const H = hatchOf(state, hatchId), me = playerActor(state), him = actorOf(state, whoPid), area = state.places?.live?.area;
+  if (!H?.far || !me || !him || !area) return {};
+  const mine = deckAt(area, me.x, me.z);
+  if (mine === null || mine === deckAt(area, him.x, him.z)) return {};
+  const end = H.deck === mine ? H : H.far, y = end.onFace === 'deckhead' ? (ceilingAt(state, end.at[0], end.at[1]) ?? 2.2) : 0;
+  return { at: { x: end.at[0], y, z: end.at[1] } };
+}
+// (your #2 ready to take your harness at this deck hatch: his hand out (his `brace` beat), within BUDDY_M of you through the hatch,
+// on his own locked boots, and not on a man of his own)
+function braceReady(state, pid, hatch) {
+  const W = houseOf(state)?.two;
+  if (!W?.pid || W.pid === pid || W.brace?.hatch !== hatch || W.contact || W.eng) return null;
+  return bootsLocked(state, W.pid) ? W.pid : null;
+}
+// (the transit (see the header): the Zero-g roll, your boots off, the grip or the coaming's hold, the deck changed with you)
+registerKind('hatch', {
+  run(state, bus, d, b, atMs) {
+    if (dry(d)) return { ms: b.ms };
+    const a = actorOf(state, d.who), H = b.hatch ? hatchOf(state, b.hatch) : null;
+    if (!a || !H) return { ms: 0, ok: false, halt: 'refused', text: 'No hatch here.' };
+    const st = hatchStateOf(state, b.hatch);
+    if (st !== 'open') return { ms: handMsOf(state, d.who), ok: false, halt: 'refused', again: true, text: st === 'dogged' ? 'Dogged. Undog it.' : 'The hatch is shut.' };
+    // (your #2 on the lane and his hand not out yet: the transit waits for it, as the door's hand waits on him (the door kind), at most
+    // TWO_WAIT_MS from the first try, looked at every BRACE_POLL_MS; then through on the coaming's hold, asked once a hatch)
+    const W = houseOf(state)?.two, key = `brace:${b.hatch}`;
+    if (d.who === playerId(state) && W?.pid && W.pid !== d.who && !braceReady(state, d.who, b.hatch) && !askedOf(state)[key]) {
+      const by = (b.braceFromMs ??= atMs) + TWO_WAIT_MS;
+      if (atMs < by) return { ms: Math.max(TICK_MS, Math.min(by, atMs + BRACE_POLL_MS) - atMs), ok: true, routine: true, again: true, text: 'His hand.' };
+      askedOf(state)[key] = atMs;
+    }
+    // (out of the trunk's reach (places/hatch.js HATCH_REACH_M, crossHatch's own): refused before anything is let go, in your words)
+    if (!throughInReach(state, d.who, b.hatch)) return { ms: 0, ok: false, halt: 'refused', text: THROUGH_REACH_WHY };
+    const roller = rollerOf(state, d.who), r = check(stream(state.meta.seed, 'void:through', d.who, atMs), { skill: 'zerog', value: roller.value('zerog'), dc: VOID.THROUGH_DC, mods: roller.mods('zerog'), tempo: d.tempo ?? 'normal', by: d.who, verb: null });
+    const missed = r.ok ? 0 : Math.max(1, -r.margin), ms = b.ms + missed * VOID.THROUGH_MISS_MS;
+    // (your boots off the plate; his grip on your harness taken now where he stands ready; else a hand on the coaming. Your anchor as
+    // it was kept, to put back if the deck will not change)
+    const was = ANCHOR_FIELDS.map(k => a[k]);
+    if (bootsLocked(state, d.who)) setAnchor(state, d.who, null);
+    const two = braceReady(state, d.who, b.hatch), took = two ? setAnchor(state, d.who, 'buddy', { ref: two, via: b.hatch }).ok : false;
+    // (the deck changed with you as your eyes pass its plane (places/hatch.js crossHatch: the only writer), your height under the far deckhead;
+    // refused (a path in flight, the trunk shut meanwhile), your anchor put back exactly as it was and the refusal said in your words)
+    const x = crossHatch(state, bus, b.hatch, [d.who]);
+    if (!x.ok) { ANCHOR_FIELDS.forEach((k, i) => { if (was[i] === undefined) delete a[k]; else a[k] = was[i]; }); return { ms: 0, ok: false, halt: 'refused', text: THROUGH_WHY }; }
+    // (his "Got you." once you are through, heard at the scuttle on your deck: he is on the other, 60 m off in the plan)
+    if (took) { const W = houseOf(state).two; W.brace = { ...W.brace, atMs, one: d.who }; bus?.emit('say', { who: two, text: 'Got you.', kind: 'speech', durMs: 800, ...heardAt(state, two, b.hatch) }); }
+    // (onto the plan's landing beside the scuttle on the far face, a step from where the cut put you (the wipe covers it))
+    const P = planOf(state, b.plan), pt = P ? pointOf(P, b.side ?? b.slot ?? 1) : null;
+    if (pt && dist([a.x, a.z], pt) <= LANDING_M) { a.x = pt[0]; a.z = pt[1]; a.$px = a.x; a.$pz = a.z; if (Array.isArray(a.anchorAt)) a.anchorAt = [q(a.x, 0.001), q(a.z, 0.001)]; }
+    a.floatY = q((ceilingAt(state, a.x, a.z) ?? 2.2) - FREEFALL.FLOAT_Y_M, 0.001);
+    delete a.v; delete a.push; delete a.tumble; delete a.onFace;
+    if (!took) { a.anchor = 'handhold'; a.anchorAt = [q(a.x, 0.001), q(a.z, 0.001)]; delete a.anchorRef; delete a.anchorVia; }
+    a.locoMs = atMs;
+    return { ms, ok: r.ok, grade: r.grade, routine: false, text: took ? 'Through, in his grip.' : 'Through, a hand on the coaming.' };
+  },
+});
+// (a face changed (see the header): the boots to the other face, by a hold, locked at the end; the body held by its hand throughout)
+function faceStart(state, d, b, atMs) {
+  const a = actorOf(state, d.who);
+  if (!a) return;
+  a.faceTo = b.to;
+  if (a.anchor !== 'buddy') { a.anchor = 'handhold'; a.anchorAt = [q(a.x, 0.001), q(a.z, 0.001)]; delete a.anchorRef; delete a.anchorVia; }
+  a.locoMs = atMs;
+}
+function faceEnd(state, bus, d, b, cut) {
+  const a = actorOf(state, d.who);
+  if (!a) return;
+  delete a.faceTo;
+  if (cut) return;
+  // (the lock checked against the face it goes to before the face is written (footing.js lockOnFace; v0.0.25's review): refused,
+  // the face is as it was)
+  const r = lockOnFace(state, d.who, b.to);
+  if (!r.ok && d.who === playerId(state)) bus?.emit('line', { text: `The magnets find nothing: ${r.why}.`, kind: 'warn' });
+}
+registerKind('plant', {
+  run(state, bus, d, b, atMs) {
+    if (dry(d)) return { ms: b.ms };
+    // (a man being taken in as you come through: the plant waits in his #2's grip, so the pause comes on the brace and the pair goes
+    // from it ("Pair · braced (#2) · 420 ms"), the plant after (see the header); looked at every tick, nothing new started meanwhile)
+    if (d.who === playerId(state) && state.mind?.contact?.pending && actorOf(state, d.who)?.anchor === 'buddy') return { ms: TICK_MS, ok: true, routine: true, again: true };
+    faceStart(state, d, b, atMs);
+    return { ms: b.ms, ok: true, routine: true, text: b.to === 'deckhead' ? 'Boots to the deckhead.' : 'Boots to the deck.' };
+  },
+  // (C's lane, v0.0.25: a plant under way that its row's hand-back cuts (an inner door's "Hold it?" asked over it, a contact's halt)
+  // is made all the same: the boots were already swinging to the face, and cut there the body was left on the coaming's hold, off every
+  // face, which no later row could walk (the tier one on 48213, the hold passed by the stall); a plant not yet begun stays cut)
+  end(state, bus, d, b, { cut }) { if (!dry(d)) faceEnd(state, bus, d, b, cut && !actorOf(state, d.who)?.faceTo); },
+});
+registerKind('onface', {
+  run(state, bus, d, b, atMs) {
+    if (dry(d)) return { ms: b.ms };
+    // (timed from where the boots are now: 1.5 s from locked boots, 1.2 s from a hold)
+    const ms = faceMsOf(bootsLocked(state, d.who));
+    faceStart(state, d, b, atMs);
+    return { ms, ok: true, routine: true, text: b.to === 'deckhead' ? 'Boots to the deckhead.' : 'Boots to the deck.' };
+  },
+  end(state, bus, d, b, { cut }) { if (!dry(d)) faceEnd(state, bus, d, b, cut); },
+});
+// (your #2's hand out for your harness (see the header))
+registerKind('brace', {
+  run(state, bus, d, b, atMs) { if (!dry(d)) { const W = houseOf(state)?.two; if (W?.pid === d.who && b.hatch) W.brace = { hatch: b.hatch, readyMs: atMs }; } return { ms: 0, ok: true, routine: true }; },
+});
+// (his "Through.": the grip let go if it is still on you, said once a transit)
+registerKind('let', {
+  run(state, bus, d, b, atMs) {
+    if (dry(d)) return { ms: b.ms };
+    return voidLet(state, bus, d.who, atMs) ? { ms: b.ms, ok: true, routine: true, text: 'Through.' } : { ms: 0, ok: true, routine: true };
+  },
+});
+/**
+ * Your #2 lets go of your harness (see the header): the grip let go where it is still on #1 (his hand on the coaming in its place),
+ * "Through." said, the brace's record closed. Returns whether anything was let go or said. Called by his `let` beat and by two.js
+ * voidTick (0.2 s after your first round from the grip).
+ */
+export function voidLet(state, bus, twoPid, atMs = state.clock.ms) {
+  const W = houseOf(state)?.two, br = W?.pid === twoPid ? W.brace : null;
+  if (!br || br.let !== undefined) return false;
+  const one = br.one ? actorOf(state, br.one) : null;
+  if (one?.anchor === 'buddy' && one.anchorRef === twoPid) { one.anchor = 'handhold'; one.anchorAt = [q(one.x, 0.001), q(one.z, 0.001)]; delete one.anchorRef; delete one.anchorVia; }
+  br.let = atMs;
+  bus?.emit('say', { who: twoPid, text: 'Through.', kind: 'speech', durMs: 800, ...heardAt(state, twoPid, br.hatch) });
+  return true;
+}
+registerKind('coaming', { run(state, bus, d, b) { return { ms: b.ms, ok: true, routine: true, text: 'Over the coaming.' }; } });
 registerKind('scan', {
   run(state, bus, d, b, atMs) {
     if (dry(d)) return { ms: b.ms };
@@ -1002,8 +1299,8 @@ registerKind('call', {
       const sweeping = !!a2 && !two.swept?.[b.plan] && (two.doing?.door === b.plan || (plan && pastThreshold(plan, a2.x, a2.z)));
       // (the wait on his sweep ends with his group's planned end, never later than CLEAR_WAIT_MS, a tick at least: a half-second
       // poll called the room up to 0.25 s after his "Clear!" (the fixer's second pass of 0.0.12))
-      if (!onMan && sweeping && atMs - from < CLEAR_WAIT_MS) {
-        const end = Math.min(from + CLEAR_WAIT_MS, Number.isFinite(two.doing?.untilPlanMs) && two.doing.untilPlanMs > atMs ? two.doing.untilPlanMs : atMs + TICK_MS);
+      if (!onMan && sweeping && atMs - from < clearWaitOf(state)) {
+        const end = Math.min(from + clearWaitOf(state), Number.isFinite(two.doing?.untilPlanMs) && two.doing.untilPlanMs > atMs ? two.doing.untilPlanMs : atMs + TICK_MS);
         return { ms: Math.max(TICK_MS, end - atMs), ok: true, routine: true, again: true, text: null };
       }
       // (on his man at most CLEAR_HOLD_MS, as the gate's wait: then handed back, "Your two's on a man.", the call still to come
@@ -1047,7 +1344,7 @@ registerKind('call', {
       const two = houseOf(state)?.two ?? null, from = (b.roomFromMs ??= atMs);
       const owed = !!two?.doing && two.doing.door === b.plan && !two.swept?.[b.plan] && (two.doing.beats ?? []).some(x => x.key === 'clear' && x.st !== 'done');
       // (the call's own length kept through the wait, which the stepper writes over with each tick's)
-      if (owed && atMs - from < CLEAR_WAIT_MS) { b.roomMs ??= b.ms; return { ms: TICK_MS, ok: true, routine: true, again: true, text: null }; }
+      if (owed && atMs - from < clearWaitOf(state)) { b.roomMs ??= b.ms; return { ms: TICK_MS, ok: true, routine: true, again: true, text: null }; }
       if (b.roomMs !== undefined) { b.ms = b.roomMs; delete b.roomMs; }
       delete b.roomFromMs;
     }
@@ -1774,14 +2071,17 @@ const laneCount = (beats) => beats.reduce((o, b) => ((o[b.ch] = (o[b.ch] ?? 0) +
 export function bundleRows(state, pid = playerId(state), ms = state.clock.ms) {
   const here = doorNow(state, pid);
   if (!here) return [];
-  const rung = rungOf(state, pid, 'room'), out = [];
+  // (at a hatch the void's rows, at the void's rung, each run as the house row it names (see the header))
+  const hz = atHatch(here.plan), CAT = hz ? VOID_BUNDLES : BUNDLES;
+  const rung = rungOf(state, pid, hz ? 'void' : 'room'), out = [];
   // (the review of the hunt fixes: a charge placed or primed on the shut leaf is the way in. Yours: the room's rows go by it
   // (@charge, @cut for a BC-1) whatever way was set, and the cycle offers no other (breachWays); every row that would open the leaf
   // another way is struck CHARGE_ON_WHY below. With the strike on the door's singles only, "Clear the room" @push, @kick or @pry
   // stayed live, T named it, and it opened the door over the SC-1: the lane ended "a charge left on a door")
   const leaf = here.plan.door ? chargeOnLeaf(state, pid, here.plan) : null;
   const variant = leaf?.mine ? { ...variantHere(state, pid), breach: leaf.how } : variantHere(state, pid);
-  for (const B of BUNDLES) {
+  for (const B of CAT) {
+    if (B.offeredNow === 'body') continue;
     // (v0.0.18, the kit's rows (see the header): live where the kit carries what they need, struck by the door's swing; else as
     // before: the breach struck "no charge issued", at a pull door "Pry it" struck "not issued" in its place, the rest not shown)
     if (B.offeredNow === 'kit' || B.offeredNow === 'locked') { const r = kitRow(state, pid, B, here, rung, variant, ms); if (r) out.push(r); continue; }
@@ -1790,18 +2090,18 @@ export function bundleRows(state, pid = playerId(state), ms = state.clock.ms) {
     if (B.single || B.offeredNow === false) continue;
     // (each where it applies: the stack before the door is open, In before you are in, Dominate inside, the room's row from
     // wherever the room is still ahead)
-    if (!groupApplies(state, pid, B.id, here)) continue;
+    if (!groupApplies(state, pid, B.as ?? B.id, here)) continue;
     const id = `drill:${B.id}${variantTag(variant)}>${here.door}`, base = { id, kind: 'bundle', group: B.group, slot: B.slot, rung: B.rung, door: here.door, bundle: B.id, cmd: false, skill: null, carefulMs: null };
     // (a row not built yet here: the breach with no charge issued (COMBAT §25.19.11 question 3's default))
     if (B.offeredNow === 'struck') {
       if (!here.plan.door || openingState(state, here.plan.door) === 'open') continue;
-      out.push({ ...base, label: B.label, ms: null, rushMs: null, odds: null, routine: true, off: B.needs === 'charge' ? 'no charge issued' : 'not issued', struck: true, subs: [], beats: [], seams: [], variant: {}, lanes: {}, lead: false, later: true });
+      out.push({ ...base, label: B.label, ms: null, rushMs: null, odds: null, routine: true, off: B.off ?? (B.needs === 'charge' ? 'no charge issued' : 'not issued'), struck: true, subs: [], beats: [], seams: [], variant: {}, lanes: {}, lead: false, later: true });
       continue;
     }
     // (above the rung: greyed with the rung that runs it, never hidden, paged last)
     if (B.rung > rung) {
       const how = breachOf(state, here.plan, variant.breach, null, pid);
-      out.push({ ...base, label: labelOf(state, B, here.plan, how, { bang: variant.bang === 'flash' && kitHas(state, pid, 'flashbang') }), ms: null, rushMs: null, odds: null, routine: true, off: `rung ${B.rung}`, struck: true, subs: [], beats: [], seams: [], variant: {}, lanes: {}, lead: false, later: true });
+      out.push({ ...base, label: B.family === 'void' ? voidLabel(state, B, here.plan) : labelOf(state, B, here.plan, how, { bang: variant.bang === 'flash' && kitHas(state, pid, 'flashbang') }), ms: null, rushMs: null, odds: null, routine: true, off: `rung ${B.rung}`, struck: true, subs: [], beats: [], seams: [], variant: {}, lanes: {}, lead: false, later: true });
       continue;
     }
     const plan = planBundle(state, pid, B.id, { door: here.door, rung, variant, atMs: ms });
@@ -1927,7 +2227,7 @@ export function useLaneFive(fn) { laneFive.fn = typeof fn === 'function' ? fn : 
 export const BANG_NAMES = Object.freeze({ none: 'No bang', flash: 'Flash', frag: 'Frag', conc: 'Concussion' });
 export const COOK_WORDS = Object.freeze({ on: 'Cook 2 ⇄ Throw at once', off: 'Throw at once ⇄ Cook 2' });
 // (a row the rung's own: its rung's, rung 2's three groups (COMBAT §25.19.2.3), from rung 3 the room's)
-const leadOf = (B, rung) => (rung >= 3 ? B.id === 'room:clear' : rung === 2 ? ENTER_AND_CLEAR.groups.flat().includes(B.id) : B.rung === rung);
+const leadOf = (B, rung) => (rung >= 3 ? (B.as ?? B.id) === 'room:clear' : rung === 2 ? (B.family === 'void' ? VOID_DRILL.groups : ENTER_AND_CLEAR.groups).flat().includes(B.id) : B.rung === rung);
 const GROUP_RANK = (g) => { const i = ['stack', 'door', 'room', 'shot', 'weapon', 'team'].indexOf(g); return i < 0 ? 9 : i; };
 const cap = (w) => w.charAt(0).toUpperCase() + w.slice(1);
 /** The movement stances in the words of what they trade (DESIGN.md's log, 2026-11-11: the user's "don't know what the assault <-> combat option is supposed to mean"; COMBAT §25.19.2): Careful (Combat), Fast (Assault). */
@@ -2102,12 +2402,12 @@ function teamRows(state, pid, B, here, rung, ms) {
 // (whether a row applies where the lane stands: the stack rows outside before the door is open, In at the door, Dominate
 // inside, the room's row while the room is ahead of you)
 function groupApplies(state, pid, id, here) {
-  const open = here.plan.door ? openingState(state, here.plan.door) === 'open' : true, a = actorOf(state, pid), inside = a ? pastThreshold(here.plan, a.x, a.z) : false;
+  const open = here.plan.door ? openingState(state, here.plan.door) === 'open' : deckHatchOf(here.plan) ? !shutOf(state, here.plan) : true, a = actorOf(state, pid), inside = a ? insideOf(here.plan, a.x, a.z) : false;
   const ahead = !here.rec || !here.rec.state || here.rec.state === 'ahead' || here.rec.state === 'stacked';
   const me = a ? [a.x, a.z] : null, o = here.plan.door ? openingOf(here.plan.door) : null;
   const stacked = !!me && dist(me, stackOf(here.plan, 1)) <= STACK_NEAR_M, atDoor = stacked || (!!me && !!o && dist(me, doorMid(o)) <= DOOR_REACH_M && latchSideOk(state, here.plan, me));
   if (id === 'room:clear') return ahead || !inside;
-  if (id === 'stack:point') return !open && !inside && !stacked && !!here.plan.door;
+  if (id === 'stack:point') return !open && !inside && !stacked && (!!here.plan.door || !!deckHatchOf(here.plan));
   if (id === 'door:breach') return !open && !inside && atDoor;
   // (In: from the door, never from down the hall: the door is its first beat, the hand on the leaf)
   // (v0.0.19: and from the give line while your #2 works the door (team.js taskOf): your entry waits on his work)
@@ -2129,11 +2429,23 @@ export function singleRows(state, pid = playerId(state), ms = state.clock.ms) {
   // (v0.0.19: a live grenade on the floor near you (a slip at your feet): "Get clear", the run away from it (clearOf))
   const gc = clearOf(state, pid, a);
   if (gc) { const way = wayOf(state, [[a.x, a.z], gc.to]), legs = legsOf(state, pid), P = profileOf(pathLen(way), legs.walk[a.moveStance === 'assault' ? 'assault' : 'combat'], legs.pushMs2, legs.brakeMs2); out.push(row('move:clear', 'move', 'Get clear of the grenade', P.T * 1000, { to: gc.to, path: way, group: 'body' })); }
-  const inside = pastThreshold(plan, a.x, a.z), stack = stackOf(plan, 1), stacked = dist(me, stack) <= STACK_NEAR_M;
+  const inside = insideOf(plan, a.x, a.z), stack = stackOf(plan, 1), stacked = dist(me, stack) <= STACK_NEAR_M;
   const open = plan.door ? openingState(state, plan.door) === 'open' : true;
+  // (at a hatch the void's Stack up, "Stack on the hatch" (see the header))
+  const su = atHatch(plan) ? 'void:stack' : 'stack:up';
   if (!inside && !stacked && !(here.rec && here.rec.state === 'entered')) {
-    const p = planBundle(state, pid, 'stack:up', { door: here.door, rung, atMs: ms, variant: variantHere(state, pid) });
-    if (p) out.push(row(`drill:stack:up>${here.door}`, 'bundle', p.label, p.ms, { beats: p.beats.map(b => ({ id: b.key, k: b.k, ch: b.ch, ms: b.ms })), bundle: 'stack:up', single: true, group: 'stack', slot: 0, reorg: p.reorg }));
+    const p = planBundle(state, pid, su, { door: here.door, rung, atMs: ms, variant: variantHere(state, pid) });
+    if (p) out.push(row(`drill:${su}>${here.door}`, 'bundle', p.label, p.ms, { beats: p.beats.map(b => ({ id: b.key, k: b.k, ch: b.ch, ms: b.ms })), bundle: su, single: true, group: 'stack', slot: 0, reorg: p.reorg }));
+  }
+  // (a deck hatch's rows within reach of it, not yet through: Undog the hatch while dogged, Open the hatch (struck "dogged"
+  // while it is), Through the hatch once it is up; each its fixed time, the transit's before its roll)
+  const dh = deckHatchOf(plan), H0 = dh ? hatchOf(state, dh) : null;
+  if (H0 && !inside && dist(me, H0.at) <= DOOR_REACH_M) {
+    const st = hatchStateOf(state, dh);
+    if (st === 'dogged') out.push(row(`door:undog>${dh}`, 'door', voidDef('void:undog').label, UNDOG_MS, { how: 'undog', group: 'door', slot: 0 }));
+    if (st !== 'open') out.push(row(`door:hatch>${dh}`, 'door', voidDef('void:open').label, OPEN_HATCH_MS, { how: 'hatch', group: 'door', slot: 1, off: st === 'dogged' ? 'dogged' : null }));
+    // (Through within the transit's own reach of the scuttle, HATCH_REACH_M (v0.0.25's review: offered to 1.5 m, refused past 1.2))
+    else if (throughInReach(state, pid, dh)) out.push(row(`door:through>${dh}`, 'door', voidDef('void:through').label, throughMsOf(state, pid), { how: 'through', group: 'door', slot: 2, skill: 'zerog', routine: false }));
   }
   // (the door's rows: by its swing, a lock striking push and pull, a pull door's kick struck "opens toward you"; within reach of
   // its middle (the user, 2026-11-15: a door's swing "should affect our options for entry"))
@@ -2145,7 +2457,10 @@ export function singleRows(state, pid = playerId(state), ms = state.clock.ms) {
     const side = latchSideOk(state, plan, me) ? null : 'from the latch side';
     // (the hunt of v0.0.18: a charge on the leaf strikes the door's hand (breach.js CHARGE_ON_WHY): its row finishes the breach)
     const charged = placedOn(state, o.id) ? CHARGE_ON_WHY : null, kr = kickRow(state, pid, row, o, sk, rung, sw, { group: 'door', slot: 2 });
-    out.push(row(`door:${how}>${o.id}`, 'door', `${MUSCLE['door:open'].label}: ${how}`, t.ms, { off: locked ? 'locked' : side ?? charged, how, group: 'door', slot: 1, swing: swingNote(sw) }));
+    // (a bulkhead hatch's dogs first, "Undog the hatch", its Open struck "dogged" while they are on (see the header))
+    const hz = hatchLeaf(o);
+    if (hz && locked) out.push(row(`door:undog>${o.id}`, 'door', voidDef('void:undog').label, UNDOG_MS, { how: 'undog', group: 'door', slot: 0 }));
+    out.push(row(`door:${how}>${o.id}`, 'door', `${hz ? voidDef('void:open').label : MUSCLE['door:open'].label}: ${how}`, t.ms, { off: locked ? (hz ? 'dogged' : 'locked') : side ?? charged, how, group: 'door', slot: 1, swing: swingNote(sw) }));
     out.push(charged && !kr.off ? { ...kr, off: charged } : kr);
     if (!opOf(state)?.read?.[o.id]) out.push(row(`door:read>${o.id}`, 'door', MUSCLE['door:read'].label, READ_S * paceOf(sk.awr) * 1000, { how: 'read', group: 'door', slot: 0, words: sw?.words ?? null }));
   }
@@ -2167,7 +2482,11 @@ export function singleRows(state, pid = playerId(state), ms = state.clock.ms) {
     const st = innerStandOf(state, plan, id), walk = st && dist(me, st) > STACK_NEAR_M ? wayOf(state, [me, st]) : null;
     const wMs = walk ? (() => { const legs = legsOf(state, pid); return profileOf(pathLen(walk), legs.walk.combat, legs.pushMs2, legs.brakeMs2).T * 1000; })() : 0;
     const walkOf = (r) => (walk && !r.off ? { ...r, ms: Math.round(r.ms + wMs), walk } : r);
-    out.push(row(`door:${how}>${id}`, 'door', `${MUSCLE['door:open'].label}: ${how}`, t.ms, { off: lockedOf(state, id) ? 'locked' : null, how, inner: true, group: 'door', swing: swingNote(sw) }));
+    // (an inner hatch's dogs first ("Undog the hatch"), struck "dogged for good" on a hatch the cadre never opens (its `offered`
+    // false: the brig's four shut cells), its Open struck "dogged" while they are on (see the header))
+    const ih = hatchLeaf(io), il = lockedOf(state, id);
+    if (ih && il) out.push(row(`door:undog>${id}`, 'door', voidDef('void:undog').label, UNDOG_MS, { how: 'undog', inner: true, group: 'door', off: io.offered === false ? 'dogged for good' : null }));
+    out.push(row(`door:${how}>${id}`, 'door', `${ih ? voidDef('void:open').label : MUSCLE['door:open'].label}: ${how}`, t.ms, { off: il ? (ih ? 'dogged' : 'locked') : null, how, inner: true, group: 'door', swing: swingNote(sw) }));
     out.push(kickRow(state, pid, row, io, sk, rung, sw, { inner: true, group: 'door' }));
     // (v0.0.18: the halligan on an inner door, either swing, the lock's DC less its dcK (the closet: 14 − 4 = 10), when the kit carries it)
     if (kitHas(state, pid, 'halligan')) {
@@ -2303,8 +2622,9 @@ export function latchSideOk(state, plan, at) {
 }
 // (a door's Kick row: live on a push door with its odds (Fitness against the door's DC), struck KICK_PULL_WHY on a pull door)
 function kickRow(state, pid, row, o, sk, rung, sw, more = {}) {
-  const t = doorS(sk.wh, 'kick', rung, o.openS ?? DOOR_S), kick = sw?.kickable !== false;
-  return row(`door:kick>${o.id}`, 'door', MUSCLE['door:kick'].label, t.ms, { odds: kick ? kickOdds(state, pid, o.id) : null, routine: !kick, skill: kick ? 'fitness' : null, how: 'kick', off: kick ? null : sw?.kickWhy ?? KICK_PULL_WHY, ...more });
+  // (a hatch's Kick struck KICK_VOID_WHY, "no kick in free fall" (see the header))
+  const t = doorS(sk.wh, 'kick', rung, o.openS ?? DOOR_S), hz = hatchLeaf(o), kick = sw?.kickable !== false && !hz;
+  return row(`door:kick>${o.id}`, 'door', hz ? voidDef('void:kick').label : MUSCLE['door:kick'].label, t.ms, { odds: kick ? kickOdds(state, pid, o.id) : null, routine: !kick, skill: kick ? 'fitness' : null, how: 'kick', off: kick ? null : hz ? KICK_VOID_WHY : sw?.kickWhy ?? KICK_PULL_WHY, ...more });
 }
 // (what a door's row carries of its swing for the face and the tests: { how, hinge, words })
 const swingNote = (sw) => (sw ? { how: sw.how, hinge: sw.hinge, words: sw.words } : null);
@@ -2362,14 +2682,15 @@ export function startBundle(state, bus, pid, rowId, { tempo = 'normal', row = nu
   if (!S || S.mode !== 'stop') return { ok: false, why: 'not in the mode' };
   const m = /^drill:([a-z:-]+?)(?:@([a-z0-9+]+))?(?:>(.+))?$/.exec(rowId ?? '');
   if (!m) return { ok: false, why: 'no such bundle' };
-  const B = bundleDef(m[1]);
-  if (!B) return { ok: false, why: 'no such bundle' };
-  if (!offered(state, pid, B)) return { ok: false, why: B.rung > rungOf(state, pid, 'room') ? 'not taught' : 'by hand first' };
+  const B = defOf(m[1]);
+  if (!B || B.offeredNow === 'body' || B.offeredNow === 'struck') return { ok: false, why: 'no such bundle' };
+  const fam = B.family ?? 'room';
+  if (!offered(state, pid, B)) return { ok: false, why: B.rung > rungOf(state, pid, fam) ? 'not taught' : 'by hand first' };
   const variant = { ...variantHere(state, pid) };
   for (const t of (m[2] ?? '').split('+').filter(Boolean)) { if (['cross', 'hook'].includes(t)) variant.entry = t; else if (['push', 'pull', 'kick', 'pry', 'ram', 'charge', 'cut', 'shoot'].includes(t)) variant.breach = t; else if (['assault', 'combat'].includes(t)) variant.stance = t; else if (t === 'none' || BANGS.includes(t)) variant.bang = t; else if (t === 'cook2' || t === 'cook0') variant.cook = t.slice(4); }
   // (a kit row's own way in (v0.0.18): the breach the charge (or the BC-1 where only it fits the door), Pry the halligan, Ram the ram)
   if (kitHowOf(B)) variant.breach = kitHowAt(state, pid, (m[3] ? lanePlanOf(state)?.plans?.[m[3]] : null) ?? doorNow(state, pid)?.plan ?? null, B);
-  const rung = rungOf(state, pid, 'room'), plan = planBundle(state, pid, B.id, { door: m[3] ?? null, rung, variant, atMs: state.clock.ms, tempo });
+  const rung = rungOf(state, pid, fam), plan = planBundle(state, pid, B.id, { door: m[3] ?? null, rung, variant, atMs: state.clock.ms, tempo });
   if (!plan) return { ok: false, why: 'no door' };
   return beginBeats(state, bus, pid, { step: rowId, bundle: B.id, plan, tempo, label: plan.label });
 }
@@ -2715,8 +3036,15 @@ export function startSingle(state, bus, pid, row, { tempo = 'normal' } = {}) {
     const b2 = { key: 'bang', k: 'burst', ch: 'eyes', ms: fuseBelieved(state.items[row.dev]?.model ?? 'g11') ?? 0, after: ['throw'] };
     return beginBeats(state, bus, pid, { step: row.id, bundle: null, plan: { beats: [t, b2], ms: t.ms + b2.ms, rung, slot: 1, door: here?.door ?? null, variant: {}, seams: [] }, tempo, label: row.label });
   }
+  // (a hatch's singles (singleRows): the dogs, the lift, the transit (see the header))
+  // (a deck hatch's dogs the hatch's own record's; a bulkhead hatch's (hatchOf's kind 'bulkhead', a door with a hatch's leaf) its lock:
+  // C's lane, v0.0.25, found "Undog the hatch" by the keys on cell 2 written to setHatch, which keeps the trunk's alone, so it never undogged)
+  const hid = row.kind === 'door' ? row.id.split('>')[1] : null, hdeck = hid && hatchOf(state, hid)?.kind === 'deck' ? hid : null;
+  if (row.kind === 'door' && row.how === 'undog') beat = { key: 'undog', k: 'door', ch: 'hands', how: 'undog', ...(hdeck ? { hatch: hdeck } : { door: hid }), ms: row.ms, passMs: row.ms, after: [] };
+  else if (row.kind === 'door' && row.how === 'hatch') beat = { key: 'lift', k: 'door', ch: 'hands', how: 'hatch', hatch: hid, ms: row.ms, passMs: row.ms, after: [] };
+  else if (row.kind === 'door' && row.how === 'through') beat = { key: 'hatch', k: 'hatch', ch: 'feet', hatch: hid, ms: row.ms, after: [] };
   // (v0.0.19: the lock shot at an inner door (singleRows: the closet on a breaching lane))
-  if (row.kind === 'door' && row.how === 'shoot') beat = { key: 'shoot', k: 'shootDoor', ch: 'hands', door: row.id.split('>')[1], ms: row.ms, after: [] };
+  else if (row.kind === 'door' && row.how === 'shoot') beat = { key: 'shoot', k: 'shootDoor', ch: 'hands', door: row.id.split('>')[1], ms: row.ms, after: [] };
   else if (row.kind === 'door' && row.how === 'cook') beat = { key: 'cook', k: 'cook', ch: 'hands', want: row.want ?? 2000, ms: row.ms, after: [] };
   else if (row.kind === 'door' && ['repin', 'stow', 'drop', 'pickup'].includes(row.how)) beat = { key: row.how, k: 'stowdev', ch: 'hands', how: row.how, ms: row.ms, after: [], ...(row.how === 'pickup' ? { dev: row.dev } : {}) };
   else if (row.kind === 'door' && row.how === 'pry') beat = { key: 'force', k: 'force', ch: 'hands', door: row.id.split('>')[1], how: 'pry', model: 'hal', ms: row.ms, passMs: row.passMs, handMs: row.handMs, after: [] };
@@ -2803,7 +3131,7 @@ export function bundleNow(state, pid = playerId(state), ms = state.clock.ms) {
     lanes[b.ch].push({ key: b.key, glyph: g });
   }
   const until = d.untilPlanMs ?? d.untilMs, k = until > d.fromMs ? Math.max(0, Math.min(1, (ms - d.fromMs) / (until - d.fromMs))) : 1;
-  return { id: d.step, label: d.label ?? bundleDef(d.bundle)?.label ?? d.step, lanes, fromMs: d.fromMs, untilMs: until, k };
+  return { id: d.step, label: d.label ?? defOf(d.bundle)?.label ?? d.step, lanes, fromMs: d.fromMs, untilMs: until, k };
 }
 /** The sector the bundle's eyes hold now (react.js heldSectorOf reads it): { yawRad, why: 'bundle' } or null. */
 export function bundleEyes(state, pid = playerId(state)) {
@@ -3006,7 +3334,7 @@ export function runSlot(state, bus, rec, ms = state.clock.ms) {
   // (the build sheet v0.0.20 item 8: closed up on your heels onto your vacated stack point (rec.heels) is his stack as much as his own)
   if (rec.heels && rec.heels.door !== here.door) delete rec.heels;
   const onHeels = !!rec.heels && dist([a.x, a.z], stackOf(plan, 1)) <= STACK_NEAR_M;
-  const stacked2 = dist([a.x, a.z], stackOf(plan, 2)) <= STACK_NEAR_M || onHeels, inside2 = pastThreshold(plan, a.x, a.z);
+  const stacked2 = dist([a.x, a.z], stackOf(plan, 2)) <= STACK_NEAR_M || onHeels, inside2 = insideOf(plan, a.x, a.z);
   // (the build sheet v0.0.20 item 8 (drill.md D2): below rung 3, you leaving your stack toward the open door, he closes up onto your stack point
   // (heelsGo), so his entry on his cue starts 0.65 m nearer and he is in "almost simultaneously" (FM 3-06.11 §3-22c(6)); from rung 3
   // entryAhead starts him on time, as built)
@@ -3023,12 +3351,23 @@ export function runSlot(state, bus, rec, ms = state.clock.ms) {
   // (the catalogue's groups, one at a time (COMBAT §25.19.2.3): the stack, in to his corner, his point and his sector)
   if (!inside2 && (inside1 || cut)) bundle = 'room:in';
   else if (!inside2 && !stacked2 && here.rec?.state !== 'clear') bundle = rung >= 2 ? 'stack:point' : 'stack:up';
+  // (at a deck hatch, stacked but his hand not out for your harness (his stack-up halted by your body
+  // on his way, giveWayOut, and his step aside put him on his stack point with its brace beat never run): the stack-up again from where
+  // he stands, its brace with it. Before it no lane on any sheet had the brace: your transit waited TWO_WAIT_MS 3 s on "His hand." and
+  // went through on the coaming's hold, the sergeant's on 48213 at 46.65 to 49.65 s, and the brief's "At the trunk he holds you" lied)
+  else if (!inside2 && !inside1 && stacked2 && deckHatchOf(plan) && houseOf(state)?.two?.brace?.hatch !== deckHatchOf(plan) && here.rec?.state !== 'clear') bundle = rung >= 2 ? 'stack:point' : 'stack:up';
   else if (inside2 && !rec.swept?.[here.door]) bundle = 'room:dominate';
   if (!bundle && !(stacked2 && !inside2)) return 'idle';
   // (to the next stack he goes with you (COMBAT §25.19.5): not before your own move starts (the tick yours does), and then when
   // his walk keeps the body gap off yours (giveWay): v0.0.12 left on a poll the moment the room was clear and stood on your way)
   const stackRow = bundle === 'stack:point' || bundle === 'stack:up';
   if (stackRow && !leadGone(state, rec, here, me)) return 'idle';
+  // (the Wreck's lane: never a walk to a stack or into a room on the other deck of a ship (its plan's stack 60 m off in the plan, he not in
+  // its rooms; through the hold's hatch in its rooms, its stack on deck 5, he dominates as ever): left behind the trunk
+  // by a compartment the stall passed, he holds there, and the lane's clear gate waits on him (shoothouse.js clearGateOf 'two'). Before it
+  // his walk to the store's stack went through the hull, the fuzz's private on 1555 between the decks 80 s, and his entry on your cue the
+  // sergeant's on 2110)
+  if (bundle && !inside2 && houseOf(state)?.ship === 'wreck' && wreckDeckAt(a.x) !== wreckDeckAt(stackOf(plan, 2)[0])) return 'idle';
   // (not cued yet but at his stack, your walk in known: he steps off so as to reach his own threshold as you are ENTRY_GAP_M past
   // yours, never sooner (entryAhead: "almost simultaneously", the gap kept at the door rather than waited for at the stack))
   if (!bundle && !inside2 && stacked2 && me && entryAhead(state, rec, a, here, me, rung, ms)) bundle = 'room:in';
@@ -3265,6 +3604,13 @@ export function entryAhead(state, rec, a, here, me, rung, ms = state.clock.ms) {
 /** Whether #1 is far enough in for the #2 to step in behind him (see ENTRY_GAP_M): rec the leg's record (its enteredAtMs). */
 export function entryGo(state, plan, me, ms = state.clock.ms, rec = null) {
   if (!plan || !me) return false;
+  // (through a deck hatch, your plant on the far face or the grip let go (two.js voidTick, 0.2 s after your first round from it))
+  if (deckHatchOf(plan)) {
+    const br = houseOf(state)?.two?.brace, let0 = br?.hatch === deckHatchOf(plan) && br.one === me.who && br.let !== undefined;
+    // (C's lane, v0.0.25: planted is your boots locked on either face there: on the deck `onFace` is absent, and you down to it (feet aft at
+    // the tug's warning) never cued him: he stayed behind the trunk and the hold was passed by the stall)
+    return inPlanRooms(plan, me.x, me.z) && !me.faceTo && (bootsLocked(state, me.who) || let0);
+  }
   if (plan.door && openingState(state, plan.door) !== 'open') return false;
   const m = pastWaypointM(plan, me.x, me.z);
   if (m !== null && m >= ENTRY_GAP_M) return true;
@@ -3557,15 +3903,45 @@ function closingAhead(mine, me, b) {
   return false;
 }
 // (the doorway's gate for the #2's walk this tick: his next place p in a no-stop zone he is not yet in, his way through it not
-// clear of you (crossingClear): held a tick where he stands, outside it, counted on his record (rec.gate))
+// clear of you (crossingClear): held a tick where he stands, outside it, counted on his record (rec.gate); or, v0.0.25 (C1),
+// outside every zone, his next place p on your running walk's way through a doorway just ahead of you (passGate): held where he
+// stands until you are past, counted the same and on rec.gate.pass)
 function zoneGate(state, rec, a, p, mv, ms) {
   const area = state.places?.live?.area;
-  const hold = !!area && !liveZoneAt(state, area, a.x, a.z) && !!liveZoneAt(state, area, p.x, p.z) && !crossingClear(state, mv.path, [p.x, p.z]);
-  if (!hold) { if (rec.gate) rec.gate.runMs = 0; return false; }
+  const out = !!area && !liveZoneAt(state, area, a.x, a.z);
+  const cross = out && !!liveZoneAt(state, area, p.x, p.z) && !crossingClear(state, mv.path, [p.x, p.z]);
+  const pass = out && !cross && passGate(state, area, a, p, ms);
+  if (!cross && !pass) { if (rec.gate) rec.gate.runMs = 0; return false; }
   const G = (rec.gate ??= { holds: 0, ms: 0, runMs: 0 });
-  if (!G.runMs) G.holds += 1;
+  if (!G.runMs) { G.holds += 1; if (pass) G.pass = (G.pass ?? 0) + 1; }
   G.runMs += TICK_MS; G.ms += TICK_MS;
   return true;
+}
+/** v0.0.25 (C1): how far ahead in time your running walk's places are read for the #2's pass gate (ms; my call: about 0.6 m at your Combat walk, a funnel's depth, the time he takes to step back clear; a longer look held him 1.2 s on the keys private's eight-room lane on 1037 where he was across your way 0.8 s before you came). */
+export const PASS_LOOK_MS = 500;
+/** Beyond this from his next place your walk cannot close on him within the look (m: Fast's 2 m/s over PASS_LOOK_MS and the body gap, with room): the gate reads nothing. */
+export const PASS_FAR_M = 3;
+// v0.0.25 (C1; the carried lens §2.1, F4 on drawn houses): your #2 never holds you in a doorway. Your running walk past a door
+// (the hall leg from a room clear, the house drawn with a room north of the hall) and his walk out of that room met at its funnel's
+// edge: his body inside BODY_GAP_M of your next place held your walk two ticks where you stood in the doorway (places/move.js
+// useBodies; the tier one on drawn seed 3, room 3, and 29 lanes more of drawn seeds 1 to 100). He is held where he stands while his
+// next place p would come within the body gap, its guard and one tick of your walk (lim) of one of your walk's places over the next
+// PASS_LOOK_MS that is inside a live doorway (zones.js liveZoneAt) and not your next tick's, and where he stands is not (he yields at
+// its edge, as zoneGate already makes him yield to you standing, and goes on once you are past). One already inside it walks on out
+// of your way, as before: held there he would hold you (the keys private's eight-room lane on 1037, 0.55 s in room 3's doorway); a
+// walk of his behind yours is the body gap's alone (gapHold); nothing here holds him while you stand: crossingClear's.
+function passGate(state, area, a, p, ms) {
+  const me = playerActor(state), mine = moveNow(state, playerId(state));
+  // (none to read while you stand, or while you are further off than your walk covers in the look: PASS_FAR_M)
+  if (!me || !mine?.path?.length || dist([me.x, me.z], [p.x, p.z]) > PASS_FAR_M) return false;
+  const nx = moveAt(mine, ms + TICK_MS), stepM = dist([me.x, me.z], [nx.x, nx.z]), lim = BODY_GAP_M + GAP_GUARD_M + stepM;
+  let dP = Infinity, dA = Infinity;
+  for (let k = 2; k * TICK_MS <= PASS_LOOK_MS; k++) {
+    const m = moveAt(mine, Math.min(ms + k * TICK_MS, mine.untilMs ?? Infinity));
+    if (!liveZoneAt(state, area, m.x, m.z)) continue;
+    dP = Math.min(dP, dist([m.x, m.z], [p.x, p.z])); dA = Math.min(dA, dist([m.x, m.z], [a.x, a.z]));
+  }
+  return dP < lim && dA >= lim;
 }
 // (the body gap's guard for the #2's walk this tick: his next place p closing within BODY_GAP_M + GAP_GUARD_M of yours; for his
 // own carry out of your way (`giving`: way 'away' or 'aside', planned by places/move.js bodyClear to keep BODY_GAP_M off you), within
@@ -3637,6 +4013,12 @@ export function gapSettle(state, rec, ms = state.clock.ms) {
 // (you have gone for the next stack: your own move running, or LEAD_GONE_M from where you stood when he began to wait, or there)
 function leadGone(state, rec, here, me) {
   if (!me) return true;
+  // (C's lane, v0.0.25: in a ship's passage (houseOf's `ship`, the Wreck's 1.2 m) there is no room to pass, so he leaves for his stack
+  // only once you stand on yours: the cells' hatches 1.5 m apart, he came out of cell 2 first and stood on his stack in its mouth, across
+  // your way to yours)
+  // (a bulkhead hatch's stack only: at the deck hatch his stack is across the scuttle from yours, his way to it crosses yours, and
+  // waiting on you there he came after you had gone through without his hand)
+  if (houseOf(state)?.ship && here.plan?.door) return !moving(me) && dist([me.x, me.z], stackOf(here.plan, 1)) <= STACK_NEAR_M;
   if (moveNow(state, playerId(state))) return true;
   // (or standing still near enough your stack to work its door (DOOR_REACH_M): the fuzz recruit on seed 1333 stopped 1.0 m short
   // of room 3's stack and opened the door, and his #2, 4.9 m off and still waiting, was handed back as 'two' (the review of

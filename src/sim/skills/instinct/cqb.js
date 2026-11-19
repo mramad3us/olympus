@@ -142,6 +142,8 @@ import { ownerOf, sideOf } from '../../combat/team.js';
 // (the room's rule (cqb-mark))
 import { markYoursOf } from '../../combat/bundle.js';
 import { TEAM_TASKS } from '../../combat/drills/enter-and-clear.js';
+import { voidOfHouse } from '../../combat/drills/void.js';
+import { hatchState } from '../../places/hatch.js';
 import { handDeviceOf, DEVICES } from '../../arms/devices.js';
 import { placedOn } from '../../combat/breach.js';
 import { planFor } from '../../arms/plan.js';
@@ -188,7 +190,8 @@ function know(state, me, ms) {
     const offered = (id) => steps.find(s => s.id === id && !s.off) ?? null;
     const rung = rungOf(state, pid, 'room'), last = contactNow(state, ms)?.last ?? null;
     const plan = here?.plan ?? null, inside = plan ? pastThreshold(plan, me.x, me.z) : false;
-    const open = plan?.door ? openingState(state, plan.door) === 'open' : true;
+    // (a compartment entered through a deck hatch (its plan's `hatch`: no door in the plane) is open when its scuttle is)
+    const open = plan?.hatch ? hatchState(state, plan.hatch) === 'open' : plan?.door ? openingState(state, plan.door) === 'open' : true;
     const stacked = !!plan && Math.hypot(me.x - plan.stack[0][0], me.z - plan.stack[0][1]) <= 0.3;
     const T = S?.pick ? (R.turners ?? []).find(t => t.key === S.pick) ?? null : null;
     // (a bundle's question still standing (shooting.js ASKS): "Hold it or clear it?" is answered once every inner door of the
@@ -446,7 +449,9 @@ const headLive = (k) => !!headRow(k);
 // (the keys of To the head on the panel drawn (groups.js keysFor, the layout played), named by the line from rung 2, where T
 // leaves the shot to you (the design review of 2026-11-13: after Transition "Head." named no key, the row at Tab › 1 › 5))
 const headKeys = (state, k) => { const r = k.rung >= 2 ? headRow(k) : null; return r ? keysFor(k.steps, r.id, { layout: layoutIn(state) }).text : null; };
-const bundleRow = (k, bundle) => k.steps.find(s => s.id.startsWith(`drill:${bundle}`) && s.id.endsWith(`>${k.here.door}`) && !s.off) ?? null;
+// (the Wreck: at a hatch the panel offers the void's rows, each running as a house row (drills/void.js voidOfHouse: 'room:clear'
+// is 'void:clear' there), so T leads with the void row a house bundle names)
+const bundleRow = (k, bundle) => { const v = voidOfHouse(bundle); return k.steps.find(s => (s.id.startsWith(`drill:${bundle}`) || (v && s.id.startsWith(`drill:${v}`))) && s.id.endsWith(`>${k.here.door}`) && !s.off) ?? null; };
 
 // ---- the stop's why (COMBAT §25.19.4: "every stop says why in the line's lead") ----
 
@@ -505,7 +510,7 @@ export function stopLead(state, ms = state.clock.ms) {
   // (a step begun at the clear's own instant is begun after it, as the contact's (above): only the clear itself keeps the lead on a
   // tie (the hunt of v0.0.18: the hall's walk chosen the ms room 3 was set clear, and at the hall's end "Room clear. Next: the
   // hall, 5.8 m." with the room 9 s behind you and the 5.8 m back to where you set out)
-  const since = cleared && (cleared.clearAtMs > S.last.atMs || (cleared.clearAtMs === S.last.atMs && /^(call:clear|drill:room:|room:clear)/.test(S.last.step ?? '')));
+  const since = cleared && (cleared.clearAtMs > S.last.atMs || (cleared.clearAtMs === S.last.atMs && /^(call:clear|drill:room:|drill:void:(clear|dominate)|room:clear)/.test(S.last.step ?? '')));
   if (since && !stackedNext) { const n = nextWords(state, R, me); return n ? `${cleared.door === 'hall' ? 'Hall' : 'Room'} clear. Next: ${n}.` : 'Clear.'; }
   // (the inner door the plan does not take, from inside: asked)
   const here = doorNow(state, playerId(state)), plan = here?.plan;
@@ -1137,8 +1142,9 @@ export const CQB_RULES = Object.freeze([
     id: 'cqb-door', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'note', short: 'Door', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (!k?.choosing || !k.stacked || k.open || !k.plan?.door) return null;
-      const how = breachOf(state, k.plan), id = `door:${how}>${k.plan.door}`;
+      if (!k?.choosing || !k.stacked || k.open || !(k.plan?.door ?? k.plan?.hatch)) return null;
+      // (a deck hatch's rows below rung 2 are its own, the dogs and then the transit (combat/drills/void.js), named in turn)
+      const hatch = !k.plan.door ? k.plan.hatch : null, how = hatch ? (['undog', 'hatch'].find(h => k.offered(`door:${h}>${hatch}`)) ?? 'undog') : breachOf(state, k.plan), id = `door:${how}>${k.plan.door ?? hatch}`;
       // (from rung 2 the door is the group's first beat: "Open, in: your corner" (rung 2), "Open, clear the room" (3 and up),
       // so the corporal clears a room in three presses (COMBAT §25.19.2.3))
       const row = k.rung >= 2 ? bundleRow(k, k.rung >= 3 ? 'room:clear' : 'room:in') : null;
@@ -1151,13 +1157,15 @@ export const CQB_RULES = Object.freeze([
     text: { push: ['Open it. Push. Your corner: {corner}.', 'Push it open. Your corner: {corner}.', 'The door. Push. Your corner: {corner}.', 'Open it. Your corner: {corner}.'],
       pull: ['Pull it open. Your corner: {corner}.', 'It opens to you. Pull. Your corner: {corner}.', 'Pull the door. Your corner: {corner}.', 'Open it. Pull. Your corner: {corner}.'],
       kick: ['Kick it. Your corner: {corner}.', 'Locked. Kick it. Your corner: {corner}.', 'Boot the door. Your corner: {corner}.', 'Kick it in. Your corner: {corner}.'],
+      undog: ['Undog it. Your face: {corner}.', 'The dogs. Your face: {corner}.', 'Undog the hatch. Your face: {corner}.', 'Dogs off. Your face: {corner}.'],
+      hatch: ['Through, head first. Your face: {corner}.', 'Through it. Your face: {corner}.', 'Head first, through. Your face: {corner}.', 'Go through. Your face: {corner}.'],
       in: ['Open, in{bang}.{brief} Your corner: {corner}.', 'Open it and in{bang}.{brief} Your corner: {corner}.', 'Door, in{bang}.{brief} Your corner: {corner}.', 'Go{bang}.{brief} Your corner: {corner}.'], clear: ['Clear it{bang}.{brief} Your corner: {corner}.', 'Open, clear it{bang}.{brief} Your corner: {corner}.', 'Room. Go{bang}.{brief} Your corner: {corner}.', 'Go{bang}.{brief} Your corner: {corner}.'] },
   },
   {
     id: 'cqb-go', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'note', short: 'In', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (!k?.choosing || !k.open || k.inside || !k.plan?.door || k.S?.carry || k.S?.flow) return null;
+      if (!k?.choosing || !k.open || k.inside || !(k.plan?.door ?? k.plan?.hatch) || k.S?.carry || k.S?.flow) return null;
       // (the play review: never the walk in while a hand holds a device, cqb-hands its way out first)
       if (handDeviceOf(state, k.pid)) return null;
       // (carried FH-1: the keys along #1's path from where you stand, the legs in the variant so the words are picked
