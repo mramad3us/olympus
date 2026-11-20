@@ -54,7 +54,8 @@
 //      when his felt band changes and again from cover or a freeze once CHOICE_DWELL_MS 1,500 has passed still suppressed or
 //      worse, read on §7.11's table with the security doctrine (RP_DOCTRINE): suppressed, pass fight, a miss cover, bad or
 //      disaster freeze; pinned, pass cover, a miss or bad freeze, disaster surrender with a marine's weapon within SURRENDER_M 5 m
-//      (else freeze). Calm or under fire he fights, no roll. A choice holds; surrender is final.
+//      (else freeze). Calm or under fire he fights, no roll. A choice holds; a give is final. (The table's word for it is 'give',
+//      the card's word and the gauge's: one choice, one name. Until v0.0.28 the table said 'surrender', and F157 never met a give.)
 //   5. His stoppage: a round that did not go or a stoppage behind it, and he clears it by his own drill (combat/two.js's rule: a
 //      double feed REMEDIAL ACTION, the bolt locked or dry a speed reload, else IMMEDIATE ACTION) at its time, drills.js subsOf
 //      summed over firearms.js actionMs at his Weapon handling, each sub-step then done with a forced pass (doAction's force: the
@@ -137,7 +138,7 @@
 //      turns to his door and lays his weapon on it;
 //   the tables (CHOICE_TABLES, choiceOf by the man's own skills.doctrine): 'irregular' turns a miss when suppressed, or a pass when
 //      pinned, into cover or blind fire 1 : 1 (IRREG_BLIND_SHARE on stream(seed, 'house:rp', key, 'cb', atMs)) and a pinned disaster into
-//      flight; 'civilian' is a freeze always, never a roll. Flight is final, as surrender is;
+//      flight; 'civilian' is a freeze always, never a roll. Flight is final, as a give is;
 //   blind fire (blindTick; F158): from behind his cover, while a marine not down is in his own compartment (the ship's room he stands
 //      in), st 'blind' (FIRING BLIND), a round every BLIND_GAP_MS 700 at the nearest, shot.js BLIND_FIRE_MOD −10, no take-in, no sighting;
 //   the push-off (startDash, freeOf, canPush; carried K2): in free fall (gravityAt under throw.js FREE_G_MS2 0.05 m/s²) his dash and his
@@ -239,7 +240,7 @@ export const RP_SAY = Object.freeze({ hands: "Don't shoot!", down: 'Hit!' });
 /** The table of COMBAT §7.11 for the security doctrine: by felt's band (2 suppressed, 3 pinned) and the nerve check's grade. */
 export const CHOICE_TABLE = Object.freeze({
   2: Object.freeze({ superb: 'fight', good: 'fight', pass: 'fight', miss: 'cover', bad: 'freeze', disaster: 'freeze' }),
-  3: Object.freeze({ superb: 'cover', good: 'cover', pass: 'cover', miss: 'freeze', bad: 'freeze', disaster: 'surrender' }),
+  3: Object.freeze({ superb: 'cover', good: 'cover', pass: 'cover', miss: 'freeze', bad: 'freeze', disaster: 'give' }),
 });
 
 // ---- v0.0.27, "Away the boarding party": the defenders who are not role-players (its build sheet item 5, item 6, §0 items 5, 31, §5) ----
@@ -1014,8 +1015,8 @@ function arrive(state, T, a, now) {
 
 function choiceTick(state, bus, H, T, a, now) {
   const L = T.live, pid = L.who, ch = L.choice;
-  // (surrender is final; v0.0.27: so is flight)
-  if (ch?.what === 'surrender' || ch?.what === 'flee') return;
+  // (a give is final; v0.0.27: so is flight)
+  if (ch?.what === 'give' || ch?.what === 'flee') return;
   const felt = feltOf(state, pid, now), band = bandN(felt);
   let roll = false;
   if (band !== L.band) { L.band = band; roll = true; }
@@ -1024,7 +1025,7 @@ function choiceTick(state, bus, H, T, a, now) {
   const { what, grade, dc } = choiceOf(state, pid, { felt, atMs: now, key: `rp:${T.key}`, near: () => weaponNear(state, H, a), resolve: L.resolve ?? null });
   L.choice = { what, band, atMs: now, ...(grade ? { grade, dc } : {}) };
   if (what === 'fight') { if (L.st === 'freeze' || L.st === 'cover' || L.st === 'blind') { delete a.stance; startAim(state, T, a, now); } return; }
-  if (what === 'surrender') { startGive(state, T, now); return; }
+  if (what === 'give') { startGive(state, T, now); return; }
   L.eng = null; L.eyes = null; L.aiming = null;
   const k = state.people[pid].kit;
   k.carry.finger = 'off';
@@ -1038,7 +1039,7 @@ function choiceTick(state, bus, H, T, a, now) {
 }
 /**
  * A role-player's choice at a felt (COMBAT §7.11's table, the security doctrine; see the header): { what: 'fight' | 'cover' | 'freeze' |
- * 'surrender', band, grade, dc }. Calm or under fire 'fight' with no roll; else supp.js nerveCheck on its stream (key: 'rp:<turner key>'),
+ * 'give', band, grade, dc }. Calm or under fire 'fight' with no roll; else supp.js nerveCheck on its stream (key: 'rp:<turner key>'),
  * read on CHOICE_TABLE, a surrender only with near() true (a marine's weapon within SURRENDER_M), else a freeze. resolve (v0.0.26: his
  * L.resolve, a friend seen falling) goes to the nerve check as built; null (none written) rolls as before.
  * v0.0.27 (its build sheet item 6; FT§4.1): the table is his doctrine's (CHOICE_TABLES[doctrine], doctrine his own sheet's
@@ -1053,7 +1054,7 @@ export function choiceOf(state, pid, { felt, atMs = state.clock.ms, key = 'rp', 
   const r = nerveCheck(state, pid, { felt, atMs, key, resolve }), grade = r.roll?.grade ?? 'pass';
   let what = table[Math.min(3, band)][grade] ?? 'freeze';
   if (what === COVER_BLIND) what = next(stream(state.meta.seed, 'house:rp', key, 'cb', atMs)) < IRREG_BLIND_SHARE ? 'blind' : 'cover';
-  if (what === 'surrender' && !near()) what = 'freeze';
+  if (what === 'give' && !near()) what = 'freeze';
   return { what, band, grade, dc: r.dc };
 }
 // (a marine's weapon within SURRENDER_M of him: his rifle in his hands)
@@ -1269,7 +1270,7 @@ export function opforRise(state, bus, T, atMs = state.clock.ms) {
   // (the side given up (sideTick: final): an armed man down at the intercom's words rises giving, his hands up, never to the fight
   // (the boarding round's review: 6 of 36 rose to 'aim' and 'fight' 34 to 43 s after it))
   if (R?.house?.boarding?.side?.gaveAtMs != null && !L.unarmed) { startGive(state, T, atMs); return true; }
-  if (L.choice?.what !== 'flee' && L.choice?.what !== 'surrender') { L.band = -1; choiceTick(state, bus, R?.house, T, a, atMs); }
+  if (L.choice?.what !== 'flee' && L.choice?.what !== 'give') { L.band = -1; choiceTick(state, bus, R?.house, T, a, atMs); }
   return true;
 }
 

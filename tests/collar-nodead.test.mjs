@@ -9,6 +9,11 @@
 // counted on the 'shot' facts); and over K6_SEEDS honest seeds of each type (the honest player of the sheet: T from the corporal, the keys
 // below) each of fight, cover, freeze and give met on at least one lane, blind and flee printed, by sheet and type (F157, the boarding's
 // track: R.house.boarding.track, the scene's own record of every man's choices).
+// v0.0.28 (the lead's call of 2026-11-20 on F157, red at v0.0.27's release on "never met: give"): the key fixed, not the threshold. The
+// track recorded the security table's 'surrender' and the state 'hands', never 'give'; the table now says 'give' (opfor.js CHOICE_TABLE:
+// one choice, one name), and collarLane reads a holdout's hands up (his table's give, or a challenge ending his freeze or cover) as his
+// give, once a man, the hauler's crew's hands up to a challenge apart as 'crew hands'. The pirates' and smugglers' own table (the
+// irregulars') has no give by design (the cell doctrine): theirs comes through the challenge alone.
 import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { collarLane } from './bots/collar.mjs';
@@ -107,6 +112,7 @@ export default [
         rows.push(`${holdouts} ${tier}: ${[...CHOICES_MET, ...CHOICES_SEEN].map(k => `${k} ${by[k] ?? 0}`).join(', ')} (lanes met; others ${Object.keys(by).filter(k => ![...CHOICES_MET, ...CHOICES_SEEN].includes(k)).map(k => `${k} ${by[k]}`).join(', ') || 'none'})`);
       }
       for (const r of rows) console.log(`      ${r}`);
+      console.log(`      over all: ${[...CHOICES_MET, ...CHOICES_SEEN, 'crew hands'].map(k => `${k} ${met[k] ?? 0}`).join(', ')} (lanes met; a holdout's give his hands up, the crew's apart)`);
       const missing = CHOICES_MET.filter(k => !(met[k] > 0));
       assert(!missing.length, `never met: ${missing.join(', ')}`);
     },

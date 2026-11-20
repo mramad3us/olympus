@@ -54,6 +54,9 @@
 // (src/sim/scenarios/burn.js) adds burnActors (lived: the stowing, the strap, the burn's watch), off any range session; their id
 // fields the course's guns and boots (armoury.range.anchors.pistol, .rifle, .boots, .cadreBoots) and the burn's
 // (burn.ncoPid, burn.boots).
+// v0.0.28 (its build sheet §1 A, §3.1; WEAPONS §10.7): the rifle's books (src/sim/arms/armoury.js) keep armoury.guns{<item id>} = {
+// assignedId, rack, loc, out: { toId, byId, atMs } | null, rounds, log[] } and armoury.lost[] = [{ itemId, kind, byId, … }], their id
+// fields declared here; upkeep (src/sim/arms/upkeep.js) writes only behind armoury.upkeep, which test-armoury's fill sets.
 import { fillDomain } from '../../core/state.js';
 import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
 import { playerId } from '../../core/ids.js';
@@ -65,6 +68,7 @@ import { pairsActors } from '../scenarios/pairs.js';
 import { houseActors, houseRules, houseInput, houseInputBefore, upgradeHousePistol, upgradeHousePars } from '../scenarios/shoothouse.js';
 import { anchorsActors, anchorsRules } from '../scenarios/anchors.js';
 import { burnActors } from '../scenarios/burn.js';
+import { armouryRules } from '../scenarios/armoury-day.js';
 import { stopBundle, upgradeMuscle } from '../combat/bundle.js';
 import { upgradeHouseWould } from '../combat/would.js';
 import * as SHOOTING from './shooting.js';
@@ -134,6 +138,8 @@ function rules(state, input, bus, ctx) {
   if (state.armoury?.range?.course === 'house') houseRules(state, input, bus, ctx);
   // (the void range's course keeps its own rules (none of the bay's box or lanes holds in Well A))
   else if (state.armoury?.range?.course === 'anchors') anchorsRules(state, input, bus, ctx);
+  // ("The window and the canopy": the scene's tick and rules, the range's own on the lane (armoury-day.js armouryRules))
+  else if (state.armoury?.range?.course === 'armoury') armouryRules(state, input, bus, ctx);
   else rangeRules(state, input, bus, ctx);
   safety(state, input, bus, ctx);
 }
@@ -155,7 +161,13 @@ export const weaponsDomain = Object.freeze({
     'armoury.range.house.twoPid': 'p', 'armoury.range.house.chiefPid': 'p', 'armoury.range.house.two.pid': 'p', 'armoury.range.house.two.aid': 'a', 'armoury.range.house.dummy.magId': 'i', 'armoury.range.house.pistol': 'i',
     'cqb.twoPid': 'p', 'cqb.two.pid': 'p', 'cqb.two.aid': 'a',
     'armoury.range.anchors.pistol': 'i', 'armoury.range.anchors.rifle': 'i', 'armoury.range.anchors.boots': 'i', 'armoury.range.anchors.cadreBoots': 'i',
-    'armoury.burn.ncoPid': 'p', 'armoury.burn.boots': 'i', 'armoury.burn.ncoBoots': 'i' }),
+    'armoury.burn.ncoPid': 'p', 'armoury.burn.boots': 'i', 'armoury.burn.ncoBoots': 'i',
+    // (the rifle's books, src/sim/arms/armoury.js: each gun's record, its signature out and its log, and the lost list)
+    'armoury.guns{}.assignedId': 'p', 'armoury.guns{}.out.toId': 'p', 'armoury.guns{}.out.byId': 'p', 'armoury.guns{}.log[].toId': 'p', 'armoury.guns{}.log[].byId': 'p',
+    'armoury.lost[].itemId': 'i', 'armoury.lost[].byId': 'p',
+    'armoury.range.arm.armourerId': 'p', 'armoury.range.arm.armourer2Id': 'p', 'armoury.range.arm.ncoId': 'p', 'armoury.range.arm.leaderId': 'p',
+    'armoury.range.arm.gunId': 'i', 'armoury.range.arm.slipId': 'i', 'armoury.range.arm.given': 'i', 'armoury.range.arm.signed': 'i', 'armoury.range.arm.mags[]': 'i',
+  }),
   init(state) { for (const k of KEYS) fillDomain(state, k); },
   fast: Object.freeze({ input, actors: (s, i, b, c) => { kdActors(s, i, b, c); pairsActors(s, i, b); houseActors(s, i, b); anchorsActors(s, i, b); burnActors(s, i, b, c); }, rules, second: rangeSecond }),
   slow: Object.freeze([]),
@@ -165,5 +177,20 @@ export const weaponsDomain = Object.freeze({
   // (the house's P-12 on every sheet from 2026-11-15: a v0.0.14 to v0.0.16 save below the Sergeant gains it on load)
   // (a live lane saved by v0.0.19 gains the would-have's ledger with the rule 'count', combat/would.js upgradeHouseWould)
   // (a house save from before v0.0.20's pars gains them at load, so no read plans a par (shoothouse.js upgradeHousePars))
-  upgrades: Object.freeze([['arms:muscle', upgradeMuscle], ['arms:house-pistol', upgradeHousePistol], ['arms:house-pars', upgradeHousePars], ['arms:house-would', upgradeHouseWould]]),
+  // (a live man's choice saved by v0.0.27 or before as the security table's 'surrender' reads 'give', as the table now names it, upgradeChoiceGive)
+  upgrades: Object.freeze([['arms:muscle', upgradeMuscle], ['arms:house-pistol', upgradeHousePistol], ['arms:house-pars', upgradeHousePars], ['arms:house-would', upgradeHouseWould], ['arms:choice-give', upgradeChoiceGive]]),
 });
+
+/**
+ * A save of v0.0.27 or before (see the domain's upgrades): the security table's pinned disaster was 'surrender', 'give' from v0.0.28
+ * (scenarios/opfor.js CHOICE_TABLE, F157's key), and choiceTick holds only 'give' and 'flee' final, so a man loaded mid-fight with
+ * 'surrender' would choose again and the card would print SURRENDER. His choice and the tracks the cards read are renamed; nothing
+ * else moves (the fixer of v0.0.28's code review, finding 6). Plain data, no import: the house's records are walked where they lie.
+ */
+export function upgradeChoiceGive(s) {
+  const R = s.armoury?.range;
+  if (!R) return;
+  for (const T of R.turners ?? []) if (T?.live?.choice?.what === 'surrender') T.live.choice.what = 'give';
+  for (const list of Object.values(R.house?.boarding?.track ?? {})) for (const e of list ?? []) if (e?.what === 'surrender') e.what = 'give';
+  for (const list of Object.values(R.house?.bangGo?.track ?? {})) for (const e of list ?? []) if (Array.isArray(e) && e[1] === 'choice' && e[2] === 'surrender') e[2] = 'give';
+}

@@ -194,7 +194,7 @@ export default [
       const s1 = share(one, true), s2 = share(two, true), s2far = share(two, false), s50 = share(50, true);
       console.log(`      his hardening ${H} (T10's corporate security 16): one bang felt ${one} (band ${bandN(one)}) ${JSON.stringify(s1)}; two bangs felt ${two} (band ${bandN(two)}) ${JSON.stringify(s2)} with a weapon within 5 m, ${JSON.stringify(s2far)} without; suppressed at 50 ${JSON.stringify(s50)} (T10 two bangs: cover 45, freeze 45, surrender 10)`);
       assert(bandN(one) < 2 ? s1.fight === 100 : true, JSON.stringify(s1));
-      assert(bandN(two) === 3 && !s2.fight && s2.surrender > 4 && s2.surrender < 17 && !s2far.surrender && !s50.surrender, JSON.stringify({ s2, s2far, s50 }));
+      assert(bandN(two) === 3 && !s2.fight && s2.give > 4 && s2.give < 17 && !s2far.give && !s50.give, JSON.stringify({ s2, s2far, s50 }));
       // (in the lane: two G-11s in room 2, then his choice rolled at his first moment able (the startle's or the stun's end), once a band change, again only after the dwell)
       const mid = [22.75, 16.9];
       burst(s, w.g.bus, { id: 'i-test-1', model: 'g11', x: mid[0], z: mid[1], atMs: s.clock.ms, byId: null, called: false });

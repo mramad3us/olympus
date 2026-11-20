@@ -100,16 +100,40 @@ function bangLane(tier, seed, loadout) {
     pause: c ? { key: c.key, seen: c.seenMs - bang, takeIn: c.takeInMs, at: c.pauseAtMs - bang } : null, mark: (H.rooms[0].kit ?? []).find(x => /^BANG TO ENTRY/.test(x)) ?? null };
 }
 
+// (the belays of "As you were": the quick case after his "back" alone, its heavy twin after each beat; v0.0.28's stage 0)
+function belays(ats) {
+  // (after his prime the breach's count has begun, its fuse running: no recovery, "It's lit. Stay off the door." and the burst)
+  const rows = ats.map(at => belayed(at));
+  for (const r of rows) console.log(`      after ${r.at}: ${r.recover ? `his recovery from +${fmt(r.recover.atMs / 1000, 2)} s (planned ${fmt(r.recover.planMs / 1000, 2)} s)` : 'no recovery (the fuse running)'}; presses after the belay ${r.presses}, the lines ${r.lines.join(' > ')}, next/walk flips ${r.flips}; room 1 ${r.state} ${fmt(r.sinceS, 1)} s after the belay, faults ${r.faults.join(', ') || 'none'}; charges on a door ${r.charge.join(', ') || 'none'}; task ${r.task}`);
+  assert(rows.every(r => r.belayAt !== null && (r.recover || r.at === 'prime') && r.state === 'clear' && !r.faults.length && !r.charge.length && r.flips === 0 && r.lines.includes('cqb-task') && r.presses <= 40 && r.sinceS < 60), JSON.stringify(rows.map(r => ({ at: r.at, state: r.state, faults: r.faults, charge: r.charge, flips: r.flips, presses: r.presses, lines: r.lines }))));
+}
+
+// (the review of v0.0.19's bang lanes: the quick case the recruit on 48213, whose take-in ran past the hold, its heavy twin the three; v0.0.28's stage 0)
+function bangLanes(lanes) {
+  const out = [];
+  for (const [tier, seed] of lanes) {
+    const o = bangLane(tier, seed, 'flash');
+    out.push(o);
+  }
+  for (const o of out) console.log(`      ${o.tier} ${o.seed}: the DI while his bang came ${o.lines.join(', ')}, after the hold ${o.late.join(', ') || 'nothing'}; your pause on ${o.pause ? `${o.pause.key} seen +${fmt(o.pause.seen / 1000, 2)} s, take-in ${fmt(o.pause.takeIn / 1000, 2)} s, at +${fmt(o.pause.at / 1000, 2)} s (${o.pause.at < BANG_HOLD_MS ? 'inside' : 'past'} the hold)` : 'none'}; bang to your threshold ${o.bangToEntry === null ? '-' : fmt(o.bangToEntry / 1000, 2)} s; a Wait ended ${o.waitEnd === null ? 'none run over it' : `${o.waitEnd} ms after the bang`}; the row's mark ${o.mark ?? 'none'}`);
+  assert(out.every(o => !o.lines.includes('cqb-contact') && o.lines.includes('cqb-task') && o.bangToEntry !== null && (o.waitEnd === null || o.waitEnd <= 150)), JSON.stringify(out));
+  // (every lane, the recruit on 48213 whose take-in of 1a ran past the hold among them (v0.0.20's close: before, only the lanes whose
+  // pause came inside the hold were held to it, and that recruit entered 6.85 s after the bang))
+  assert(out.every(o => o.bangToEntry < 3500) && out.some(o => o.tier === 'recruit' && o.pause && o.pause.at >= BANG_HOLD_MS), JSON.stringify(out));
+  assert(out.filter(o => o.bangToEntry > BANG_LATE_MS + 500).every(o => o.mark), JSON.stringify(out));
+}
+
 export default [
   {
-    name: '"As you were" with his charge on the door (placed, and back at his safe point): he takes it off (two:recover: to the front, the charge off and in its pouch, back to his point), "Your call. Back on the door.", and you lead in by T alone: room 1 clear, no fault, nothing left on the door; v0.0.19\'s first build left the charge there, the DI flipping "Next" and "Keep moving" a tick at a time, and the stall passed the leg with TIME and your "charge" fault (the review of 2026-11-16); after his prime the count has begun: off the door until it bursts',
+    name: '"As you were" with his charge on the door (placed, and back at his safe point): he takes it off (two:recover: to the front, the charge off and in its pouch, back to his point), "Your call. Back on the door.", and you lead in by T alone: room 1 clear, no fault, nothing left on the door; v0.0.19\'s first build left the charge there, the DI flipping "Next" and "Keep moving" a tick at a time, and the stall passed the leg with TIME and your "charge" fault (the review of 2026-11-16); after his prime the count has begun: off the door until it bursts (quick: the belay after his "back"; after "place" and "prime" too in its heavy twin below, v0.0.28\'s stage 0)',
     timeoutMs: 60_000,
-    fn() {
-      // (after his prime the breach's count has begun, its fuse running: no recovery, "It's lit. Stay off the door." and the burst)
-      const rows = ['place', 'back', 'prime'].map(at => belayed(at));
-      for (const r of rows) console.log(`      after ${r.at}: ${r.recover ? `his recovery from +${fmt(r.recover.atMs / 1000, 2)} s (planned ${fmt(r.recover.planMs / 1000, 2)} s)` : 'no recovery (the fuse running)'}; presses after the belay ${r.presses}, the lines ${r.lines.join(' > ')}, next/walk flips ${r.flips}; room 1 ${r.state} ${fmt(r.sinceS, 1)} s after the belay, faults ${r.faults.join(', ') || 'none'}; charges on a door ${r.charge.join(', ') || 'none'}; task ${r.task}`);
-      assert(rows.every(r => r.belayAt !== null && (r.recover || r.at === 'prime') && r.state === 'clear' && !r.faults.length && !r.charge.length && r.flips === 0 && r.lines.includes('cqb-task') && r.presses <= 40 && r.sinceS < 60), JSON.stringify(rows.map(r => ({ at: r.at, state: r.state, faults: r.faults, charge: r.charge, flips: r.flips, presses: r.presses, lines: r.lines }))));
-    },
+    fn() { belays(['back']); },
+  },
+  {
+    name: '"As you were" with his charge on the door (placed, and back at his safe point): he takes it off (two:recover: to the front, the charge off and in its pouch, back to his point), "Your call. Back on the door.", and you lead in by T alone: room 1 clear, no fault, nothing left on the door; v0.0.19\'s first build left the charge there, the DI flipping "Next" and "Keep moving" a tick at a time, and the stall passed the leg with TIME and your "charge" fault (the review of 2026-11-16); after his prime the count has begun: off the door until it bursts (the heavy twin of the case above, v0.0.28\'s stage 0: the file over its quick CPU ceiling)',
+    heavy: true,
+    timeoutMs: 120_000,
+    fn() { belays(['place', 'back', 'prime']); },
   },
   {
     name: 'a save made while he takes his charge off the door carries on byte for byte, every item held exactly once and every id whole (ids-check)',
@@ -234,21 +258,15 @@ export default [
     },
   },
   {
-    name: 'the review of v0.0.19: "#2, bang it" at the recruit and the private by the keys: while his bang is coming on your door (his task working, or its bang under BANG_HOLD_MS 2 s old: cqb.js bangPending) the DI never leads into a contact through the doorway he opened ("Cover it", then "Bang! Go."), and your Wait ends at the bang (6.36 s and 3.97 s from the bang to the entry before); every lane enters within 3.5 s of the bang, the private on 48213 and the recruit on 48718 among them, and the recruit on 48213 too, whose notice of 1a was missed: your entry on his bang is pre-armed (contact.js bangEntry, v0.0.20\'s close), his take-in made on the move and his pause past the threshold; before it he froze in the doorway, his pause came past the hold, the DI led him into the contact and he entered 6.85 s after the bang; an entry past BANG_LATE_MS + 0.5 s is charged on the room\'s row ("BANG TO ENTRY …")',
+    name: 'the review of v0.0.19: "#2, bang it" at the recruit and the private by the keys: while his bang is coming on your door (his task working, or its bang under BANG_HOLD_MS 2 s old: cqb.js bangPending) the DI never leads into a contact through the doorway he opened ("Cover it", then "Bang! Go."), and your Wait ends at the bang (6.36 s and 3.97 s from the bang to the entry before); every lane enters within 3.5 s of the bang, the private on 48213 and the recruit on 48718 among them, and the recruit on 48213 too, whose notice of 1a was missed: your entry on his bang is pre-armed (contact.js bangEntry, v0.0.20\'s close), his take-in made on the move and his pause past the threshold; before it he froze in the doorway, his pause came past the hold, the DI led him into the contact and he entered 6.85 s after the bang; an entry past BANG_LATE_MS + 0.5 s is charged on the room\'s row ("BANG TO ENTRY …") (quick: the recruit on 48213; the recruit on 48718 and the private on 48213 too in its heavy twin below, v0.0.28\'s stage 0)',
+    timeoutMs: 60_000,
+    fn() { bangLanes([['recruit', 48213]]); },
+  },
+  {
+    name: 'the review of v0.0.19: "#2, bang it" at the recruit and the private by the keys: while his bang is coming on your door (his task working, or its bang under BANG_HOLD_MS 2 s old: cqb.js bangPending) the DI never leads into a contact through the doorway he opened ("Cover it", then "Bang! Go."), and your Wait ends at the bang (6.36 s and 3.97 s from the bang to the entry before); every lane enters within 3.5 s of the bang, the private on 48213 and the recruit on 48718 among them, and the recruit on 48213 too, whose notice of 1a was missed: your entry on his bang is pre-armed (contact.js bangEntry, v0.0.20\'s close), his take-in made on the move and his pause past the threshold; before it he froze in the doorway, his pause came past the hold, the DI led him into the contact and he entered 6.85 s after the bang; an entry past BANG_LATE_MS + 0.5 s is charged on the room\'s row ("BANG TO ENTRY …") (the heavy twin of the case above, v0.0.28\'s stage 0: the file over its quick CPU ceiling)',
+    heavy: true,
     timeoutMs: 120_000,
-    fn() {
-      const out = [];
-      for (const [tier, seed] of [['recruit', 48213], ['recruit', 48718], ['private', 48213]]) {
-        const o = bangLane(tier, seed, 'flash');
-        out.push(o);
-      }
-      for (const o of out) console.log(`      ${o.tier} ${o.seed}: the DI while his bang came ${o.lines.join(', ')}, after the hold ${o.late.join(', ') || 'nothing'}; your pause on ${o.pause ? `${o.pause.key} seen +${fmt(o.pause.seen / 1000, 2)} s, take-in ${fmt(o.pause.takeIn / 1000, 2)} s, at +${fmt(o.pause.at / 1000, 2)} s (${o.pause.at < BANG_HOLD_MS ? 'inside' : 'past'} the hold)` : 'none'}; bang to your threshold ${o.bangToEntry === null ? '-' : fmt(o.bangToEntry / 1000, 2)} s; a Wait ended ${o.waitEnd === null ? 'none run over it' : `${o.waitEnd} ms after the bang`}; the row's mark ${o.mark ?? 'none'}`);
-      assert(out.every(o => !o.lines.includes('cqb-contact') && o.lines.includes('cqb-task') && o.bangToEntry !== null && (o.waitEnd === null || o.waitEnd <= 150)), JSON.stringify(out));
-      // (every lane, the recruit on 48213 whose take-in of 1a ran past the hold among them (v0.0.20's close: before, only the lanes whose
-      // pause came inside the hold were held to it, and that recruit entered 6.85 s after the bang))
-      assert(out.every(o => o.bangToEntry < 3500) && out.some(o => o.tier === 'recruit' && o.pause && o.pause.at >= BANG_HOLD_MS), JSON.stringify(out));
-      assert(out.filter(o => o.bangToEntry > BANG_LATE_MS + 500).every(o => o.mark), JSON.stringify(out));
-    },
+    fn() { bangLanes([['recruit', 48213], ['recruit', 48718], ['private', 48213]]); },
   },
   {
     name: 'your #2\'s P-12 leaves the bang\'s entry where it was (v0.0.20\'s code review: the recruit on 48213 went from 3.10 s to 8.05 s with it): "#2, bang it" by the keys on 16 seeds a sheet, the recruit and the private, with his P-12 and with \'~two:none\'; the share entering within 3.5 s and the mean bang to entry within 1 s and one lane of each other (printed)',

@@ -742,6 +742,7 @@ An NPC who sees you within 15 m knows your weapon's visible state (in hand, slun
 
 ---
 
+- **As built in v0.0.28** (the three posts of `src/data/people/posts.js`, after `belt-mule:crew-3`): `melas:armourer-1` (SSgt 30, Sgt 50, Cpl 20; MOS 2111), `melas:armourer-2` (Sgt 40, Cpl 40, LCpl 20; 2111) and `melas:kd-ammo` (Sgt 55, Cpl 45; 2311), generated as every post is; your squad and its leader are the roster's, placed at each stage inside the splashes and never walking (0.0.9 `test-bay` walks them).
 - **As built in v0.0.23** (`src/sim/people/seen.js`; VIEWS §7.11): the take-in's read (`seenFace`, `seenState`) is in the Seen record's `read` and the card's words, never in the picture; the picture is what the stage draws (the user, 2026-11-17: "show us what we would be seeing"). The stage draws nobody in a combat scene before the viewer has seen him (`src/sim/places/known.js` `seenEver`, VIEWS §2.11).
 
 ## 8. Relationships

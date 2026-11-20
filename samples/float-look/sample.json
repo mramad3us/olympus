@@ -1,7 +1,6 @@
 {
  "title": "A floating body's height, read from above: a shadow, a scale step, a line to the deck, or a ring",
  "about": "In free fall a body drifts off the deck, and the stage's camera from above shows a body 1 m up as a body 1 m further north: its height cannot be read (VIEWS's zero-g frames, \"height by shadow and scale\"). The anywhere round (v0.0.24, \"Anchor before you fire\" and \"Secure for burn\") draws it by the look you score here; until then nothing in the game floats but the float frames' tests. Every figure is the game's own (the shoot house's marine in the black combat EVA suit, in the float frames the stage has today: float0, float1 and the tumble's turns), on a steel deck of the void range's 1.5 m plates, at the stage's two densities (16 and 24 px/m) and 16 three times larger, snapped to the Mars palette; each body at 0.3, 1.0 or 1.8 m over its point on the deck (written in its corner; T, tumbling at 1.0 m), raised on the picture by its height as the stage's camera puts it. F-b (the default until scored) the shadow and one scale step (a body more than 0.5 m off the deck drawn at the next step of density, 1.25 times, nearer the camera); F-a the shadow offset alone (a soft dark ellipse under him, fainter the higher he is); F-c the shadow and a thin dotted line from the body down to the point under him; F-d an outline ring on the deck in place of the shadow.",
- "open": {"default": ["F-b"], "since": "2026-11-17", "decides": "how a floating body's height is drawn (the anywhere round)", "builtIn": "v0.0.24"},
  "pixel": true,
  "groups": [
   {
@@ -15,5 +14,6 @@
     { "id": "F-d", "name": "F-d: a ring on the deck", "query": "f=F-d", "pixel": "361x430" }
    ]
   }
- ]
+ ],
+ "scored": {"on": "2026-11-20", "picks": ["F-a"]}
 }

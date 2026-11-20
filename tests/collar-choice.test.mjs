@@ -23,7 +23,7 @@ import { tourniquetOf, TQ_MS } from '../src/sim/body/aid.js';
 import { stream, next } from '../src/core/rng.js';
 import { TICK_MS } from '../src/core/clock.js';
 
-const OUT = ['fight', 'cover', 'blind', 'freeze', 'flee', 'surrender'];
+const OUT = ['fight', 'cover', 'blind', 'freeze', 'flee', 'give'];
 // (the streams sampled: the sheet's 400 leave a 12.5% cell's sampling error at 1.7 points, so its 3 points would fail on chance one cell
 // in fifteen; 2,000 hold it at 0.7, the threshold kept)
 const SAMPLES = 2000;
@@ -37,7 +37,7 @@ function enumerate(sheet, felt) {
     if (!table) { n.freeze++; continue; }
     if (band < 2) { n.fight++; continue; }
     let what = table[Math.min(3, band)][grade(r + nerve - dc, r === 20 ? 20 : r === 1 ? 1 : 0)];
-    if (what === 'surrender') what = 'freeze';
+    if (what === 'give') what = 'freeze';
     if (what === COVER_BLIND) { n.blind += IRREG_BLIND_SHARE; n.cover += 1 - IRREG_BLIND_SHARE; } else n[what]++;
   }
   return OUT.map(k => Math.round(n[k] * 5 * 10) / 10);
@@ -64,7 +64,7 @@ export default [
         rows.push(`${who} ${felt}: ${e.join('/')} | ${m.join('/')}`);
         if (d > 3) off.push({ who, felt, e, m });
       }
-      console.log(`      fight/cover/blind/freeze/flee/surrender %, the code by the d20 | choiceOf over ${SAMPLES}:\n        ${rows.join('\n        ')}`);
+      console.log(`      fight/cover/blind/freeze/flee/give %, the code by the d20 | choiceOf over ${SAMPLES}:\n        ${rows.join('\n        ')}`);
       // (the doctrine is the man's own: the same felt and stream on a security and an irregular sheet of the same Nerve differ only in the cells)
       const civ = choiceOf(bare(SHEETS.crew), 'p', { felt: 95, atMs: 5, key: 'rp:t' });
       // (T10: the clan boarder, Nerve 6 (Warfighting 30, criminal); the cell member, Nerve 3 (Warfighting 15))

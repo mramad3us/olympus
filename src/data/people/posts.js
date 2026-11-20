@@ -43,4 +43,9 @@ export const POSTS = deepFreeze({
   'belt-mule:crew-1': { site: 'belt-mule', key: 'crew-1', what: 'hauler crewman', ranks: [['Civ', 100]], mos: null, unitId: '2/4', branch: 'civilian', outfit: 'beltCoverall' },
   'belt-mule:crew-2': { site: 'belt-mule', key: 'crew-2', what: 'hauler crewman', ranks: [['Civ', 100]], mos: null, unitId: '2/4', branch: 'civilian', outfit: 'beltCoverall' },
   'belt-mule:crew-3': { site: 'belt-mule', key: 'crew-3', what: 'hauler crewman', ranks: [['Civ', 100]], mos: null, unitId: '2/4', branch: 'civilian', outfit: 'beltCoverall' },
+  // ("The window and the canopy" (its build sheet §0 item 20; AM§4): the armourer behind window 1 (his Awareness is the inspection's
+  // eye), the second armourer idle behind window 2, the ammunition NCO at his table and at your shoulder on the lane; generated as every post is)
+  'melas:armourer-1': { site: 'melas', key: 'armourer-1', what: 'armourer', ranks: [['SSgt', 30], ['Sgt', 50], ['Cpl', 20]], mos: '2111', unitId: '2/4', branch: 'marines', outfit: 'utilities' },
+  'melas:armourer-2': { site: 'melas', key: 'armourer-2', what: 'armourer', ranks: [['Sgt', 40], ['Cpl', 40], ['LCpl', 20]], mos: '2111', unitId: '2/4', branch: 'marines', outfit: 'utilities' },
+  'melas:kd-ammo': { site: 'melas', key: 'kd-ammo', what: 'ammunition NCO', ranks: [['Sgt', 55], ['Cpl', 45]], mos: '2311', unitId: '2/4', branch: 'marines', outfit: 'rangeStaff' },
 });

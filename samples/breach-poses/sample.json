@@ -1,7 +1,6 @@
 {
  "title": "A man in the bang: the role-player dazed and the role-player cowering, on the stage and on his target card",
  "about": "v0.0.26, \"Bang, then go\", is room 1 of the Wheel's house 1 with two role-players who choose by their nerve (fight, cover, freeze, give up), and a G-11 through the door. A man the bang startles, stuns or blinds is DAZED until it passes, and you watch the window close: he straightens, turns, and his rifle comes up. A man whose nerve fails freezes, COWERING, until you challenge him or his nerve comes back. The stage has no frame for either today (a dazed man is drawn at his low ready, a frozen one kneeling at it), so these are the candidates. Every picture is the game's own code: the role-player as the live lane dresses him (utilities, the plate carrier, the force-on-force mask, the R-7), composed at the stage's 16 px/m by the figure engine with the candidate's pose, shaded and snapped to the Mars palette as the stage draws him, on the house's floor and three times his size: first what the stage draws today, then the candidate toward you, away, side on to the right and to the left (a daze twice each facing: its sway, 1 px down at 1.5 Hz, held still under \"reduce flashes\"). Under them his target card: today's, then the candidate's at 4 m and 14 m. D (the default D-a) is the daze; C (the default C-a) is the cower: C-a keeps the card's C1 as it is today. Toward you and away, the figure's large head hides a hand raised to it (D-a's to the eyes, C-a's over the head), as it hides every arm raised behind it; side on, it shows. The game builds the defaults until you score; each pick is one row of the figure's poses and one of the card's.",
- "open": {"default": ["D-a", "C-a"], "since": "2026-11-19", "decides": "how a dazed role-player (D) and a cowering one (C) are drawn on the stage and on his target card in Bang, then go and Stack and clear, live", "builtIn": "v0.0.26"},
  "pixel": true,
  "groups": [
   {
@@ -22,5 +21,6 @@
     { "id": "C-b", "name": "C-b: down into the corner, the back half turned, the rifle across the knees", "query": "c=C-b", "pixel": "616x377" }
    ]
   }
- ]
+ ],
+ "scored": {"on": "2026-11-20", "picks": ["D-a", "C-a"]}
 }

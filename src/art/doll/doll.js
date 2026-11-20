@@ -71,13 +71,20 @@
 // the doll as on the figure, one source: the make by the man's seed (outfits.js beltMakeOf), the whole of him in its cloth with no
 // camouflage (kit.plain), the bare head, dark work boots; and two poses (POSE_BENDS: blind fire's kneel behind cover, the rifle up
 // over it, samples/board-poses B-a's card; a man down in free fall, slack from his boots, Z-a's).
+// v0.0.28 (the picks of 2026-11-20): a hold drawn whole (./held.js: aimed through the sights, the P-12's high ready, the hostage
+// card's hostile) draws its own arms from the shoulders after the head and the mask, the doll's arms left out; sitting (POSE_BENDS.sit,
+// D3) sets the body down and draws the legs, the rifle across the lap and the open hands after the bend; a man side on ('sideR',
+// 'sideL') is ./side.js's profile on a wider grid (backOff, its wall's offset); `layer: 'over'` keeps only a hold's over parts.
 // Pure: it returns a Pixmap (src/art/paint.js words), opaque, the backdrop round the figure.
 import { PX_PER_M } from '../../render/scale.js';
 import { word } from '../paint.js';
 import { SKIN, HAIR, valles, TOWEL, SHOWER_SHOE, cutOf, SIDES_K, COMBAT_SUIT, beltMakeOf } from '../figures/outfits.js';
-import { helmOf, helmFor } from '../figures/helmets.js';
+import { MAG_BOOT_LOOK, MAG_BOOT_SPEC } from '../figures/templates.js';
+import { helmOf, helmFor, fofMaskFor } from '../figures/helmets.js';
 import { dollHelm, trimDollPlate } from './helmets.js';
-import { rifleAt, gearBends, suitBelt, carrierPouches, dumpPouch, holster, earCups, pistolAt, heldItem, backDevices, sideDevices, handDevice, holdGear, anchorParts, RIFLE_IN_HANDS, PISTOL_IN_HANDS, ANCHOR_LOOKS } from './worn.js';
+import { rifleAt, gearBends, suitBelt, carrierPouches, dumpPouch, holster, earCups, pistolAt, heldItem, backDevices, sideDevices, handDevice, holdGear, anchorParts, fofMask, RIFLE_IN_HANDS, PISTOL_IN_HANDS, ANCHOR_LOOKS } from './worn.js';
+import { rifleAimed, pistolAimed, pistolHigh, hostageHold, seated, slungRifle, slumpHead, slumpNeck, boardPistol, printHands, boardRifle, boardRifleBends, HOSTAGE_WHOLE, SEAT, PRONE_ELBOW_Y } from './held.js';
+import { sideFigure, SIDE_W } from './side.js';
 import { backParts } from './back.js';
 import { REF, INK, mix, lum, cloth, flesh, smooth, ribbon, edgeOf, grid, halo, TONES } from './grid.js';
 
@@ -159,11 +166,13 @@ function boots(g, B, kit) {
     g.on(id, g.scan(smooth([[a + 1.6, 128], [a + 3.4, 126.8], [mid + 0.4, 127.4], [mid, 129.4], [a + 2.4, 129.8]], 3)), T.soft);
     g.on(id, g.rows(FLOOR_Y - 1, 0, REF.W), cloth(kit.suit ? 0x23252f : 0x47302a).base);   // (the sole)
     if (!kit.suit) for (const y of [top + 2, top + 4]) g.on(id, g.rows(y, Math.round(mid) - 1, Math.round(mid) + 1), T.deep);   // (laces)
-    // (mag boots (the gear's boots, A's), mag-boots' B-b: the magnet's sole a row deeper under the boot, and its housing
-    // round the ankle, the boot's top rows, in the cuff's grey; samples/mag-boots, the default until scored)
+    // (mag boots (the gear's boots, A's), samples/mag-boots by the figure's MAG_BOOT_LOOK: B-a, the user's star of 2026-11-20, the
+    // magnet's sole two rows deep under the boot and no cuff; B-b, v0.0.24's, a row of sole and the housing round the ankle, the
+    // boot's top rows, in the cuff's grey)
     if (kit.gear?.boots === 'mag') {
-      g.add(g.scan([[a + 0.2, FLOOR_Y], [b + 0.6, FLOOR_Y], [b + 0.6, FLOOR_Y + MAG_SOLE_ROWS], [a + 0.2, FLOOR_Y + MAG_SOLE_ROWS]]), MAG_BOOT_C.sole);
-      g.on(id, g.rows(top, 0, REF.W, top + MAG_CUFF_ROWS - 1), MAG_BOOT_C.cuff);
+      const M = MAG_BOOT_SPEC[MAG_BOOT_LOOK];
+      g.add(g.scan([[a + 0.2, FLOOR_Y], [b + 0.6, FLOOR_Y], [b + 0.6, FLOOR_Y + M.sole], [a + 0.2, FLOOR_Y + M.sole]]), MAG_BOOT_C.sole);
+      if (M.cuff) g.on(id, g.rows(top, 0, REF.W, top + MAG_CUFF_ROWS - 1), MAG_BOOT_C.cuff);
     }
   }
   if (kit.pt) {
@@ -181,8 +190,8 @@ function boots(g, B, kit) {
   }
 }
 
-/** Mag boots on the doll (B-b, samples/mag-boots: the sole and a grey cuff), their colours and their rows (reference rows). */
-export const MAG_BOOT_C = Object.freeze({ sole: 0x24262c, cuff: 0x8a9099 }), MAG_SOLE_ROWS = 1, MAG_CUFF_ROWS = 1.3;
+/** Mag boots on the doll (samples/mag-boots, by MAG_BOOT_LOOK: B-a the heavier sole, B-b the sole and a grey cuff), their colours and their rows (reference rows). */
+export const MAG_BOOT_C = Object.freeze({ sole: 0x24262c, cuff: 0x8a9099 }), MAG_SOLE_ROWS = MAG_BOOT_SPEC[MAG_BOOT_LOOK].sole, MAG_CUFF_ROWS = 1.3;
 /** Bare feet in shower shoes: the feet in skin, a dark sole under them and a strap across the instep. */
 function showerFeet(g, B, kit) {
   const S = flesh(kit.skin), sole = cloth(SHOWER_SHOE), [x0, x1] = [B.gap, B.hem], top = ANKLE_Y - 1;
@@ -373,6 +382,7 @@ function bentArm(g, B, kit, side, far, to, out, inn) {
   const a = [(elbow[0] + elbowIn[0]) / 2, 51], h = 3.1, dx = to[0] - a[0], dy = to[1] - a[1], L = Math.hypot(dx, dy) || 1, nx = -dy / L * h, ny = dx / L * h;
   const fore = [[a[0] + nx, a[1] + ny], [to[0] + nx, to[1] + ny], [to[0] - nx, to[1] - ny], [a[0] - nx, a[1] - ny]];
   const fid = g.add(g.scan(side(fore).map(([x, y]) => [x, y - far])), bare ? S.base : T.base);
+  kit.foreIds?.push(fid);
   g.on(fid, g.scan(side([[a[0] - nx * 0.2, a[1] - ny * 0.2], [to[0] - nx * 0.2, to[1] - ny * 0.2], [to[0] - nx, to[1] - ny], [a[0] - nx, a[1] - ny]]).map(([x, y]) => [x, y - far])), bare ? S.shade : T.shade);
   if (!kit.suit && !bare) kit.camoParts.add(fid);
   // (the fist at the end, skin, lit on its top)
@@ -417,7 +427,8 @@ function head(g, B, kit, look) {
   for (const [a, b] of [[M - 6, M - 3], [M + 2, M + 5]]) g.span(12, a, b, brow);
   g.put(M - 6, 13, brow); g.put(M + 5, 13, brow);
   for (const x0 of [M - 6, M + 3]) {
-    const far = (t > 0 && x0 < M) || (t < 0 && x0 > M);
+    // (D3, a man down: both eyes shut, drawn as the far eye's lid (kit.eyesShut))
+    const far = !!kit.eyesShut || (t > 0 && x0 < M) || (t < 0 && x0 > M);
     g.span(14, x0, x0 + 2, lid);
     if (far) { g.span(15, x0, x0 + 2, lid); continue; }
     g.put(x0, 15, white); g.put(x0 + 1, 15, iris); g.put(x0 + 2, 15, white);
@@ -799,6 +810,20 @@ function sweatMarks(g, kit, k) {
   }
 }
 
+// (the seams of the parts from id `from` on, drawn after the figure's own seams: a part over an earlier one darkened at its edge)
+function seamsFrom(g, from, kit) {
+  const seams = [];
+  for (let y = 0; y < g.ROWS; y++) for (let x = 0; x < g.W; x++) {
+    const c = g.col[y][x], p = g.part[y][x];
+    if (c === null || !p || p <= from || kit.glow.has(p)) continue;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1]]) {
+      const q = g.part[y + dy]?.[x + dx];
+      if (q && q < p && !g.quiet.has(q) && g.col[y + dy][x + dx] !== null) { seams.push([x, y, mix(c, INK, 0.55)]); break; }
+    }
+  }
+  for (const [x, y, c] of seams) g.col[y][x] = c;
+}
+
 // ---------- the poses (the build sheet §3.3, P§3.3; portrait-pose's defaults) ----------
 
 /** Where the legs are cut from the body and bent: the belt (their top), the knee, the floor's last row + 1 (reference rows). */
@@ -815,10 +840,17 @@ const HIP_Y = BELT_Y, LEG_KNEE_Y = KNEE_Y, LEG_FOOT_Y = FLOOR_Y + 1;
  */
 export const POSE_BENDS = Object.freeze({
   stand: null,
+  // (K1 as the user starred it on 2026-11-20, v0.0.23's kneel: only its aim is redrawn, A3's hold (./held.js rifleAimed); the review of
+  // the picks undid the art director's third pass, which had set the hip lower and drawn a raised knee on a starred card)
   kneel: Object.freeze({ drop: 31, legs: Object.freeze({ r: Object.freeze([1, 0]), l: Object.freeze([0.25, 'fit']) }) }),
-  sit: Object.freeze({ drop: 66, legsOver: true, lap: true, legs: Object.freeze({ r: Object.freeze([0, 0.9, 104]), l: Object.freeze([0, 0.9, 104]) }), arms: Object.freeze({ bendR: Object.freeze([14, 38]), bendL: Object.freeze([14, 38]) }) }),
+  // (D3, the user's "Needs way more polish" of 2026-11-20: sitting drawn whole, ./held.js seated: the body set down, the legs,
+  // the rifle across the thighs and the open hands drawn after it; D1, v0.0.23's, the legs resampled and the rifle across the knees)
+  sit: Object.freeze({ drop: SEAT.drop, seat: true, legs: null }),
+  sitD1: Object.freeze({ drop: 66, legsOver: true, lap: true, legs: Object.freeze({ r: Object.freeze([0, 0.9, 104]), l: Object.freeze([0, 0.9, 104]) }), arms: Object.freeze({ bendR: Object.freeze([14, 38]), bendL: Object.freeze([14, 38]) }) }),
   cower: Object.freeze({ drop: 28, legs: Object.freeze({ r: Object.freeze([0.35, 'fit']), l: Object.freeze([0.35, 'fit']) }), arms: Object.freeze({ bendR: Object.freeze([9.5, 13]), bendL: Object.freeze([9.5, 13]) }) }),
-  prone: Object.freeze({ drop: 86, cut: 46, legs: null }),
+  // (Y-p (the judge's pass of 2026-11-20): only the head, the shoulders' tops and the arms out on the deck over the line, the
+  // chest on the floor under it; the line the elbows' row (./held.js PRONE_ELBOW_Y), set down to the floor)
+  prone: Object.freeze({ drop: 132 - PRONE_ELBOW_Y - 3, cut: PRONE_ELBOW_Y + 3, legs: null }),
   // ("Bang, then go": samples/breach-poses D-a's card until the user scores, hunched, the support hand to the eyes, the rifle
   // low in the firing hand; on his knee the kneel's legs under the same arms (my call): a role-player dazed, as the stage draws him)
   daze: Object.freeze({ drop: 5, legs: Object.freeze({ r: Object.freeze([0.95, 'fit']), l: Object.freeze([0.95, 'fit']) }), arms: Object.freeze({ bendL: Object.freeze([0.5, 15]) }) }),
@@ -999,34 +1031,57 @@ export function dressKit(kit, gear) {
  * ({ wounds: [{ n, part, kind, bleed, dressed, stitched, spurt, plate }], tourniquets, splints, bloody }),
  * scale (DOLL_SCALE), gear (0.0.18: ./dress.js dressOf's DollGear, the pieces worn.js draws; none, the doll as before) }.
  */
-export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hurts = null, scale = DOLL_SCALE, body = null, outfit = null, gear = null, pose = 'stand', hold = null, facing = 'front', hang = undefined, bend: given = null } = {}) {
-  const g = grid(scale, DROP), B = BODY[sex] ?? BODY.m, kit = kitOf(outfit ? { ...look, outfit } : look, marks, body);
+export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hurts = null, scale = DOLL_SCALE, body = null, outfit = null, gear = null, pose = 'stand', hold = null, facing = 'front', hang = undefined, bend: given = null, layer = null } = {}) {
+  // (F4: a man side on drawn as a profile of his own (./side.js), on a wider grid; 'profile' is F2's squeeze, a candidate)
+  const sideOn = facing === 'sideR' || facing === 'sideL', off = sideOn ? (SIDE_W - REF.W) / 2 : 0;
+  const g = grid(scale, DROP, sideOn ? SIDE_W : REF.W), B = BODY[sex] ?? BODY.m, kit = kitOf(outfit ? { ...look, outfit } : look, marks, body);
   // (the parts of what the hands hold (worn.js), for the card's tones; the record's hold on the gear's places; the pose's
   // bend, the facing (from behind: A's back.js over the figure, no hands; side on: the head turned, F3))
   g.held = new Set();
+  kit.foreIds = [];
   // (bend: a candidate's bend outright, POSE_BENDS' shape (samples/portrait-pose/poses.js); 'profile' (F2, a candidate only) is the
   // figure side on: the head turned its most, the body drawn narrower about its middle)
   let bend = given ?? POSE_BENDS[pose] ?? null;
   const back = facing === 'back', profile = facing === 'profile';
+  // (side on, the pose is drawn by ./side.js itself: no bend)
+  if (facing === 'sideR' || facing === 'sideL') bend = null;
   let gear1 = gear && hold ? holdGear(gear, hold, { facing, ...(hang ? { hang } : {}) }) : gear;
   // (wedged, a boot under a rail on the deck, that knee bent: mag-boots' H-c's bend of the standing pose)
   if (!bend && gear1?.anchor === 'wedge') bend = ANCHOR_LOOKS.wedge.bend;
   if (gear1 && bend?.lap && gear1.rifle && RIFLE_IN_HANDS.includes(gear1.rifle.place)) gear1 = { ...gear1, rifle: { ...gear1.rifle, place: 'lap' } };
+  // (D3: the rifle in his hands goes across his thighs, drawn with the seated legs after the bend)
+  const seat = !!bend?.seat && !back;
+  if (seat) kit.eyesShut = true;
+  if (gear1 && seat && gear1.rifle && RIFLE_IN_HANDS.includes(gear1.rifle.place)) gear1 = { ...gear1, rifle: { ...gear1.rifle, place: 'seated' } };
   if (gear1) dressKit(kit, gear1);
   if (bend?.arms && !back) { if (bend.arms.bendR) kit.bendR = [...bend.arms.bendR]; if (bend.arms.bendL) kit.bendL = [...bend.arms.bendL]; }
+  // (board 1A: the board's rifle at the low ready is a print silhouette (./held.js boardRifle), the fists on its stations)
+  const boardRifleOn = !!(gear1?.painted && gear1.rifle?.place === 'ready' && !(gear1.pistol && PISTOL_IN_HANDS.includes(gear1.pistol.place)) && !back && facing === 'front');
+  if (boardRifleOn) Object.assign(kit, boardRifleBends(MID));
   if (facing === 'left' || facing === 'right') kit.turn = facing === 'left' ? -2 : 2;
   if (profile) kit.turn = 3;
   const G = kit.gear, Y = { BELT_Y, WAIST_Y };
   const bare = kit.pt || kit.towel;
-  let leg0, leg1, hol0, hol1, backed = null;
-  if (back) { ({ leg0, leg1, hol0, hol1, backed } = fromBehind(g, B, kit, Y)); if (G?.anchor) anchorParts(g, kit); }
+  // (a hold drawn whole (./held.js): the arms from the shoulders and the gun, after the head and the mask, so a gun at the
+  // eye is before the face; the doll's own arms not drawn)
+  const hostageHow = HOSTAGE_WHOLE[G?.pistol?.place] ?? HOSTAGE_WHOLE[G?.rifle?.place] ?? null;
+  const whole = back ? null : G?.rifle?.place === 'aimSights' ? 'rifleAimed' : G?.pistol?.place === 'aimSights' ? 'pistolAimed' : G?.pistol?.place === 'high' ? 'pistolHigh' : hostageHow ? 'hostage' : null;
+  if ((whole || seat) && G?.mask) kit.maskNow = true;
+  let leg0, leg1, hol0, hol1, backed = null, sided = null, stations = null, seatedAt = null;
+  if (sideOn) {
+    leg0 = g.add([], 0); leg1 = g.add([], 0); hol0 = g.add([], 0); hol1 = g.add([], 0);
+    sided = sideFigure(g, B, kit, facing === 'sideL' ? -1 : 1, pose);
+    if (!kit.suit && !bare && !kit.plain) camo(g, kit.camoParts, cloth(0x9a6a4a), kit.seed);
+  } else if (back) { ({ leg0, leg1, hol0, hol1, backed } = fromBehind(g, B, kit, Y)); if (G?.anchor) anchorParts(g, kit); }
   else {
     leg0 = g.add([], 0);
-    const L = legs(g, B, kit);
-    if (!kit.suit && !bare) kit.camoParts.add(L.a).add(L.b);
-    boots(g, B, kit);
-    if (bare) overLegs(g, B, kit);
-    if (!kit.suit && !bare) cargo(g, B, kit, L);
+    if (!seat) {
+      const L = legs(g, B, kit);
+      if (!kit.suit && !bare) kit.camoParts.add(L.a).add(L.b);
+      boots(g, B, kit);
+      if (bare) overLegs(g, B, kit);
+      if (!kit.suit && !bare) cargo(g, B, kit, L);
+    }
     leg1 = g.add([], 0);
     // (0.0.18, the gear's pieces in their order: worn.js; without gear the doll is drawn as before)
     if (G?.rifle?.place === 'back') rifleAt(g, B, kit, 'back', MID);
@@ -1040,24 +1095,40 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hu
     if (G && kit.armour) dumpPouch(g, B, kit, Y);
     if (G?.devices?.length && kit.armour) sideDevices(g, B, kit);
     hol0 = g.add([], 0);
-    if (G && !G.painted && (G.pistol || G.thigh)) holster(g, B, kit, Y);
+    if (G && !G.painted && (G.pistol || G.thigh) && !seat) holster(g, B, kit, Y);
     hol1 = g.add([], 0);
     // (the rifle at any place but the back's and across the knees (drawn after the pose's bend); the pistol in the hands at its place)
     if (hand === 'rifle' || G?.rifle?.place === 'hand') rifleIn(g, B, kit);
-    else if (G?.rifle && G.rifle.place !== 'back' && G.rifle.place !== 'lap') rifleAt(g, B, kit, G.rifle.place, MID);
+    // (RH1, the rifle hanging on its sling while the pistol is up, is the weapon card's drawing at its angle (./held.js
+    // slungRifle): the stamp at that steep angle was a torn grey slab, the judge's pass of 2026-11-20)
+    else if (G?.rifle?.place === 'hang') slungRifle(g, kit, MID);
+    else if (boardRifleOn) boardRifle(g, kit, MID, G.rifle.mag !== false);
+    else if (G?.rifle && G.rifle.place !== 'back' && G.rifle.place !== 'lap' && G.rifle.place !== 'seated' && G.rifle.place !== 'aimSights' && !HOSTAGE_WHOLE[G.rifle.place]) rifleAt(g, B, kit, G.rifle.place, MID);
     // (the board's pistol hanging from the hand and the low ready under the fists, as before; v0.0.23, held up at a stance (the high
     // ready, aimed, the admin) over the fists, the slide and the muzzle before the hands that hold it, so it reads)
     const under = (p) => p === 'hand' || p === 'ready';
-    if (G?.pistol && under(G.pistol.place)) pistolAt(g, B, kit, G.pistol.place);
+    // (a board's pistol at the low ready (2A, PISTOL): the P-12 side on and a fifth over its size in both fists, muzzle
+    // forward and down (./held.js boardPistol): the stamp end on was a 3 × 5 px L at the belt that read as a buckle)
+    if (G?.pistol && HOSTAGE_WHOLE[G.pistol.place]) { /* (drawn whole below) */ }
+    else if (G?.pistol && G.painted && G.pistol.place === 'ready') boardPistol(g, kit, MID, G.pistol.model ?? 'p12');
+    else if (G?.pistol && under(G.pistol.place)) pistolAt(g, B, kit, G.pistol.place);
     if (G?.device) handDevice(g, B, kit, 'under');
-    arms(g, B, kit);
-    if (G?.pistol && !under(G.pistol.place) && PISTOL_IN_HANDS.includes(G.pistol.place)) pistolAt(g, B, kit, G.pistol.place);
+    if (!whole && !seat) arms(g, B, kit);
+    if (!whole && G?.pistol && !under(G.pistol.place) && PISTOL_IN_HANDS.includes(G.pistol.place)) pistolAt(g, B, kit, G.pistol.place);
     if (G) heldItem(g, B, kit);
     head(g, B, kit, look);
     if (kit.head?.kind !== 'vac') hair(g, kit);
     if (kit.head?.helm) dollHelm(g, B, kit, kit.head.helm);
     else hat(g, kit);
     if (G?.ears) earCups(g, kit);
+    // (the hold drawn whole over the head and the mask (see above))
+    if (kit.maskNow) fofMask(g, kit, G.maskLook ?? fofMaskFor(kit.seed));
+    // (D3: his head dropped and tilted, the eyes shut (./held.js slumpHead), before the bend sets him down)
+    if (seat) { slumpHead(g, MID); slumpNeck(g, kit, MID); }
+    if (whole === 'rifleAimed') stations = rifleAimed(g, B, kit, MID, { prone: pose === 'prone' });
+    else if (whole === 'pistolAimed') stations = pistolAimed(g, B, kit, MID, { prone: pose === 'prone' });
+    else if (whole === 'pistolHigh') stations = pistolHigh(g, B, kit, MID, G.pistol.model ?? 'p12');
+    else if (whole === 'hostage') stations = hostageHold(g, B, kit, MID, HOSTAGE_WHOLE[G.pistol?.place] ? G.pistol.model ?? 'p12' : G.rifle.model ?? 'r7', hostageHow);
     // (the anchor the gear names: the rail overhead his left fist holds, or the lanyard to its plate)
     if (G?.anchor) anchorParts(g, kit);
     if (!kit.suit && !bare && !kit.plain) camo(g, kit.camoParts, cloth(0x9a6a4a), kit.seed);
@@ -1081,8 +1152,11 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hu
     }
   }
   for (const [x, y, c] of seams) g.col[y][x] = c;
+  // (a board (the gear painted): the forearms and the fists printed over what they hold, a light fill in the print's thin
+  // line (./held.js printHands), so a rifle crossed by them reads whole under two hands, not cut into shards)
+  if (G?.painted && !back && !sideOn && (G.rifle || G.pistol)) printHands(g, kit);
   for (const f of kit.late) f();                                   // (the slots' marks and the rank pins, over the seams)
-  const spots = hurts && !back ? wounds(g, B, sex, hurts) : [];
+  const spots = hurts && !back && !sideOn ? wounds(g, B, sex, hurts) : [];
   // (the pose's bend over the finished figure, seams, marks and wounds with it: the body's parts set down, the legs by
   // their parts resampled; a rifle across a sitting man's knees after it, at the knees' row; the wounds' places go down with the body)
   if (bend) {
@@ -1091,10 +1165,19 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hu
     for (let p = hol0 + 1; p < hol1; p++) legIds.add(p);
     bendPose(g, bend, legIds);
     if (bend.lap && G?.rifle?.place === 'lap' && !back) rifleAt(g, B, kit, 'lap', MID, (bend.legs?.r?.[2] ?? 104));
+    // (D3: the seated legs, the rifle across the thighs and the open hands, drawn on the set-down figure, then their camouflage and seams)
+    if (seat) {
+      const first = g.add([], 0);
+      seatedAt = seated(g, B, kit, MID, G?.rifle?.place === 'seated' ? kit.model ?? 'r7' : null, G?.rifle?.mag !== false);
+      if (!kit.suit && !bare && !kit.plain) camo(g, new Set([...kit.camoParts].filter(id => id > first)), cloth(0x9a6a4a), kit.seed);
+      seamsFrom(g, first, kit);
+    }
     if (G?.anchor === 'wedge') anchorParts(g, kit, 'rail');
     for (const o of spots) o.y += bend.drop ?? 0;
   }
   if (profile) squeeze(g, PROFILE_K);
+  // (layer 'over': only the parts a hold draws over another figure (./held.js hostageHold's g.overIds), the rest the wall: the hostage card's top layer)
+  if (layer === 'over') for (let y = 0; y < g.ROWS; y++) for (let x = 0; x < g.W; x++) if (!g.overIds?.has(g.part[y][x])) g.col[y][x] = null;
   // Then the ink, round the lot, on the wall (the figure set down DROP reference rows).
   const W = g.W, drop = Math.round(DROP * scale), H = g.ROWS + drop, data = new Uint32Array(W * H);
   const at = (x, y) => (y - drop >= 0 && y - drop < g.ROWS && x >= 0 && x < W ? g.col[y - drop][x] : null);
@@ -1102,22 +1185,30 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hu
     const c = at(x, y);
     if (c !== null) { data[y * W + x] = word(c); continue; }
     const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => at(x + dx, y + dy) !== null);
-    data[y * W + x] = word(edge ? INK : backdrop(x / scale, y / scale - DROP));
+    data[y * W + x] = word(edge ? INK : backdrop(x / scale - off, y / scale - DROP));
   }
   // (the held parts' pixels (the card tones them) and the anchors, both in the Pixmap's pixels; non-enumerable extras, so
   // a doll's record and its digests are as before)
   const held = new Uint8Array(W * H);
   if (g.held.size) for (let y = 0; y < g.ROWS; y++) for (let x = 0; x < W; x++) if (g.held.has(g.part[y][x]) && g.col[y][x] !== null) held[(y + drop) * W + x] = 1;
-  const dy = (bend?.drop ?? 0);
+  const dy = sided ? 0 : (bend?.drop ?? 0);
   // (from behind, back.js's anchors (within a pixel of the front's: the marks land on the back where they land on the front))
-  const ah = backed?.anchors?.head ?? [MID, HEAD_Y], aa = backed?.anchors?.aZone ?? [MID, A_ZONE_Y];
-  const anchors = { head: [ah[0] * scale, (ah[1] + DROP + dy) * scale], aZone: [aa[0] * scale, (aa[1] + DROP + dy) * scale], drop: dy * scale };
+  const ah = sided?.anchors?.head ?? backed?.anchors?.head ?? [MID, HEAD_Y], aa = sided?.anchors?.aZone ?? backed?.anchors?.aZone ?? [MID, A_ZONE_Y];
+  const anchors = { head: [ah[0] * scale, (ah[1] + DROP + dy) * scale], aZone: [aa[0] * scale, (aa[1] + DROP + dy) * scale], drop: (sided ? sided.drop : dy) * scale };
   const out = { w: W, h: H, data, repeat: false, key: null, glows: false, scale, spots: spots.map(o => ({ ...o, x: Math.round(o.x * scale), y: Math.round((o.y + DROP) * scale) })) };
   Object.defineProperty(out, 'held', { value: held, enumerable: false });
   Object.defineProperty(out, 'anchors', { value: anchors, enumerable: false });
   Object.defineProperty(out, 'pose', { value: { pose, facing, hold: hold?.how ?? null }, enumerable: false });
+  // (a wider grid's backdrop is the doll's own, its middle on his: the columns it is offset by, for maskOf and the cards' grounds)
+  if (off) Object.defineProperty(out, 'backOff', { value: off, enumerable: false });
+  // (a hold drawn whole, its stations in the Pixmap's pixels (./held.js: the eye, the sight, the muzzle, the fists; sitting, the hands
+  // and the rifle's grip): the cards' tests read them; a whole hold is drawn before the pose's bend, so it goes down with the body)
+  const st = (v, dyRef) => (Array.isArray(v) && typeof v[0] === 'number' ? [v[0] * scale, (v[1] + DROP + dyRef) * scale] : Array.isArray(v) ? v.map(w => st(w, dyRef)) : v);
+  const scaled = (o, dyRef) => (o ? Object.fromEntries(Object.entries(o).filter(([, v]) => Array.isArray(v)).map(([k, v]) => [k, st(v, dyRef)])) : null);
+  if (stations || seatedAt) Object.defineProperty(out, 'stations', { value: stations ? scaled(stations, bend?.drop ?? 0) : scaled({ hands: seatedAt.handsAt, onGun: seatedAt.onGun, offGun: seatedAt.offGun, grip: seatedAt.grip, knees: seatedAt.knees }, 0), enumerable: false });
+  if (sided) Object.defineProperty(out, 'side', { value: { eye: sided.eye.map(v => v * scale), gun: sided.gun ? { muzzle: sided.gun.muzzle.map(v => v * scale), grip: sided.gun.grip.map(v => v * scale) } : null, arm: sided.arm ? Object.fromEntries(Object.entries(sided.arm).map(([k, v]) => [k, v.map(c => c * scale)])) : null }, enumerable: false });
   return out;
 }
 
 /** The backdrop at a pixel of the doll (for a frame round it), at a scale. */
-export const backdropAt = (x, y, scale = DOLL_SCALE) => backdrop(x / scale, y / scale - DROP);
+export const backdropAt = (x, y, scale = DOLL_SCALE, off = 0) => backdrop(x / scale - off, y / scale - DROP);

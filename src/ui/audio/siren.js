@@ -2,7 +2,7 @@
 //
 // The presenter's ear (VIEWS §11.1: "the sim decides, audio presents"): each frame it reads the gravity's moment (src/sim/places/
 // gravity.js gravNow) and, while a brace is warned (the phase 'warn', from the 1MC's warning to the onset), plays the siren's
-// cycle (src/data/sounds.js WORLD.siren, samples/void-look's S-a until scored) once each SIREN_CYCLE_MS from the warning, as
+// cycle (src/data/sounds.js WORLD.siren, samples/void-look's S-b, the rising whoop, from v0.0.28) once each SIREN_CYCLE_MS from the warning, as
 // world.js plays the klaxon's whoop at each of its cycles. The ship's speakers are in every compartment (the 1MC's circuit), so
 // the siren is heard where you are, through the compartment's air (people/hearing.js airDb and steps.js lowpassHz, the one law
 // each), never through walls or by distance (my call). Nothing plays in vacuum (no air to carry it: the suit's bus is step 8's),
@@ -10,7 +10,8 @@
 // sirenCycle(now, ms) is the pure part (the grav-hud test reads it): the cycle number the moment is in, or null outside a warning.
 // v0.0.25's burn polish (the user's score of test-burn, 2026-11-19: "some indication of how strong is the burn and evasive
 // maneuvers"): the siren's pattern by the event's kind, cycleMsOf(kind): a manoeuvre's warning (a jink) whoops twice as fast as a
-// burn's (SIREN_CYCLE_BY_KIND, my call), so the ear tells a hard manoeuvre from a burn before the words are read.
+// burn's (SIREN_CYCLE_BY_KIND, my call), so the ear tells a hard manoeuvre from a burn before the words are read; from v0.0.28 its
+// whoop is WORLD.sirenJink, the same glide over the half cycle (SIREN_SOUND_BY_KIND), so one whoop ends before the next.
 // createSiren(engine) takes the engine's world ops (oneShot) and gives { frame(state, ms), stats }.
 import { playerActor } from '../../core/ids.js';
 import { airDb } from '../../sim/people/hearing.js';
@@ -22,6 +23,9 @@ import { lowpassHz } from './steps.js';
 /** The siren's cycle by the event's kind, ms (see the header): a jink's twice as fast as the rest's SIREN_CYCLE_MS. */
 export const SIREN_CYCLE_BY_KIND = Object.freeze({ jink: SIREN_CYCLE_MS / 2 });
 export const cycleMsOf = (kind) => SIREN_CYCLE_BY_KIND[kind] ?? SIREN_CYCLE_MS;
+/** The world sound a cycle plays by the event's kind (v0.0.28): a jink's whoop over its half cycle, the rest's WORLD.siren. */
+export const SIREN_SOUND_BY_KIND = Object.freeze({ jink: 'sirenJink' });
+export const sirenSoundOf = (kind) => SIREN_SOUND_BY_KIND[kind] ?? 'siren';
 /** The siren's cycle at ms for a moment (gravNow's), or null when no brace is warned. */
 export function sirenCycle(now, ms) {
   if (!now || now.phase !== 'warn' || !(ms < now.atMs)) return null;
@@ -45,7 +49,7 @@ export function createSiren(engine) {
     const air = airAt(state, null, me.x, me.z);
     if (air.vacuum) return;
     const gainDb = SIREN_DB + airDb(air.pKpa), lowHz = lowpassHz(air.pKpa);
-    if (engine.oneShot('siren', { gainDb, lowHz, pan: 0 })) { stats.cycles++; stats.last = { cycle, gainDb: Math.round(gainDb * 10) / 10, lowpassHz: Math.round(lowHz) }; }
+    if (engine.oneShot(sirenSoundOf(now.kind), { gainDb, lowHz, pan: 0 })) { stats.cycles++; stats.last = { cycle, gainDb: Math.round(gainDb * 10) / 10, lowpassHz: Math.round(lowHz) }; }
   }
   return { frame, stats };
 }

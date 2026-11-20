@@ -67,30 +67,39 @@ export function tLane(tier, seed = 48213, more = null) {
   return { g, N, card: sheet.card, mem: r.mem, says, carryLabels: [...carryLabels], halts, ms: g.state.clock.ms - t0, done: r.done };
 }
 
+// (the first case's lanes, by T on 48213, sheet by sheet: the quick case the sergeant's alone, its heavy twin every sheet; v0.0.28's stage 0)
+function tSheets(tiers) {
+  for (const tier of tiers) {
+    const run = tLane(tier), { N, mem, says } = run, twoPid = N.two?.pid;
+    const twoKeys = N.turners.filter(T => T.slot === 2), byTwo = twoKeys.filter(T => T.down && T.hits?.some?.(h => h.by === 'two'));
+    const chief = says.filter(x => /dummy/i.test(x.text)), echoes = says.filter((x, i) => x.who === twoPid && x.text === 'Clear!' && says.slice(0, i).some(y => y.who === twoPid && y.text === 'Clear!' && x.atMs - y.atMs < 1000));
+    const raw = run.carryLabels.filter(l => /\b\d:\w/.test(l));
+    console.log(`      ${tier.padEnd(8)} ${run.done ? 'card' : 'NO CARD'} in ${fmt(run.ms / 1000, 1)} s: "${run.card}"; T ${mem.T ?? 0}, refused ${mem.refused ?? 0}, waits ${mem.waits ?? 0}; the #2 fired ${N.two?.fired}, his men ${twoKeys.map(T => `${T.stand}${T.down ? ' down' : ' UP'}`).join(', ')}; halts ${run.halts.map(h => h.why).join(' ') || 'none'}`);
+    assert(run.done && /6 OF 6 THREATS/.test(run.card) && /AT 1 G/.test(run.card), JSON.stringify({ tier, card: run.card }));
+    assert(twoKeys.every(T => T.down) && N.two.fired >= 2, JSON.stringify({ tier, fired: N.two.fired, two: twoKeys.map(T => [T.stand, T.down]) }));
+    assert(!run.halts.some(h => h.why === 'two') || tier === 'cpl', JSON.stringify({ tier, halts: run.halts }));
+    assert(!raw.length && echoes.length === 0 && chief.every((x, i) => !chief.slice(0, i).some(y => y.atMs === x.atMs)), JSON.stringify({ tier, raw, echoes, chief }));
+    // (the par on the #2's men timed from the #2's own sighting: none of his men fired first on the tier one; read from the
+    // legs' contacts since the rework's R2, which made the T lane honest (the #2 no longer starts again at a speed he had
+    // lost, the stopped body no longer keeps one) and the hall's own man, #1's, fired first on 48213 by the dice, as he did on
+    // 8 of 12 seeds before it)
+    const twoStands = new Set(N.turners.filter(T => T.slot === 2).map(T => T.stand));
+    const missed = N.legs.flatMap(L => L.contacts.filter(c => twoStands.has(c.stand) && c.parMet === false).map(c => c.stand));
+    if (tier === 'tierone') assert(!missed.length, `the tier one's par on the #2's men timed from the #2's own sighting: ${JSON.stringify(missed)} ${run.card}`);
+  }
+}
+
 export default [
   {
-    name: 'by T alone, the player shooting only his own corner\'s men where the line names the shot, every sheet from the corporal to the tier one reaches the card with 6 of 6 threats down and the #2 firing on his own men (1b, 3a); never a "two" hand-back left waiting on a man in place, never a raw beat key in "Carry on", the #2\'s echo and the dummy\'s word said once (the fixer\'s of 0.0.12: the sergeant\'s T waited for ever, the #2 fired 0 to 2 rounds, room 1 called clear with his man up)',
+    name: 'by T alone, the player shooting only his own corner\'s men where the line names the shot, the sergeant reaches the card with 6 of 6 threats down and the #2 firing on his own men (1b, 3a); never a "two" hand-back left waiting on a man in place, never a raw beat key in "Carry on", the #2\'s echo and the dummy\'s word said once (the fixer\'s of 0.0.12: the sergeant\'s T waited for ever, the #2 fired 0 to 2 rounds, room 1 called clear with his man up) (quick: the sergeant on 48213; every sheet from the corporal to the tier one in its heavy twin below, v0.0.28\'s stage 0)',
+    timeoutMs: 120_000,
+    fn() { tSheets(['sgt']); },
+  },
+  {
+    name: 'by T alone, the player shooting only his own corner\'s men where the line names the shot, every sheet from the corporal to the tier one reaches the card with 6 of 6 threats down and the #2 firing on his own men (1b, 3a); never a "two" hand-back left waiting on a man in place, never a raw beat key in "Carry on", the #2\'s echo and the dummy\'s word said once (the fixer\'s of 0.0.12: the sergeant\'s T waited for ever, the #2 fired 0 to 2 rounds, room 1 called clear with his man up) (the heavy twin of the case above, v0.0.28\'s stage 0: the file over its quick CPU ceiling)',
+    heavy: true,
     timeoutMs: 240_000,
-    fn() {
-      for (const tier of ['cpl', 'sgt', 'raider', 'tierone']) {
-        const run = tLane(tier), { N, mem, says } = run, twoPid = N.two?.pid;
-        const twoKeys = N.turners.filter(T => T.slot === 2), byTwo = twoKeys.filter(T => T.down && T.hits?.some?.(h => h.by === 'two'));
-        const chief = says.filter(x => /dummy/i.test(x.text)), echoes = says.filter((x, i) => x.who === twoPid && x.text === 'Clear!' && says.slice(0, i).some(y => y.who === twoPid && y.text === 'Clear!' && x.atMs - y.atMs < 1000));
-        const raw = run.carryLabels.filter(l => /\b\d:\w/.test(l));
-        console.log(`      ${tier.padEnd(8)} ${run.done ? 'card' : 'NO CARD'} in ${fmt(run.ms / 1000, 1)} s: "${run.card}"; T ${mem.T ?? 0}, refused ${mem.refused ?? 0}, waits ${mem.waits ?? 0}; the #2 fired ${N.two?.fired}, his men ${twoKeys.map(T => `${T.stand}${T.down ? ' down' : ' UP'}`).join(', ')}; halts ${run.halts.map(h => h.why).join(' ') || 'none'}`);
-        assert(run.done && /6 OF 6 THREATS/.test(run.card) && /AT 1 G/.test(run.card), JSON.stringify({ tier, card: run.card }));
-        assert(twoKeys.every(T => T.down) && N.two.fired >= 2, JSON.stringify({ tier, fired: N.two.fired, two: twoKeys.map(T => [T.stand, T.down]) }));
-        assert(!run.halts.some(h => h.why === 'two') || tier === 'cpl', JSON.stringify({ tier, halts: run.halts }));
-        assert(!raw.length && echoes.length === 0 && chief.every((x, i) => !chief.slice(0, i).some(y => y.atMs === x.atMs)), JSON.stringify({ tier, raw, echoes, chief }));
-        // (the par on the #2's men timed from the #2's own sighting: none of his men fired first on the tier one; read from the
-        // legs' contacts since the rework's R2, which made the T lane honest (the #2 no longer starts again at a speed he had
-        // lost, the stopped body no longer keeps one) and the hall's own man, #1's, fired first on 48213 by the dice, as he did on
-        // 8 of 12 seeds before it)
-        const twoStands = new Set(N.turners.filter(T => T.slot === 2).map(T => T.stand));
-        const missed = N.legs.flatMap(L => L.contacts.filter(c => twoStands.has(c.stand) && c.parMet === false).map(c => c.stand));
-        if (tier === 'tierone') assert(!missed.length, `the tier one's par on the #2's men timed from the #2's own sighting: ${JSON.stringify(missed)} ${run.card}`);
-      }
-    },
+    fn() { tSheets(['cpl', 'sgt', 'raider', 'tierone']); },
   },
   {
     name: 'the #2 not with you: the hand on the door waits only until he is within 1.5 m of his slot, then opens it with no hand-back (his walk\'s closed form); from rung 3 the approach is never cut for him (the fixer\'s of 0.0.12: decided at the beat\'s start, 3 s on a man who arrived in 1.6 s, the approach cut 2.05 m short)',
@@ -302,7 +311,18 @@ export default [
     },
   },
   {
-    name: 'a door the bundle asks about from the doorway ("Door, east wall. Hold it or clear it?"): Hold it is offered there, and neither the line nor a moving-on round carries on past it; by T alone on seeds 1703 and 9 the tier one holds room 2\'s closet and takes no door fault (the fixer\'s second pass of 0.0.12)',
+    name: 'a door the bundle asks about from the doorway ("Door, east wall. Hold it or clear it?"): Hold it is offered there, and the tier one by T on seed 3, where it is asked, holds room 2\'s closet and takes no door fault (the fixer\'s second pass of 0.0.12; quick: seed 3 alone, the three seeds and the house bot in its heavy twin below, v0.0.28\'s stage 0)',
+    timeoutMs: 60_000,
+    fn() {
+      const asked = [], ask = (game) => { const s = game.state; if (s.stop?.carry?.why === 'door-unplanned' && s.stop.phase === 'choose') asked.push(stepsOf(s).some(r => r.id.startsWith('door:hold>'))); };
+      const run3 = tLane('tierone', 3, ask), doors = run3.N.legs.flatMap(L => L.faults.filter(f => f.kind === 'door').map(() => L.word));
+      console.log(`      by T on 3: Hold it offered at the question ${asked.join(', ') || '-'}; door faults ${doors.join(', ') || 'none'}; ${run3.card}`);
+      assert(run3.done && !doors.length && asked.length && asked.every(Boolean), JSON.stringify({ asked, doors, card: run3.card }));
+    },
+  },
+  {
+    name: 'a door the bundle asks about from the doorway ("Door, east wall. Hold it or clear it?"): Hold it is offered there, and neither the line nor a moving-on round carries on past it; by T alone on seeds 1703 and 9 the tier one holds room 2\'s closet and takes no door fault (the fixer\'s second pass of 0.0.12) (the heavy twin of the case above, v0.0.28\'s stage 0: the file over its quick CPU ceiling)',
+    heavy: true,
     timeoutMs: 120_000,
     fn() {
       // (the question met wherever a run meets it: T and the house bot hold a door seen from inside by its row before the

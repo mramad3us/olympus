@@ -14,8 +14,9 @@ import { ALL, DONE, GAUGE_ROWS, GAUGE_LAST, GAUGE_ROUNDS, OPEN_GAUGES, resolveRo
 import { WRECK_GAUGES, WRECK_FIRST, WRECK_LAST } from './wreck-done.mjs';
 import { BREACH_GAUGES, BREACH_FIRST, BREACH_LAST } from './breach-done.mjs';
 import { COLLAR_GAUGES, COLLAR_FIRST, COLLAR_LAST } from './collar-done.mjs';
+import { ARMOURY_GAUGES, ARMOURY_FIRST, ARMOURY_LAST } from './armoury-done.mjs';
 
-const GROUPS = Object.freeze({ A: 'the user\'s verdict', B: 'the user\'s complaints', C: 'the gauges', D: 'never a dead end', E: 'the ladder and the verdict', F: 'the moments', G: 'saves and replay', H: 'performance', I: 'the scored scenes', J: 'the hand-off', K: 'docs', L: 'the drawn house', M: 'v0.0.22\'s rooms, lane\'s end, blast and page', N: 'v0.0.23\'s portraits, knowledge and carried fixes', O: 'v0.0.24\'s void, its scenes and the picks', P: 'v0.0.25\'s Wreck and the carried fixes', Q: 'v0.0.26\'s Bang, then go', R: 'v0.0.27\'s Away the boarding party' });
+const GROUPS = Object.freeze({ A: 'the user\'s verdict', B: 'the user\'s complaints', C: 'the gauges', D: 'never a dead end', E: 'the ladder and the verdict', F: 'the moments', G: 'saves and replay', H: 'performance', I: 'the scored scenes', J: 'the hand-off', K: 'docs', L: 'the drawn house', M: 'v0.0.22\'s rooms, lane\'s end, blast and page', N: 'v0.0.23\'s portraits, knowledge and carried fixes', O: 'v0.0.24\'s void, its scenes and the picks', P: 'v0.0.25\'s Wreck and the carried fixes', Q: 'v0.0.26\'s Bang, then go', R: 'v0.0.27\'s Away the boarding party', S: 'v0.0.28\'s The window and the canopy' });
 
 export default [
   {
@@ -57,7 +58,8 @@ export default [
       // (v0.0.26's stage 0: the rounds run to the last gauge homed or, while a round's gauges are frozen and not yet homed
       // (tests/breach-done.mjs), to that round's last: its row is there before its first gauge is)
       // (v0.0.27's stage 0: the rounds run to the last round's frozen list, COLLAR_LAST, named before its gauges are homed)
-      const covered = GAUGE_ROUNDS[0].from === 1 && GAUGE_ROUNDS.at(-1).to === Math.max(GAUGE_LAST, BREACH_LAST, COLLAR_LAST) && GAUGE_ROUNDS.every((r, i) => !i || r.from === GAUGE_ROUNDS[i - 1].to + 1);
+      // (v0.0.28's stage 0: and to ARMOURY_LAST, v0.0.28's, the same way)
+      const covered = GAUGE_ROUNDS[0].from === 1 && GAUGE_ROUNDS.at(-1).to === Math.max(GAUGE_LAST, BREACH_LAST, COLLAR_LAST, ARMOURY_LAST) && GAUGE_ROUNDS.every((r, i) => !i || r.from === GAUGE_ROUNDS[i - 1].to + 1);
       const counts = {};
       for (const v of rounds) counts[v] = (counts[v] ?? 0) + 1;
       console.log(`      ${GAUGE_ROWS.length} gauges by round: ${Object.entries(counts).map(([v, n]) => `${v} ${n}`).join(', ')}`);
@@ -100,6 +102,19 @@ export default [
       assert(GAUGE_LAST === COLLAR_FIRST - 1 ? homed.length === 0 : GAUGE_LAST >= COLLAR_LAST && homed.length === ns.length, JSON.stringify({ GAUGE_LAST, homed }));
       assert(round?.to === COLLAR_LAST && round.v === 'v0.0.27', JSON.stringify(round));
       assert(!!GROUPS.R && rRows.length >= 3, 'group R');
+    },
+  },
+  {
+    name: 'v0.0.28\'s gauges frozen (its build sheet §2 step 6, §8): tests/armoury-done.mjs lists F170 to F188 in order, one row a gauge with its files, owner and when, after house-done\'s last homed gauge (GAUGE_LAST 169 until B\'s merge homes them, then 188 and each a house-done row); GAUGE_ROUNDS names them v0.0.28\'s; group S is listed with its anchors',
+    fn() {
+      const ns = ARMOURY_GAUGES.map(g => Number(g.F.slice(1))), rows = new Set(GAUGE_ROWS.map(r => r.id));
+      const homed = ns.filter(n => rows.has(`CF${n}`)), round = GAUGE_ROUNDS.find(r => r.from === ARMOURY_FIRST);
+      const sRows = DONE.filter(r => r.group === 'S').map(r => r.id);
+      console.log(`      ${ARMOURY_GAUGES.length} gauges F${ARMOURY_FIRST} to F${ARMOURY_LAST}; GAUGE_LAST ${GAUGE_LAST}; homed in house-done ${homed.length}; owners ${[...new Set(ARMOURY_GAUGES.map(g => g.owner))].join(', ')}; their round ${round ? `${round.v} F${round.from} to F${round.to}` : 'MISSING'}; group S ${GROUPS.S ? 'listed' : 'MISSING'}, its rows ${sRows.join(', ') || 'none'}`);
+      assert(ARMOURY_FIRST === COLLAR_LAST + 1 && ns.length === ARMOURY_LAST - ARMOURY_FIRST + 1 && ns.every((n, i) => n === ARMOURY_FIRST + i) && ARMOURY_GAUGES.every(g => g.what && g.files.length && g.owner && g.when), JSON.stringify(ns));
+      assert(GAUGE_LAST === ARMOURY_FIRST - 1 ? homed.length === 0 : GAUGE_LAST >= ARMOURY_LAST && homed.length === ns.length, JSON.stringify({ GAUGE_LAST, homed }));
+      assert(round?.to === ARMOURY_LAST && round.v === 'v0.0.28', JSON.stringify(round));
+      assert(!!GROUPS.S && sRows.length >= 4, 'group S');
     },
   },
 ];

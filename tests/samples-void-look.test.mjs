@@ -12,9 +12,9 @@ import { checkSet, drawn } from './samples-check.mjs';
 
 export default [
   {
-    name: 'void-look: P, H, S and K shot whole, P-a, H-a, S-a and K-a the defaults (v0.0.24); the holds on the grid rule, each view its own deck and holds',
+    name: 'void-look: P, H, S and K shot whole, P-a, H-a, S-b and K-a scored (2026-11-20; S-a the default of v0.0.24) and folded; the holds on the grid rule, each view its own deck and holds',
     async fn() {
-      const { views } = checkSet('void-look', { groups: ['P', 'H', 'S', 'K'], views: 8, open: ['P-a', 'H-a', 'S-a', 'K-a'], builtIn: 'v0.0.24' });
+      const { views } = checkSet('void-look', { groups: ['P', 'H', 'S', 'K'], views: 8, scored: { on: '2026-11-20', picks: ['P-a', 'H-a', 'S-b', 'K-a'] } });
       const out = [];
       for (const v of views.filter(x => /^[PH]-/.test(x.id))) {
         const P = await drawn('void-look/deck.js', v), r = P.report;
@@ -28,7 +28,7 @@ export default [
   {
     name: 'void-look: the siren\'s pitch is each candidate\'s (S-a two tones, 960 and 770 Hz; S-b a whoop, 500 to 1,200 Hz), the clank at the boots\' -7.09 dB and K-b 3 dB under it',
     async fn() {
-      const { views } = checkSet('void-look', { groups: ['P', 'H', 'S', 'K'], views: 8, open: ['P-a', 'H-a', 'S-a', 'K-a'], builtIn: 'v0.0.24' });
+      const { views } = checkSet('void-look', { groups: ['P', 'H', 'S', 'K'], views: 8, scored: { on: '2026-11-20', picks: ['P-a', 'H-a', 'S-b', 'K-a'] } });
       const R = {};
       for (const v of views.filter(x => /^[SK]-/.test(x.id))) R[v.id] = (await drawn('void-look/sounds.js', v)).report;
       const near = (a, b, k) => Math.abs(a - b) <= b * k;

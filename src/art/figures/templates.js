@@ -30,18 +30,24 @@
 // (v0.0.5's was a four-pixel hook, three along): at 16 px/m two pixels on a 16-pixel rifle (each 6.25 cm of
 // the 1.0 m drawn rifle: 12.5 cm below the well, 6 cm front to back, the HAD-30's own 6.5), at 24 px/m a
 // 2 × 3 band; the doll's rifle (doll.js, acrossK 2.4) takes the same shape. Every design keeps it.
-// v0.0.24 (the anywhere round; samples/mag-boots B-b, the default until scored): magBootCells(cells) draws mag boots over a composed
-// frame's own boot pixels (the role letters f and F, whatever pose): in each column of a boot its top pixel becomes the magnet's
-// cuff (MAG_BOOT_LETTERS.cuff, a fixed tone) and a sole a pixel deeper is added under its lowest (MAG_BOOT_LETTERS.sole), where the
-// grid is empty there; outfits.js colours them, compose.js calls it for a look with magBoots.
+// v0.0.24 (the anywhere round; samples/mag-boots): magBootCells(cells) draws mag boots over a composed frame's own boot pixels (the
+// role letters f and F, whatever pose), by MAG_BOOT_LOOK: from v0.0.28 B-a, the user's star of 2026-11-20, a heavier sole, two
+// pixels added under each boot column's lowest (MAG_BOOT_LETTERS.sole) where the grid is empty there, and no cuff; v0.0.24's B-b
+// (a sole a pixel deeper and the boot's top pixel the magnet's grey cuff, MAG_BOOT_LETTERS.cuff) stays drawable. outfits.js
+// colours them, compose.js calls it for a look with magBoots.
 // Pure.
 
 import { drawingOf } from '../rifles.js';
 
 /** The mag boots' letters (see the header): the cuff over the boot's top, the sole under its foot. */
 export const MAG_BOOT_LETTERS = Object.freeze({ cuff: 'ƀ', sole: 'ɓ' });
+/** The mag boots drawn (see the header): 'B-a' the heavier sole (v0.0.28, the user's star), 'B-b' the sole and the cuff (v0.0.24's). */
+export const MAG_BOOT_LOOK = 'B-a';
+/** Each look's sole (pixels added under the boot at 16 px/m; the doll's reference rows) and whether the boot's top is the cuff. */
+export const MAG_BOOT_SPEC = Object.freeze({ 'B-a': Object.freeze({ sole: 2, cuff: false }), 'B-b': Object.freeze({ sole: 1, cuff: true }) });
 /** Mag boots over a composed frame's cells (see the header): writes cells (a grid of rows of { ch, part, ... } or null). Returns the pixels changed. */
-export function magBootCells(cells) {
+export function magBootCells(cells, look = MAG_BOOT_LOOK) {
+  const spec = MAG_BOOT_SPEC[look] ?? MAG_BOOT_SPEC[MAG_BOOT_LOOK];
   const cols = new Map();
   for (let y = 0; y < cells.length; y++) for (let x = 0; x < (cells[y]?.length ?? 0); x++) {
     const c = cells[y][x];
@@ -51,9 +57,12 @@ export function magBootCells(cells) {
   }
   let n = 0;
   for (const [x, k] of cols) {
-    if (k.bot > k.top) { const c = cells[k.top][x]; cells[k.top][x] = { ...c, ch: MAG_BOOT_LETTERS.cuff, t: 'base' }; n++; }
-    const y = k.bot + 1;
-    if (y < cells.length && cells[y] && !cells[y][x]) { cells[y][x] = { ch: MAG_BOOT_LETTERS.sole, part: k.part, u: 0, v: 0, t: 'base' }; n++; }
+    if (spec.cuff && k.bot > k.top) { const c = cells[k.top][x]; cells[k.top][x] = { ...c, ch: MAG_BOOT_LETTERS.cuff, t: 'base' }; n++; }
+    for (let d = 1; d <= spec.sole; d++) {
+      const y = k.bot + d;
+      if (!(y < cells.length && cells[y] && !cells[y][x])) break;
+      cells[y][x] = { ch: MAG_BOOT_LETTERS.sole, part: k.part, u: 0, v: 0, t: 'base' }; n++;
+    }
   }
   return n;
 }

@@ -92,6 +92,16 @@
 //     CPU; a file's CPU is then its own work whether it runs in the pool or alone. The warm-up's CPU is counted in the quick
 //     suite's sum (QUICK_CPU_S unchanged, so the sum is never looser) and printed on its own line, never in a file's. WARM=0
 //     leaves it out (a probe only). No ceiling moved.
+// v0.0.28's stage 0 (its build sheet §2 step 3; the hardening lens HD§3; my calls, the lead's): two honest lines, no ceiling moved.
+//   - The quick CPU by the worker's own factor: each worker (and this process, for the files it runs) times the reference loop once
+//     before each quick file (helpers.mjs workerK, 33 ms on a quiet machine) and the file's CPU is divided by that factor (cpuNormS),
+//     the slower of it and the factor read again after a file over its ceiling; each file's ceiling and the quick suite's sum are
+//     judged on the normalised CPU against QUICK_FILE_CPU_S, QUICK_SLOW and QUICK_CPU_S themselves, the raw CPU printed beside it.
+//     The factor measured once before the pool was not where the work ran: three workers beside other workflows ran the same files
+//     7 to 15% slower in CPU (342.6 s at two workers, 399.0 s at three, the same hour). On a quiet machine every factor is 1.00 and
+//     the judgement is the one before, to the millisecond (tests/run-guards.test.mjs holds both).
+//   - The wall limit judged as the CPU lines are (helpers.mjs wallJudged): only while the one-minute load at the run's start and at
+//     its end is at most half the cores; else printed "not judged: the machine busy (load n)", run again on a quiet machine.
 // The priority (0.0.3). On macOS a process started from an app in the background (the terminal behind
 // a game in front) runs in the darwin background band (`ps -o pri` 4, a foreground terminal's 31), on
 // the efficiency cores: CPU work there runs 3.5 to 4 times slower (a plain loop, 380 ms against
@@ -150,6 +160,7 @@ const QUICK_CPU_S = 375;   // (v0.0.21's stage 0: the whole quick runs measured 
 const QUICK_SLOW = Object.freeze({
   // (v0.0.21's stage 0, four whole quick runs at JOBS=3: each file's worst measure plus 25%; the files from 2.4 s, whose 25% reaches 3 s)
   // (v0.0.26's stage 0: panel-keys and reads-scope left it, 1.5 and 1.4 s on the snapshot's quick runs after v0.0.25 E's heavy twins)
+  // (v0.0.28's stage 0: house-fixes and team-task left it, 1.9 and 1.1 s on the stage's quick run after their whole lanes' heavy twins)
   'house-fumble.test.mjs': 15.3,
   'house-unpinned.test.mjs': 14.7,
   'plan-walk.test.mjs': 14.3,
@@ -177,9 +188,7 @@ const QUICK_SLOW = Object.freeze({
   'scene-bangs.test.mjs': 3.8,
   'house-corner.test.mjs': 3.6,
   'house-shoot.test.mjs': 3.5,
-  'team-task.test.mjs': 3.3,
   'house-breach.test.mjs': 3.2,
-  'house-fixes.test.mjs': 3.2,
   'house-r9.test.mjs': 3.2,
   'hunt-look.test.mjs': 3.1,
   'house-bodies.test.mjs': 3.1,
@@ -194,6 +203,8 @@ const REPORT = new RegExp(`${MARK}END (.*?)${MARK}\n?`);
 async function runFile(file, log) {
   const base = file.replace('.test.mjs', '');
   const r = { pass: 0, fail: 0, left: 0, timedOut: 0, ms: 0, cpuMs: 0, gates: [] };
+  // (v0.0.28's stage 0: the factor this process runs at, timed just before the file, its CPU's divisor; see the header)
+  if (quick) { const { workerK } = await import('./helpers.mjs'); r.kW = workerK().k; }
   // (v0.0.21: a file's CPU is its tests' own, from its module loaded to its last test: the src modules' first load falls on
   // whichever file a process loads first, 1 to 2 s, and would make a file's CPU depend on its place in the pool)
   const f0 = performance.now();
@@ -246,9 +257,10 @@ async function runFile(file, log) {
   // a shared Apple silicon machine contention moves work onto the efficiency cores and CPU time itself grows, so the factor
   // measured once at the run's start no longer says how slow this file's CPU ran; the runner holds the file to the slower of
   // the two, its ceiling untouched)
+  // (v0.0.28's stage 0: judged on the CPU normalised by the worker's own factor, timed before the file)
   if (quick && r.pass + r.fail > 0) {
-    const kRun = Math.max(1, Number(process.env.OLYMPUS_MACHINE_K) || 1);
-    if (r.cpuMs / 1000 > (QUICK_SLOW[file] ?? QUICK_FILE_CPU_S) * kRun) { const { machineNow } = await import('./helpers.mjs'); r.kNow = machineNow().k; }
+    const { machineNow, cpuNormS, overCeiling } = await import('./helpers.mjs');
+    if (overCeiling(cpuNormS(r.cpuMs, r.kW), QUICK_SLOW[file] ?? QUICK_FILE_CPU_S)) r.kNow = machineNow().k;
   }
   return r;
 }
@@ -274,6 +286,8 @@ if (process.env.OLYMPUS_RUN_WORKER === '1') {
 
 /** The worker's warm-up (see the header): WARM_LANES played to their card here; { cpuMs, ms, lanes } or { err }. */
 async function warmUp() {
+  // (v0.0.28's stage 0: the worker's factor before it, the warm-up's CPU normalised by it in the quick suite's sum)
+  const kW = quick ? (await import('./helpers.mjs')).workerK().k : 1;
   const c0 = process.cpuUsage(), t0 = performance.now();
   try {
     const { createGame } = await import('./game.mjs');
@@ -281,7 +295,7 @@ async function warmUp() {
     for (const L of WARM_LANES) runHouse(createGame({ scenario: 'test-shoothouse', seed: 48213, tier: L.tier, setup: 'go' }), L.bot === 'T' ? houseTBot() : houseKeysBot());
   } catch (e) { return { err: String(e?.message ?? e).split('\n')[0].slice(0, 200) }; }
   const c = process.cpuUsage(c0);
-  return { cpuMs: Math.round((c.user + c.system) / 1000), ms: Math.round(performance.now() - t0), lanes: WARM_LANES.length };
+  return { cpuMs: Math.round((c.user + c.system) / 1000), ms: Math.round(performance.now() - t0), lanes: WARM_LANES.length, kW };
 }
 
 /** Claims n of POOL_PORTS for this run: a lock file each (the pid inside; a dead pid's is taken over), and nothing listening there. */
@@ -335,6 +349,8 @@ async function main() {
   }
   const files = readdirSync(dir).filter(f => f.endsWith('.test.mjs')).sort();
   const runT0 = performance.now();
+  // (v0.0.28's stage 0: the one-minute load at the start, the wall limit's judge with the load at the end; see the header)
+  const loadStart = os.loadavg()[0];
   // (v0.0.21: the quick suite runs with the read scope's guard on, src/core/reads.js: what the scope shares is frozen, so a
   // reader that writes into it throws; set before any test module loads, here and in every worker, which inherit it)
   if (quick && process.env.READS_FREEZE === undefined) process.env.READS_FREEZE = '1';
@@ -383,9 +399,9 @@ async function main() {
   const last = files.filter(f => !first.includes(f) && !lanes.includes(f) && !pooled.includes(f));
   const total = { pass: 0, fail: 0, left: 0, timedOut: 0 };
   const add = r => { for (const k of Object.keys(total)) total[k] += r[k]; };
-  const took = {}, cpu = {}, ran = {}, kNow = {}, gatesOut = [], warms = [];
+  const took = {}, cpu = {}, ran = {}, kNow = {}, kW = {}, gatesOut = [], warms = [];
   const names = list => list.map(f => f.replace('.test.mjs', '')).join(', ') || 'none';
-  const here = async list => { for (const file of list) { const r = await runFile(file, s => console.log(s)); add(r); took[file] = r.ms; cpu[file] = r.cpuMs; ran[file] = r.pass + r.fail; if (r.kNow) kNow[file] = r.kNow; gatesOut.push(...(r.gates ?? [])); } };
+  const here = async list => { for (const file of list) { const r = await runFile(file, s => console.log(s)); add(r); took[file] = r.ms; cpu[file] = r.cpuMs; ran[file] = r.pass + r.fail; if (r.kNow) kNow[file] = r.kNow; if (r.kW) kW[file] = r.kW; gatesOut.push(...(r.gates ?? [])); } };
 
   // ---- first: the CPU-time ceilings' files, here, on the machine the factor was measured on ----
   const firstT0 = performance.now();
@@ -444,7 +460,7 @@ async function main() {
       if (laneOpen) for (const w of [...idle]) take(w);
     };
     const finish = (w, out, r) => {
-      add(r); took[w.file] = r.ms || past[w.file] || 0; cpu[w.file] = r.cpuMs ?? 0; ran[w.file] = r.pass + r.fail; if (r.kNow) kNow[w.file] = r.kNow; done.set(w.file, out);
+      add(r); took[w.file] = r.ms || past[w.file] || 0; cpu[w.file] = r.cpuMs ?? 0; ran[w.file] = r.pass + r.fail; if (r.kNow) kNow[w.file] = r.kNow; if (r.kW) kW[w.file] = r.kW; done.set(w.file, out);
       gatesOut.push(...(r.gates ?? [])); if (r.warm) warms.push(r.warm);
       busy.delete(w); laneBusy.delete(w); w.file = null;
       drain();
@@ -535,46 +551,57 @@ async function main() {
   const loadNow = os.loadavg()[0], busy = loadNow > cores / 2 && process.env.QUICK_CPU_JUDGE !== '1';
   if (quick) {
     // (v0.0.21: each quick file's CPU against its budget, the ten largest printed; see the header)
+    // (v0.0.28's stage 0: each file's CPU normalised by the factor its own worker read before it, or after it where it was over (the
+    // slower), and judged against its ceiling itself; the raw CPU printed beside it. On a quiet machine every factor is 1.00)
+    const { cpuNormS, overCeiling, machineNow } = await import('./helpers.mjs');
     const k = Math.max(1, M.k), quickRan = Object.keys(cpu).filter(f => ran[f] > 0).sort((a, b) => cpu[b] - cpu[a]);
-    // (each file by the slower of the run's factor and the one its worker read after it, where it read one: see runFile)
-    const kOf = (f) => Math.max(k, kNow[f] ?? 1), overOf = (f) => cpu[f] / 1000 > (QUICK_SLOW[f] ?? QUICK_FILE_CPU_S) * kOf(f);
+    const kOf = (f) => Math.max(kW[f] ?? 1, kNow[f] ?? 1), normOf = (f) => cpuNormS(cpu[f], kOf(f)), ceilOf = (f) => QUICK_SLOW[f] ?? QUICK_FILE_CPU_S;
+    const overOf = (f) => overCeiling(normOf(f), ceilOf(f));
     const ranAgain = [];
     for (const f of busy ? [] : quickRan.filter(overOf)) {
       if (kind[f].browser) continue;
       const r2 = await again(f);
       if (!r2) continue;
-      ranAgain.push(`${f.replace('.test.mjs', '')} ${(cpu[f] / 1000).toFixed(1)} → ${(r2.cpuMs / 1000).toFixed(1)} s`);
-      if (r2.cpuMs < cpu[f]) cpu[f] = r2.cpuMs;
-      if (r2.kNow) kNow[f] = Math.max(kNow[f] ?? 1, r2.kNow);
+      const k2 = Math.max(r2.kW ?? 1, r2.kNow ?? 1), n1 = normOf(f), n2 = cpuNormS(r2.cpuMs, k2);
+      ranAgain.push(`${f.replace('.test.mjs', '')} ${n1.toFixed(1)} → ${n2.toFixed(1)} s normalised (${(cpu[f] / 1000).toFixed(1)} → ${(r2.cpuMs / 1000).toFixed(1)} s)`);
+      if (n2 < n1) { cpu[f] = r2.cpuMs; kW[f] = r2.kW ?? 1; delete kNow[f]; if (r2.kNow) kNow[f] = r2.kNow; }
     }
     if (ranAgain.length) console.log(`(run again alone, over their budget on the first run: ${ranAgain.join(', ')}; each held by the less)`);
-    quickRan.sort((a, b) => cpu[b] - cpu[a]);
+    quickRan.sort((a, b) => normOf(b) - normOf(a));
     const over = quickRan.filter(overOf);
-    const reread = Object.keys(kNow).filter(f => kNow[f] > k);
-    if (reread.length) console.log(`(the machine's factor read again after a file over its budget × ${k.toFixed(2)}: ${reread.map(f => `${f.replace('.test.mjs', '')} × ${kNow[f].toFixed(2)}`).join(', ')})`);
-    if (quickRan.length) console.log(`\n(the quick files' CPU, the ten largest: ${quickRan.slice(0, 10).map(f => `${f.replace('.test.mjs', '')} ${(cpu[f] / 1000).toFixed(1)} s${QUICK_SLOW[f] ? ` (ceiling ${QUICK_SLOW[f]})` : ''}`).join(', ')}; the budget ${QUICK_FILE_CPU_S} s × ${k.toFixed(2)} a file, QUICK_SLOW's own ceilings × k)`);
-    const slow = quickRan.filter(f => cpu[f] / 1000 > QUICK_FILE_CPU_S * k);
-    if (slow.length) console.log(`(the quick files over ${QUICK_FILE_CPU_S} s × k: ${slow.map(f => `${f.replace('.test.mjs', '')} ${(cpu[f] / 1000).toFixed(1)}${QUICK_SLOW[f] ? `/${QUICK_SLOW[f]}` : ''}`).join(', ')})`);
-    for (const f of over) console.log(`  ${busy ? '·' : '✗'} ${f.replace('.test.mjs', '')} (quick): ${(cpu[f] / 1000).toFixed(1)} s of CPU over its budget ${((QUICK_SLOW[f] ?? QUICK_FILE_CPU_S) * kOf(f)).toFixed(1)} s (${QUICK_SLOW[f] ? `QUICK_SLOW's ${QUICK_SLOW[f]} s` : `QUICK_FILE_CPU_S ${QUICK_FILE_CPU_S} s`} × ${kOf(f).toFixed(2)}): make it lighter, or move its whole lanes to a heavy case (TECH §13.7)`);
+    const ks = quickRan.map(kOf), kMean = ks.reduce((a, b) => a + b, 0) / Math.max(1, ks.length);
+    if (ks.length) console.log(`(the workers' factors, each read just before its file: ${Math.min(...ks).toFixed(2)} to ${Math.max(...ks).toFixed(2)}, mean ${kMean.toFixed(2)}, over 1.00 on ${ks.filter(x => x > 1).length} of ${ks.length} files; the run's at the start ${k.toFixed(2)})`);
+    const reread = Object.keys(kNow).filter(f => kNow[f] > (kW[f] ?? 1));
+    if (reread.length) console.log(`(the machine's factor read again after a file over its budget: ${reread.map(f => `${f.replace('.test.mjs', '')} × ${kNow[f].toFixed(2)}`).join(', ')})`);
+    const fig = (f) => `${normOf(f).toFixed(1)} s${kOf(f) > 1 ? ` (${(cpu[f] / 1000).toFixed(1)} raw at × ${kOf(f).toFixed(2)})` : ''}`;
+    if (quickRan.length) console.log(`\n(the quick files' CPU normalised, the ten largest: ${quickRan.slice(0, 10).map(f => `${f.replace('.test.mjs', '')} ${fig(f)}${QUICK_SLOW[f] ? ` (ceiling ${QUICK_SLOW[f]})` : ''}`).join(', ')}; the budget ${QUICK_FILE_CPU_S} s a file, QUICK_SLOW's own ceilings, each against the CPU divided by its worker's factor)`);
+    const slow = quickRan.filter(f => overCeiling(normOf(f), QUICK_FILE_CPU_S));
+    if (slow.length) console.log(`(the quick files over ${QUICK_FILE_CPU_S} s normalised: ${slow.map(f => `${f.replace('.test.mjs', '')} ${normOf(f).toFixed(1)}${QUICK_SLOW[f] ? `/${QUICK_SLOW[f]}` : ''}`).join(', ')})`);
+    const fig2 = (f) => `${normOf(f).toFixed(2)} s${kOf(f) > 1 ? ` (${(cpu[f] / 1000).toFixed(2)} raw at × ${kOf(f).toFixed(2)})` : ''}`;
+    for (const f of over) console.log(`  ${busy ? '·' : '✗'} ${f.replace('.test.mjs', '')} (quick): ${fig2(f)} of CPU normalised, over its budget ${ceilOf(f).toFixed(1)} s (${QUICK_SLOW[f] ? `QUICK_SLOW's ${QUICK_SLOW[f]} s` : `QUICK_FILE_CPU_S ${QUICK_FILE_CPU_S} s`}): make it lighter, or move its whole lanes to a heavy case (TECH §13.7)`);
     if (busy && over.length) console.log(`(the CPU budgets not judged: the machine busy, load ${loadNow.toFixed(1)} on ${cores} cores, more than half; run again on a quiet machine)`);
     if (!busy) overCpu += over.length;
     if (!filter && !skip.length) {
-      // (the sum by the slower of the factor at the run's start and at its end: helpers.mjs machineNow)
-      const kEnd = (await import('./helpers.mjs')).machineNow().k, kSum = Math.max(k, kEnd);
-      const sumS = (quickRan.reduce((a, f) => a + cpu[f], 0) + warmCpuMs) / 1000, capS = QUICK_CPU_S * kSum;
-      const overSum = sumS > capS;
+      // (the sum normalised, file by file and the warm-up by its worker's factor, against QUICK_CPU_S itself; the raw sum printed
+      // with the factor at the start and the end, as before v0.0.28)
+      const kEnd = machineNow().k;
+      const warmNorm = warms.reduce((a, w) => a + cpuNormS(w.cpuMs ?? 0, w.kW), 0);
+      const sumRawS = (quickRan.reduce((a, f) => a + cpu[f], 0) + warmCpuMs) / 1000, sumS = quickRan.reduce((a, f) => a + normOf(f), 0) + warmNorm;
+      const overSum = overCeiling(sumS, QUICK_CPU_S);
       if (overSum && !busy) overCpu++;
-      console.log(`(the quick suite's CPU: ${sumS.toFixed(1)} s over ${quickRan.length} files${warms.length ? ` and the warm-up's ${(warmCpuMs / 1000).toFixed(1)} s` : ''}, the budget ${capS.toFixed(0)} s: QUICK_CPU_S ${QUICK_CPU_S} × ${kSum.toFixed(2)}, the factor at the start ${k.toFixed(2)} and at the end ${kEnd.toFixed(2)})${overSum ? (busy ? ': over the budget, not judged (the machine busy)' : ': over the budget, a failure (TECH §13.7)') : ''}`);
+      console.log(`(the quick suite's CPU normalised: ${sumS.toFixed(1)} s over ${quickRan.length} files${warms.length ? ` and the warm-up's ${warmNorm.toFixed(1)} s` : ''}, the budget QUICK_CPU_S ${QUICK_CPU_S} s; raw ${sumRawS.toFixed(1)} s, the factor at the start ${k.toFixed(2)} and at the end ${kEnd.toFixed(2)})${overSum ? (busy ? ': over the budget, not judged (the machine busy)' : ': over the budget, a failure (TECH §13.7)') : ''}`);
     }
   }
   if (quick && !filter) {
     // (in the background band the limit is scaled by the machine's slowness, measured before the pool: see the header;
     // v0.0.21: and by the pool against the full one, QUICK_JOBS_REF / JOBS)
+    // (v0.0.28's stage 0: judged only while the load at the start and the end is at most half the cores, helpers.mjs wallJudged)
+    const { wallJudged } = await import('./helpers.mjs');
     const poolK = Math.max(1, QUICK_JOBS_REF / Math.max(1, JOBS)), bandK = inBand ? Math.max(1, M.k) : 1;
-    const limitS = Math.round(QUICK_LIMIT_S * poolK * bandK);
-    overTime = totalS > limitS;
+    const limitS = Math.round(QUICK_LIMIT_S * poolK * bandK), judged = wallJudged(loadStart, loadNow, cores);
+    overTime = judged && totalS > limitS;
     const parts = [poolK > 1 ? `× ${QUICK_JOBS_REF}/${JOBS}, a pool of ${JOBS}` : '', bandK > 1 ? `× ${bandK.toFixed(2)}, the background band` : ''].filter(Boolean).join(' ');
-    console.log(`\nquick suite: ${totalS.toFixed(1)} s (limit ${limitS} s${parts ? `: ${QUICK_LIMIT_S} s ${parts}` : ''})${overTime ? ': over the limit, a failure (TECH §13.7; run it again on a quiet machine before changing anything)' : ''}`);
+    console.log(`\nquick suite: ${totalS.toFixed(1)} s (limit ${limitS} s${parts ? `: ${QUICK_LIMIT_S} s ${parts}` : ''})${!judged ? `: not judged: the machine busy (load ${loadStart.toFixed(1)} at the start, ${loadNow.toFixed(1)} at the end, on ${cores} cores; run it again on a quiet machine)` : overTime ? ': over the limit, a failure (TECH §13.7; run it again on a quiet machine before changing anything)' : ''}`);
   }
   const { pass, fail, left, timedOut } = total;
   const summary = `\n${pass} passed, ${fail + (overTime ? 1 : 0) + overCpu} failed${left ? `, ${left} left out` : ''}${timedOut ? `, ${timedOut} timed out` : ''} (${totalS.toFixed(1)} s)\n`;

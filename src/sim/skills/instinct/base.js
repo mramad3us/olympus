@@ -257,9 +257,15 @@ export const BASE_RULES = Object.freeze([
       // (busy while a step of yours acts in stop motion (the hold's clearing bundle): the face change is taken once it ends, so T's
       // keycap is lit only when it can act; v0.0.25's fixer, the play review's 81 T presses on a lit "Feet aft." that did nothing)
       const acting = state.stop?.mode === 'stop' && state.stop.phase === 'act' && !!state.stop.doing && state.stop.doing.kind !== 'wait';
-      return { step: row && !row.off ? row.id : null, variant: row && !row.off ? 1 : 'none', busy: !!state.skip || !!state.time?.doing || acting };
+      // (the armoury round's build sheet, item 24, F24 on the Wreck: each variant names a live row. With no face row to take, "Get a hand on
+      // a hold." is the hold's grab (footing.js anchorOffers' handhold, the anchors' Take the hold, L) where one is in reach; and in stop
+      // motion T's act is the panel's own row (stop:<row>), as the hold's Wait is: shooting.js anchorAction took it there by the same
+      // chooseStep, but the act named no row of the panel, so the pause after the hold's clear read "not a row" on 9 of the Wreck's 18
+      // lanes, the sergeant to the tier one)
+      const live = !!row && !row.off, grab = live ? null : anchorOffers(state, pid).find(o => o.ok && o.kind === 'handhold');
+      return { step: live ? row.id : grab?.step ?? null, variant: live ? 1 : 'none', busy: !!state.skip || !!state.time?.doing || acting, stop: state.stop?.mode === 'stop' };
     },
-    act: (ctx) => (ctx.busy || !ctx.step ? null : ctx.variant === 'hold' ? `stop:${ctx.step}` : `anchor:${ctx.step}`),
+    act: (ctx) => (ctx.busy || !ctx.step ? null : ctx.variant === 'hold' || ctx.stop ? `stop:${ctx.step}` : `anchor:${ctx.step}`),
     text: {
       1: ['Feet aft.', 'Feet aft. Boots on the deck.'],
       hold: ['Feet aft. Hold on the deck for the burn.', 'Feet aft: stay on the deck, through after the burn.'],

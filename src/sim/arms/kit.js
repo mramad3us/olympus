@@ -214,6 +214,15 @@ export const KIT_TEMPLATES = Object.freeze({
     worn: Object.freeze({ boots: 'mb-1' }), carrier: Object.freeze([]), mags: Object.freeze([]),
     cond: 0.9, posture: 'slungFront',
   }),
+  // ("The window and the canopy" (its build sheet §1 B): the worn kit and three HAD-30s drawn empty (MAGS_DRAWN 3), no rifle: the two
+  // rifles of the scene lie at the rack's place until the armourer hands one across the counter (armoury-day.js testArmoury makes them, their dry
+  // film written there, so GUN_DEFAULTS stays as it is)
+  'armoury-draw': Object.freeze({
+    worn: Object.freeze({ carrier: 'pc-m3', ears: 'ed1' }),
+    carrier: Object.freeze(['pouch-mag2', 'pouch-mag2', 'pouch-dump']),
+    mags: Object.freeze([Object.freeze(['had30', 0]), Object.freeze(['had30', 0]), Object.freeze(['had30', 0])]),
+    cond: 0.93, posture: 'slungFront',
+  }),
 });
 /**
  * The boarding's sidearms by issue (v0.0.27; issueSidearm's specs): the marines' P-12 with two HAD-17s of ten frangible, the smugglers'

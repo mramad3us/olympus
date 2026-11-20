@@ -63,7 +63,7 @@
 // names an opening a reveal DOOR_REVEAL_M deep in its mass, blocked while the opening is closed and
 // open while it is open (reveal); portals as a floor's, and a sign of any make within EXIT_SIGN_M of
 // each (door-sign: a building's plate on the street side, its exit sign inside); fixtures inside the walked
-// ground, out of the masses and out of a door's clear zone (fixture); gates on the fence (gate); at
+// ground, out of the masses (an open structure's apart, from v0.0.28: the canopy's tables stand under it) and out of a door's clear zone (fixture); gates on the fence (gate); at
 // most LAMPS_MAX 256 lamps (TECH §9.6's table); seeds as a floor's.
 import { isId } from '../../core/ids.js';
 import { planOf, wallsOf, wallRect, roomAt, WALL_H_M } from './plan.js';
@@ -379,7 +379,8 @@ export function validateGround(area) {
     c.check('fixture');
     if (mountOf(f)) continue;
     const r = footprintOf(f), inside = r.x0 >= W.x0 && r.x1 <= W.x1 && r.z0 >= W.z0 && r.z1 <= W.z1;
-    const inMass = area.massing.some(m => m.rects.some(q => overlap(r, rectOf(q))));
+    // (an open structure on its posts is walked under, as the nav has it (buildingBlocks): v0.0.28's cleaning tables stand under the canopy)
+    const inMass = area.massing.some(m => !m.open && m.rects.some(q => overlap(r, rectOf(q))));
     const atDoor = area.massing.some(m => m.doors.some(d => { const z = d.side === 's' ? { x0: d.x - 0.6, x1: d.x + 0.6, z0: d.z, z1: d.z + DOOR_CLEAR_M } : d.side === 'n' ? { x0: d.x - 0.6, x1: d.x + 0.6, z0: d.z - DOOR_CLEAR_M, z1: d.z } : d.side === 'w' ? { x0: d.x - DOOR_CLEAR_M, x1: d.x, z0: d.z - 0.6, z1: d.z + 0.6 } : { x0: d.x, x1: d.x + DOOR_CLEAR_M, z0: d.z - 0.6, z1: d.z + 0.6 }; return blocks(f) && overlap(r, z); }));
     if (!inside || inMass || atDoor) c.fail('fixture', f.id, !inside ? 'stands outside the walked ground' : inMass ? 'stands in a building' : 'stands in a door\'s clear zone');
   }

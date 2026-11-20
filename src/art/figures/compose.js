@@ -677,7 +677,7 @@ export function composeFrame(look, dir, frame, { ppm = PX_PER_M, pose: given = n
     }
     for (const c of hit) { c.ch = 'ŕ'; c.t = 'base'; }
   }
-  // (mag boots over the boots' own pixels, B-b's cuff and sole (templates.js magBootCells))
+  // (mag boots over the boots' own pixels, by templates.js MAG_BOOT_LOOK: B-a's heavier sole from v0.0.28 (magBootCells))
   if (Lk.magBoots && !pose.noLegs) magBootCells(g.cells);
   let cells = g.cells;
   if (pose.roll) { const b = bbox(cells); cells = rotateCells(cells, pose.roll, (b.x0 + b.x1 + 1) / 2, (b.y0 + b.y1 + 1) / 2); muzzle = null; }

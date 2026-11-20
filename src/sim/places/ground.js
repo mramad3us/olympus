@@ -32,7 +32,12 @@
 //             impact berm, the wind flags, the canopy, the shack and the rope round the lanes), and the
 //             lines' pads (KD_PADS) to the surfaces;
 //   look      the palette, the authored look seed, the formation marks (decor) and the lamps: 'street'
-//             at every lamp post, 'flood' on the fence.
+//             at every lamp post, 'flood' on the fence;
+//   armoury   (v0.0.28, "The window and the canopy": src/data/places/armoury.js) the armoury's two issue windows in its south
+//             face, each in a bay BAY_M 1.2 m deep taken out of the building's rects (so the armourer stands inside the wall and
+//             the nav leaves him his cells, closed from the apron by the counter), the window's piece drawing the wall over the
+//             opening to the building's height; the porch's two clearing barrels and the "CLEAR YOUR WEAPON" stencil; the
+//             canopy's eight cleaning tables, two solvent tanks and four air hoses from the canopy's frame, and its six lamps.
 // The ground drawn is GROUND.drawnM (Main Side with its apron, and X3's strip over the KD range): the
 // masses, surfaces and zones that reach into it, boundsM their bounding rect; walkM stays Main Side's
 // rect (what v0.0.4's readers read), walksM lists every walked rect (Main Side, the bay, and from 0.0.7 the KD's
@@ -48,6 +53,7 @@ import { SEEDS } from '../../data/places/echo.js';
 import { LAMP_KINDS } from '../../data/places/sky.js';
 import { ECHO_1, ECHO_ENTRIES } from './echo.js';
 import { RANGE_PIECES, RANGE_KINDS, LINE_PAD, KD_PADS } from '../../data/places/range.js';
+import { FRONT, PORCH, CANOPY, LAMP_Y_M } from '../../data/places/armoury.js';
 
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 const r4 = (v) => { const r = Math.round(v * 10000) / 10000; return r === 0 ? 0 : r; };
@@ -95,8 +101,11 @@ function revealOf(d, a, b) {
 // ---- the massing ----
 const entryOf = (doorId) => ECHO_ENTRIES.find(e => e.ground === doorId) ?? null;
 const openingRec = (id) => ECHO_1.openings.find(o => o.id === id);
+// (the armoury's two issue windows' bays taken out of its block, so its rects stand round them: the bays are the armourer's)
+const BAYS = FRONT.windows.map(w => w.bay);
+const cutBays = (b) => (b.id !== FRONT.building ? b.rects.map(r => [...r]) : b.rects.flatMap(r => BAYS.reduce((parts, h) => parts.flatMap(p => subtract(p, h)), [rectOf(r)])).map(q => [r4(q.x0), r4(q.z0), r4(q.x1), r4(q.z1)]));
 const massing = MELAS_PLAN.buildings.filter(b => b.rects.some(r => inDrawn(rectOf(r)))).map(b => ({
-  id: b.id, name: b.name, rects: b.rects.map(r => [...r]),
+  id: b.id, name: b.name, rects: cutBays(b),
   heightM: b.open ? CANOPY_M : r4(b.storeys * STOREY_M + PARAPET_M), open: !!b.open,
   doors: b.doors.map(d => {
     const e = entryOf(d.id), o = e && openingRec(e.opening);
@@ -193,6 +202,21 @@ for (const f of STREET.fixtures) fixtures.push({ id: `f:melas:echo-street:${f.na
 for (const s of DOOR_SIGNS) fixtures.push({ id: `f:melas:echo:${s.name}`, kind: 'sign', make: 'plaque', x: s.x, z: s.z, face: s.face, y: s.y, seed: seedOf('sign'), look: { ...s.look } });
 // (0.0.6: the PX barber's pole by its north door)
 fixtures.push({ id: `f:melas:px:${BARBER.name}`, kind: BARBER.kind, make: BARBER.make, x: BARBER.x, z: BARBER.z, face: BARBER.face, seed: seedOf(BARBER.kind) });
+// (the armoury's front, its porch and the cleaning canopy (src/data/places/armoury.js): the issue windows told their bay's
+// depth and the building's height, so each draws the wall over its opening; the canopy's pieces from its frame into the world; its six
+// lamps under the roof, lit while the sun is down)
+const armouryH = massing.find(m => m.id === FRONT.building)?.heightM;
+if (!Number.isFinite(armouryH)) throw new Error(`ground: no building '${FRONT.building}' for the issue windows`);
+for (const w of FRONT.windows) fixtures.push({ id: w.id, kind: 'issueWindow', make: 'counter', x: w.x, z: w.z, face: w.face, seed: seedOf('issueWindow'), look: { bayM: r4(w.bay.z1 - w.bay.z0), headM: armouryH } });
+for (const b of PORCH.barrels) fixtures.push({ id: b.id, kind: 'clearingBarrel', make: 'drum', x: b.x, z: b.z, face: b.face, seed: seedOf('clearingBarrel') });
+fixtures.push({ id: PORCH.sign.id, kind: 'sign', make: 'stencil', x: PORCH.sign.x, z: PORCH.sign.z, y: PORCH.sign.y, face: PORCH.sign.face, seed: seedOf('sign'), look: { text: PORCH.sign.text } });
+{
+  const [cx, cz] = CANOPY.origin, P = (p) => [r4(cx + p.x), r4(cz + p.z)];
+  for (const t of CANOPY.tables) { const [x, z] = P(t); fixtures.push({ id: t.id, kind: 'cleanTable', make: 'steel', x, z, face: 'down', seed: seedOf('cleanTable') }); }
+  for (const t of CANOPY.tanks) { const [x, z] = P(t); fixtures.push({ id: t.id, kind: 'solventTank', make: 'red', x, z, face: 'down', seed: seedOf('solventTank') }); }
+  for (const h of CANOPY.hoses) { const [x, z] = P(h); fixtures.push({ id: h.id, kind: 'airHose', make: 'reel', x, z, face: 'down', seed: seedOf('airHose') }); }
+  for (const l of CANOPY.lamps) { const [x, z] = P(l); lamps.push({ kind: 'street', x, z, y: LAMP_Y_M, r: LAMP_KINDS.street.r }); }
+}
 
 // ---- the KD range's 25 m bay: its pieces, and what of them blocks (see the header) ----
 /** What a piece covers on the ground: { x0, z0, x1, z1 } (its kind's w and d, or its own, swapped facing left or right). */

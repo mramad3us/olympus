@@ -62,8 +62,9 @@ export const edgeOf = (table, y) => { for (let i = 0; i + 1 < table.length; i++)
  * The grid at scale S: W × ROWS target pixels (the figure; doll.js adds the drop above and the ink round it).
  * Spans are target rows [y, x0, x1]; scan() and rows() make them from reference coordinates.
  */
-export function grid(S, drop) {
-  const W = Math.round(REF.W * S), ROWS = Math.round((REF.H - drop) * S), MID = REF.W / 2;
+export function grid(S, drop, wRef = REF.W) {
+  // (wRef: a wider grid's reference columns, its middle in the middle: the side-on figure's, ./side.js SIDE_W)
+  const W = Math.round(wRef * S), ROWS = Math.round((REF.H - drop) * S), MID = wRef / 2;
   const col = Array.from({ length: ROWS }, () => Array(W).fill(null)), part = Array.from({ length: ROWS }, () => Array(W).fill(0)), edgeFrom = [], quiet = new Set();
   let n = 0;
   const setPx = (x, y, c, id) => { if (x >= 0 && y >= 0 && x < W && y < ROWS) { col[y][x] = c; if (id !== undefined) part[y][x] = id; } };

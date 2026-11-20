@@ -17,8 +17,8 @@
 //   - STAGE_RP, STAGE_ME: the stage's looks for the same two (src/art/figures/outfits.js wear), for the strips of the stage's frames.
 import { doll } from '../../src/art/doll/doll.js';
 import { dressOf, dressedDoll } from '../../src/art/doll/dress.js';
-import { maskOf } from '../../src/art/doll/portrait.js';
-import { paintHitcard, figGeom, figAt, bandOf, wordsRows, WORDS_K, WORDS_ROW_PX, CARD_W, HIT_C, MAN_GROUNDS, MAN_GROUND_BY_BAND, MAN_GROUND_PICKS } from '../../src/art/doll/hitcard.js';
+import { maskOf, drawnRec } from '../../src/art/doll/portrait.js';
+import { paintHitcard, posedExtra, figGeom, figAt, bandOf, wordsRows, WORDS_K, WORDS_ROW_PX, CARD_W, HIT_C, MAN_GROUNDS, MAN_GROUND_BY_BAND, MAN_GROUND_PICKS } from '../../src/art/doll/hitcard.js';
 import { mix } from '../../src/art/doll/grid.js';
 import { word } from '../../src/art/paint.js';
 import { glyphOf } from '../../src/art/font.js';
@@ -42,9 +42,9 @@ export const STAGE_ME = (over = {}) => marine(over);
 
 /** A man's record (seen.js seenOf's shape) with the fields given over the standing, front-on one. */
 export const recOf = (gear, over = {}) => ({ kind: 'man', gear, pose: 'stand', facing: 'front', hold: null, aimAt: null, ...over });
-/** The record's doll at a scale: the game's (dress.js, cached) or, with a candidate's bend, doll() drawn with it. */
-export function dollOf(gear, person, scale, rec, bend = null) {
-  if (!bend) return dressedDoll(gear, person, scale, rec);
+/** The record's doll at a scale: the game's (dress.js, cached, the record as the card draws it under the picks: portrait.js drawnRec) or, with a candidate's bend, doll() drawn with it. */
+export function dollOf(gear, person, scale, rec, bend = null, picks = null) {
+  if (!bend) { const r = rec ? drawnRec(rec, picks) : rec; return dressedDoll(r?.gear ?? gear, person, scale, r); }
   return doll({ ...dressOf(gear, person, { rec }), scale, bend });
 }
 
@@ -59,7 +59,7 @@ export function manCardOf(pm, { rangeM = 4, words = '', size = CARD_W, ground = 
   const rect = (x, y, w, h, c) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) put(x + i, y + j, c); };
   const write = (x, y, str, c, k = 1) => { for (const ch of String(str).toUpperCase()) { const g = ch === '·' ? DOT : glyphOf(ch); g.forEach((row, j) => [...row].forEach((b, i) => { if (b === '1') rect(x + i * k, y + j * k, k, k, c); })); x += (g[0].length + 1) * k; } return x; };
   const rows = wordsRows({ words }, S), figH = H - rows.h, mask = maskOf(pm, G.scale);
-  const shift = r(pm.anchors?.drop ?? 0), at = figAt(band.pxPerM, S, pm.w), r0 = G.rows[0] + shift, r1 = Math.max(r0 + 1, Math.min(G.rows[1] + shift, r0 + figH - at.y));
+  const shift = r(pm.anchors?.drop ?? 0), at = figAt(band.pxPerM, S, pm.w), r0 = G.rows[0] + shift, r1 = Math.max(r0 + 1, Math.min(G.rows[1] + shift + posedExtra(pm), r0 + figH - at.y));
   // (the game's ground by the band when none is given (v0.0.25: hitcard.js MAN_GROUND_BY_BAND), so the composed card is the game's)
   const lift = MAN_GROUNDS[ground ?? MAN_GROUND_PICKS[MAN_GROUND_BY_BAND[bandOf(rangeM).id]] ?? 'dark'] ?? 0;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) col[y * W + x] = y >= figH ? HIT_C.glass : mix(mix(HIT_C.board, 0x3a3c45, y / figH * 0.6), HIT_C.khakiShade, lift);
@@ -79,8 +79,8 @@ export function manCardOf(pm, { rangeM = 4, words = '', size = CARD_W, ground = 
 }
 
 /** A record's target card (see the header): paintHitcard's with the man as its subject, or manCardOf's for a bend. */
-export function cardOf({ gear, person, rec, bend = null, rangeM = 4, words = '', size = CARD_W, ground = null }) {
-  if (!bend) return paintHitcard({ subject: { kind: 'man', rec, person, ...(ground ? { ground } : {}) }, rangeM, words, size });
+export function cardOf({ gear, person, rec, bend = null, rangeM = 4, words = '', size = CARD_W, ground = null, picks = null, live = null }) {
+  if (!bend) return paintHitcard({ subject: { kind: 'man', rec, person, ...(ground ? { ground } : {}) }, rangeM, words, size, ...(picks ? { picks } : {}), ...(live ? { live } : {}) });
   const scale = figGeom(bandOf(rangeM).pxPerM).scale;
   return manCardOf(dollOf(gear, person, scale, rec, bend), { rangeM, words, size, ground });
 }

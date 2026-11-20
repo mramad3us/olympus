@@ -25,7 +25,9 @@ export const RANGES_M = Object.freeze([4, 14, 30]);
 const LABEL_H = 9, HEAD = 0xd8dce4, LABEL = 0x9aa0ab, FLOOR = 0x76726c, FK = 3, FCELL = Object.freeze([34 * FK, 48 * FK]), YK = 2;
 /** Every candidate, by id: { group, cand }. */
 export const CANDIDATES = Object.freeze(Object.fromEntries(['A', 'P', 'K', 'D', 'C', 'Y'].flatMap(g => GROUPS[g].map(c => [c.id, Object.freeze({ group: g, cand: c })]))));
-export const DEFAULT = 'A1';
+export const DEFAULT = 'A3';
+/** v0.0.27's default by group, its card drawn first as today's (v0.0.28: A, P and D redrawn). */
+const TODAY_PICKS = Object.freeze({ A: Object.freeze({ aim: 'A1' }), P: Object.freeze({ pistol: 'P1' }), K: Object.freeze({ aim: 'A1' }), D: Object.freeze({ down: 'D1' }) });
 
 /**
  * The moment each group shows moving (see the header): the gear, the record before (the candidate's is after), and the stage's
@@ -85,20 +87,22 @@ export function picture(q = new URLSearchParams()) {
   P.write(GAP + 1, GAP + 1, `${id}: ${M.cand.name}`, HEAD);
   let y = GAP + LABEL_H;
   if (!M.you) {
-    P.write(GAP + 1, y + 1, 'TODAY (V0.0.22: STANDING, HIS GEAR AS WORN) · THE CANDIDATE ON THE TARGET CARD AT 4 M, 14 M AND 30 M', LABEL);
+    // (today: v0.0.27's card of the same moment, the group's default then (A1, P1, D1), so the redrawn hold is judged beside it)
+    const was = TODAY_PICKS[M.group];
+    P.write(GAP + 1, y + 1, was ? `TODAY (V0.0.27: ${Object.values(was)[0]}) · THE CANDIDATE ON THE TARGET CARD AT 4 M, 14 M AND 30 M` : 'TODAY (V0.0.22: STANDING, HIS GEAR AS WORN) · THE CANDIDATE ON THE TARGET CARD AT 4 M, 14 M AND 30 M', LABEL);
     y += LABEL_H;
-    const today = cardOf({ gear: M.gear, person: M.person, rec: recOf(M.gear), rangeM: 4, words: 'TODAY · 4 M' });
+    const today = was ? cardOf({ gear: M.gear, person: M.person, rec: M.after, rangeM: 4, words: `TODAY · ${Object.values(was)[0]} · 4 M`, picks: was }) : cardOf({ gear: M.gear, person: M.person, rec: recOf(M.gear), rangeM: 4, words: 'TODAY · 4 M' });
     P.blit(today, GAP, y);
     RANGES_M.forEach((r, i) => {
-      const c = cardOf({ gear: M.gear, person: M.person, rec: M.after, bend: M.bend, rangeM: r, words: `${id} · ${r} M` });
+      const c = cardOf({ gear: M.gear, person: M.person, rec: M.after, bend: M.bend, rangeM: r, words: `${id} · ${r} M`, picks: M.cand.picks ?? null });
       P.blit(c, GAP + (i + 1) * (CARD_W + GAP), y);
       report.cards.push({ rangeM: r, band: c.band });
     });
     y += CARD_W + GAP;
     P.write(GAP + 1, y + 1, 'MOVING: THE CARD BEFORE AND AFTER (REPAINTED WHEN WHAT YOU SEE CHANGES) · THE STAGE\'S FRAMES OF THE SAME MOMENT (X3)', LABEL);
     y += LABEL_H;
-    P.blit(cardOf({ gear: M.before.gear, person: M.person, rec: M.before, rangeM: 4, words: 'BEFORE' }), GAP, y);
-    P.blit(cardOf({ gear: M.gear, person: M.person, rec: M.after, bend: M.bend, rangeM: 4, words: 'AFTER' }), GAP + CARD_W + GAP, y);
+    P.blit(cardOf({ gear: M.before.gear, person: M.person, rec: M.before, rangeM: 4, words: 'BEFORE', picks: M.cand.picks ?? null }), GAP, y);
+    P.blit(cardOf({ gear: M.gear, person: M.person, rec: M.after, bend: M.bend, rangeM: 4, words: 'AFTER', picks: M.cand.picks ?? null }), GAP + CARD_W + GAP, y);
     report.stage = stageStrip(P, GAP + 2 * (CARD_W + GAP) + GAP, y, M.stage, false);
   } else {
     P.write(GAP + 1, y + 1, 'YOU ON THE C CARD: TODAY, THEN THE CANDIDATE (X2)', LABEL);

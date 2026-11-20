@@ -15,7 +15,7 @@
 //      slice of the brig (deck 5) with a board on the deckhead of a ventral cell by its cut wall, drawn over the passage (the case
 //      that reads wrong), your #2 in the passage and a man half out of the deck's scuttle; the hold's corner three times larger.
 //      K-a the projection alone (the turn, the height, the float pick's shadow on the deck under each body off the deck);
-//      K-b K-a and the overhead's footprint dashed on the deck below everything on the deckhead (the default until scored);
+//      K-b K-a and the overhead's footprint dashed on the deck below everything on the deckhead (v0.0.25's default; K-a the user's star of 2026-11-20 and the game's);
 //      K-c K-b and the deckhead's edge of your compartment (the hold) as a 1 px line; K-d everything on the deckhead drawn at its
 //      plan spot, flipped, not raised, its outline dotted (VIEWS §3.5's sentence as written: it would also draw a floating body's
 //      height that way, a change to v0.0.24's float rule).
@@ -24,15 +24,20 @@
 //      their tilt to the eye (the dorsal and ventral ones lie level: × 0.71 along their length; port and starboard turn their
 //      face from the camera: × 0.5 across), the deck's and the deckhead's whole.
 //   P, the pop-up (?p=): a pop-up on the deckhead and one on the starboard bulkhead rising, at 0, 25, 50, 75 and 100% of its 400 ms,
-//      three times larger. P-a hinged out from flat on its face (the default); P-b sliding out of a slot in the face.
+//      three times larger. P-a hinged out from flat on its face (v0.0.25's default); P-b sliding out of a slot in the face (the user's star of 2026-11-20, the game's).
 //   H, the deck hatch (?h=): the scuttle in a deck dogged, in a deck open (the leaf folded back, the shaft and its rungs) and in a
-//      deckhead open (raised 2.2 m, the leaf hanging), Ø 0.8 m, three times larger. H-a square, four dogs, a yellow coaming (the
-//      default); H-b round, a hand wheel.
+//      deckhead open (raised 2.2 m, the leaf hanging), Ø 0.8 m, three times larger. H-a square, four dogs, a yellow coaming (v0.0.25's
+//      default); H-b round, a hand wheel (the user's star of 2026-11-20, the game's).
 //   B, the bulkhead hatch (?b=): 0.8 m wide, a 0.3 m coaming, in the dorsal bulkhead seen face on, shut and open, and in a cut
-//      wall from above, shut and open, three times larger. B-a oval with four dogs (the default); B-b square with a lever.
+//      wall from above, shut and open, three times larger. B-a oval with four dogs (the default, starred 2026-11-20); B-b square with a lever.
 //   X, through the trunk (?x=): seven frames across the deck change, you head first down the trunk from deck 5's passage into deck
 //      6's hold. X-a the stair's wipe (the default: the deck you leave dissolves outward from the trunk over 0.4 s, the camera
-//      held, you in both pictures); X-b the camera held on you at the cut, then gliding back over 0.6 s (TRUNK_GLIDE_S).
+//      held, you in both pictures); X-b the camera held on you at the cut, then gliding back over 0.6 s (TRUNK_GLIDE_S). v0.0.28
+//      (the user's note of 2026-11-20: "I don't know what I'm looking at"): the trunk drawn side on at the left (the two decks, the
+//      trunk and its two scuttles, you head first, the camera's eye 45° over the deck it shows), each frame captioned (DECK 5, THE
+//      WIPE or THE CUT and THE GLIDE, DECK 6), the two looks said in words under them, and deck 6 drawn on the new defaults (the
+//      round hatch, H-b; the scuttle overhead as its own rim, K-a); the review of the picks: the side section's scuttles and the last line
+//      name that grey ring as drawn (X_LAST_WORDS; the yellow square was H-a's, no longer drawn).
 // Shown still; each picture's legend under it says which body is on which face.
 import { pic, GAP } from '../portrait-lib/card.js';
 import { frameOf, snap, marine } from '../portrait-lib/figure.js';
@@ -45,7 +50,8 @@ export const GROUPS = Object.freeze({
   k: Object.freeze(['K-a', 'K-b', 'K-c', 'K-d']), t: Object.freeze(['T-a', 'T-b']), p: Object.freeze(['P-a', 'P-b']),
   h: Object.freeze(['H-a', 'H-b']), b: Object.freeze(['B-a', 'B-b']), x: Object.freeze(['X-a', 'X-b']),
 });
-export const DEFAULTS = Object.freeze({ k: 'K-b', t: 'T-a', p: 'P-a', h: 'H-a', b: 'B-a', x: 'X-a' });
+/** Each group's default: the user's stars of 2026-11-20 where scored (K-a, T-a, P-b, H-b, B-a), X-a until X is. */
+export const DEFAULTS = Object.freeze({ k: 'K-a', t: 'T-a', p: 'P-b', h: 'H-b', b: 'B-a', x: 'X-a' });
 /** The density, the Wreck's compartment (m), its deckhead, the plate's panel and the trunk's scuttle (the sheet's §5). */
 export const PPM = 16, HOLD_M = Object.freeze([9.2, 7.2]), CEIL_M = 2.2, PLATE_M = 1.5, TRUNK = Object.freeze({ at: Object.freeze([4.6, 3.6]), diaM: 0.8 });
 /** The cut walls' height, the float pick's shadow (float-look's F-b), a pop-up's rise and the trunk's glide (X-b). */
@@ -357,6 +363,8 @@ const words = {
 };
 const vw = (V) => Math.round(V.w * PPM), vh = (V) => Math.round(V.h * PPM);
 const ZOOM = 3, ZOOM_SRC = Object.freeze([64, 56]);
+// (X's side section's width, at the left of its frames (v0.0.28))
+const X_SEC_W = 108;
 const LEGEND_ROWS = 4, T_PX = 38;
 /** Each group's picture size (sample.json's pixel). */
 export const SIZE = Object.freeze({
@@ -365,7 +373,7 @@ export const SIZE = Object.freeze({
   p: Object.freeze([GAP + 5 * (30 * ZOOM + GAP), GAP + LABEL_H + 2 * (LABEL_H + 30 * ZOOM + GAP)]),
   h: Object.freeze([GAP + 3 * (24 * ZOOM + GAP), GAP + LABEL_H + LABEL_H + 52 * ZOOM + GAP]),
   b: Object.freeze([GAP + 4 * (24 * ZOOM + GAP), GAP + LABEL_H + LABEL_H + 44 * ZOOM + GAP]),
-  x: Object.freeze([GAP + 7 * (80 + GAP), GAP + LABEL_H + LABEL_H + 72 + GAP + 2 * 7 + GAP]),
+  x: Object.freeze([GAP + X_SEC_W + GAP + 7 * (80 + GAP), GAP + LABEL_H + LABEL_H + 72 + LABEL_H + GAP + 2 * 7 + GAP]),
 });
 // (a crop of S, k times larger, on P at (X, Y))
 function zoom(P, S, X, Y, i0, j0, w, h, k = ZOOM) { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) { const c = S.get(i0 + i, j0 + j); P.fill(X + i * k, Y + j * k, k, k, snap(c ?? BG)); } }
@@ -462,8 +470,10 @@ export const X_FEET_M = Object.freeze({ 5: 1.45, 6: 2.6 });
 function deckPicture(deck, dRows = 0) {
   const P0 = pic(80, 72), V = { ...X_VIEW, r0: X_VIEW.r0 + dRows / PPM }, S = stage(P0, 0, 0, V);
   plate(S, 2.1, 0, 7.1, 7.2);
-  if (deck === 5) { scuttle(S, 'H-a', 4.6, 3.6, 0, true, 0); wallCut(S, 2.1, 7.1, 3.0, CUT_H_M, [[2.6, 3.4]]); wallCut(S, 2.1, 7.1, 4.2, CUT_H_M, [[5.6, 6.4]]); }
-  else { scuttle(S, 'H-a', 4.6, 3.6, 0, false, -5); crate(S, 6.2, 1.6, 1.0, 1.0); scuttle(S, 'H-a', 4.6, 3.6, CEIL_M, true, 3.8); dashedRing(S, 4.6, 3.6, 0.5); }
+  // (v0.0.28: on the user's stars of 2026-11-20, the round hatch with its wheel (H-b) and the projection alone (K-a): the scuttle
+  // overhead drawn as its own rim, where it shows from 45° above, no footprint dashed on the deck)
+  if (deck === 5) { scuttle(S, 'H-b', 4.6, 3.6, 0, true, 0); wallCut(S, 2.1, 7.1, 3.0, CUT_H_M, [[2.6, 3.4]]); wallCut(S, 2.1, 7.1, 4.2, CUT_H_M, [[5.6, 6.4]]); }
+  else { scuttle(S, 'H-b', 4.6, 3.6, 0, false, -5); crate(S, 6.2, 1.6, 1.0, 1.0); scuttle(S, 'H-b', 4.6, 3.6, CEIL_M, true, 3.8); }
   // (you, head first: the card flipped, feet up; on deck 5 the pixels below the deck's plane drawn in the shaft's dark)
   const f = frame('aim', 'down'), feet = X_FEET_M[deck], px = manPx(f);
   const drawnPx = px.map(p => ({ ...p, c: deck === 5 && feet + p.dy / PPM < 0 ? mix(p.c, SHAFT, 0.6) : p.c }));
@@ -471,14 +481,53 @@ function deckPicture(deck, dRows = 0) {
   S.out();
   return P0;
 }
+// (v0.0.28, the user's note of 2026-11-20 on X: "I don't know what I'm looking at, make an effort to explain what I'm looking at
+// please."): the trunk side on, at the left of the frames, so a player who has never floated sees what the frames show: the two
+// decks as two floors (deck 5 above, deck 6, the hold, below, the hull between), the trunk joining them with a scuttle at each end,
+// you in it head first, an arrow down, and the camera's eye 45° over the deck it shows)
+function sideSection(P, X, Y) {
+  const W = X_SEC_W, x0 = X + 2, x1 = X + W - 3, t0 = X + 50, t1 = X + 58, d5 = Y + 24, d6top = Y + 38, d6 = Y + 66;
+  const line = (xa, xb, y, c) => { for (let x = xa; x <= xb; x++) if (x < t0 || x > t1) P.put(x, y, c); };
+  // (the hull between the decks, the trunk's shaft through it)
+  for (let y = d5 + 1; y < d6top; y++) for (let x = x0; x <= x1; x++) P.put(x, y, x > t0 && x < t1 ? SHAFT : tone(WALL_C, -0.25));
+  for (let y = d5; y <= d6top; y++) { P.put(t0, y, WALL_C); P.put(t1, y, WALL_C); }
+  // (the hold's air a shade lighter than the page, so deck 6 reads as a room under the hull)
+  for (let y = d6top + 1; y < d6; y++) for (let x = x0; x <= x1; x++) P.put(x, y, 0x15171d);
+  line(x0, x1, d5, DECK_C); line(x0, x1, d6top, tone(WALL_C, 0.2)); for (let x = x0; x <= x1; x++) P.put(x, d6, DECK_C);
+  // (the two scuttles, the trunk's ends: deck 5's in its deck, deck 6's in its deckhead)
+  // (in the game's grey rim, H-b's, as the frames draw them: the user's star of 2026-11-20; v0.0.25's H-a was the yellow coaming)
+  for (const y of [d5, d6top]) for (const x of [t0 - 2, t0 - 1, t1 + 1, t1 + 2]) P.put(x, y, tone(BAR_C, -0.1));
+  P.write(x0, d5 - 7, 'DECK 5', LABEL); P.write(x0, d6top + 3, 'DECK 6, THE HOLD', LABEL);
+  P.write(t1 + 4, d5 + 4, 'TRUNK', LABEL);
+  // (you, head first down it: boots up in deck 5, your head through the deckhead's scuttle into the hold)
+  for (let y = d5 - 6; y < d6top - 3; y++) for (let x = t0 + 2; x <= t1 - 2; x++) P.put(x, y, y < d5 - 3 ? 0x3a3e47 : 0x5a606c);
+  for (let y = d6top - 3; y <= d6top + 1; y++) for (let x = t0 + 3; x <= t1 - 3; x++) P.put(x, y, HEAD);
+  P.write(t0 - 14, d5 - 8, 'YOU', HEAD);
+  // (the arrow down, beside the trunk's word)
+  const ax = t1 + 28;
+  for (let y = d5 + 2; y <= d6top - 2; y++) P.put(ax, y, HEAD);
+  for (let k = 1; k <= 2; k++) { P.put(ax - k, d6top - 2 - k, HEAD); P.put(ax + k, d6top - 2 - k, HEAD); }
+  // (the camera's eye, 45° over the deck it shows, its line of sight dotted down to the floor)
+  const ex = X + W - 9, ey = Y + 3;
+  for (const [i, j] of [[0, -2], [-1, -1], [1, -1], [-2, 0], [2, 0], [-1, 1], [1, 1], [0, 2]]) P.put(ex + i, ey + j, LABEL);
+  P.put(ex, ey, HEAD);
+  for (let k = 3; ex - k >= t1 + 4 && ey + k < d5; k += 2) P.put(ex - k, ey + k, LABEL);
+  P.write(X + 32, Y + 1, 'THE CAMERA', LABEL);
+}
+/** The frames' last line (the deck 6 frame's scuttle overhead is H-b's grey ring with its wheel, drawn where it shows from above: just below you in the picture). */
+export const X_LAST_WORDS = 'FIRST: YOU AT THE SCUTTLE IN DECK 5\'S FLOOR, GOING IN HEAD FIRST. LAST: DECK 6 FROM ABOVE, YOU HEAD DOWN; THE GREY RING JUST BELOW YOU IN THE PICTURE IS THE SCUTTLE OVERHEAD';
 function pictureX(cand) {
-  const [W, H] = SIZE.x, P = pic(W, H), Y = GAP + LABEL_H + LABEL_H;
-  P.write(GAP + 1, GAP + 1, `${cand}: ${words[cand]} · SEVEN FRAMES, DECK 5'S PASSAGE TO DECK 6'S HOLD, HEAD FIRST DOWN THE TRUNK · 16 PX/M`, HEAD);
+  const [W, H] = SIZE.x, P = pic(W, H), Y = GAP + LABEL_H + LABEL_H, X0 = GAP + X_SEC_W + GAP;
+  P.write(GAP + 1, GAP + 1, `${cand}: ${words[cand]} · GOING DOWN A DECK: DECK 5'S PASSAGE TO DECK 6'S HOLD, HEAD FIRST DOWN THE TRUNK · 16 PX/M`, HEAD);
+  sideSection(P, GAP, Y);
+  P.write(GAP + 1, Y - LABEL_H + 1, 'SIDE ON', LABEL);
   const offPx = Math.round((X_FEET_M[6] - X_FEET_M[5]) * PPM), D5 = deckPicture(5), cx = Math.floor((4.6 - X_VIEW.x0) * PPM), cy = Math.floor((3.6 - X_VIEW.r0) * PPM);
   const times = cand === 'X-a' ? [0, 1, 2, 3, 4, 5, 6].map(n => n * WIPE_S / 6) : [0, 0, 0.1, 0.2, 0.3, 0.45, 0.6];
+  // (each frame's caption under it: what the picture is at that moment)
+  const caption = (n) => (n === 0 ? 'DECK 5' : n === 6 ? 'DECK 6' : cand === 'X-a' ? 'THE WIPE' : n === 1 ? 'THE CUT' : 'THE GLIDE');
   const frames = [];
   times.forEach((t, n) => {
-    const X = GAP + n * (80 + GAP);
+    const X = X0 + n * (80 + GAP);
     let F;
     if (cand === 'X-a') {
       // (the stair's wipe: deck 6 grows outward from the trunk's point as deck 5 dissolves, through a 4 × 4 Bayer threshold)
@@ -492,11 +541,12 @@ function pictureX(cand) {
     }
     P.blit(F, X, Y);
     P.write(X + 1, Y - LABEL_H + 1, `${(t * 1000).toFixed(0)} MS`, LABEL);
-    frames.push({ ms: Math.round(t * 1000) });
+    P.write(X + 1, Y + 72 + 2, caption(n), HEAD);
+    frames.push({ ms: Math.round(t * 1000), caption: caption(n) });
   });
-  const ly = Y + 72 + GAP;
-  P.write(GAP + 1, ly, cand === 'X-a' ? `THE CAMERA HELD: YOU IN BOTH PICTURES ${offPx} PX APART FOR ${WIPE_S * 1000} MS` : `THE CUT AT THE BAND, DECK 6 OFFSET ${offPx} PX SO YOU KEEP YOUR PIXELS, THEN THE GLIDE BACK OVER ${TRUNK_GLIDE_S * 1000} MS`, LABEL);
-  P.write(GAP + 1, ly + 7, 'YOU HEAD FIRST: ON DECK 5 YOUR HEAD IN THE DECK SCUTTLE, ON DECK 6 HANGING UNDER THE DECKHEAD SCUTTLE', LABEL);
+  const ly = Y + 72 + LABEL_H + GAP;
+  P.write(GAP + 1, ly, cand === 'X-a' ? `X-A: DECK 5 DISSOLVES INTO DECK 6 IN A PIXEL WIPE OVER ${WIPE_S * 1000} MS, THE STAIR'S WIPE, THE CAMERA HELD: YOU STAY ON THE SAME SPOT OF THE SCREEN` : `X-B: THE PICTURE CUTS TO DECK 6 AT ONCE, SHIFTED ${offPx} PX SO YOU STAY WHERE YOU WERE, THEN THE CAMERA GLIDES BACK OVER ${TRUNK_GLIDE_S * 1000} MS`, LABEL);
+  P.write(GAP + 1, ly + 7, X_LAST_WORDS, LABEL);
   P.report = { frame: [W, H], group: 'X', view: cand, frames, offPx };
   return P;
 }

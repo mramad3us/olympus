@@ -16,10 +16,10 @@
 //      doll's head row; their chibi head spans a fifth of the figure, so the man-target's marks cannot be life size on them.
 import { pic, GAP } from '../portrait-lib/card.js';
 import { frameOf, drawFrame, snap } from '../portrait-lib/figure.js';
-import { RP, RP_PERSON, STAGE_RP, recOf, cardOf } from '../portrait-lib/posed.js';
+import { RP, RP_PISTOL, RP_PERSON, STAGE_RP, recOf, cardOf } from '../portrait-lib/posed.js';
 import { CARD_W, CARD_MIN, HIT_C, bandOf, figTop, wordsRows } from '../../src/art/doll/hitcard.js';
 import { mix } from '../../src/art/doll/grid.js';
-import { GROUPS } from './views.js';
+import { GROUPS, F4_MORE } from './views.js';
 
 export const RANGES_M = Object.freeze([4, 14, 30]);
 const LABEL_H = 9, HEAD = 0xd8dce4, LABEL = 0x9aa0ab, FLOOR = 0x76726c, FK = 3, FCELL = Object.freeze([34 * FK, 48 * FK]);
@@ -38,7 +38,7 @@ export const SIZE = Object.freeze({
   F: [Math.max(cardsW(4), GAP + 3 * (CARD_MIN + GAP) + 3 * (FCELL[0] + GAP)), GAP + LABEL_H + LABEL_H + CARD_W + GAP + LABEL_H + Math.max(CARD_W, FCELL[1]) + GAP],
   R: [cardsW(3), GAP + LABEL_H + 2 * (LABEL_H + CARD_W + GAP)],
 });
-export const sizeOf = (id) => SIZE[CANDIDATES[id]?.group ?? 'F'];
+export const sizeOf = (id) => (id === 'F4' ? [SIZE.F[0], SIZE.F[1] + LABEL_H + CARD_W + GAP] : SIZE[CANDIDATES[id]?.group ?? 'F']);
 
 /** The candidate's record of the role-player, its facing and hold as C's table has them. */
 const recFor = (cand, facing = cand.rec.facing) => recOf(RP, { ...cand.rec, facing });
@@ -64,23 +64,27 @@ export function picture(q = new URLSearchParams()) {
   let y = GAP + LABEL_H;
   if (group === 'F') {
     const facing = cand.rec.facing;
-    P.write(GAP + 1, y + 1, `TODAY (V0.0.22: FRONT ON, HOWEVER HE FACES) · THE CANDIDATE, HIM FACING ${facing === 'back' ? 'AWAY' : 'YOUR RIGHT'}, AT 4 M, 14 M AND 30 M`, LABEL);
+    // (a side's today: v0.0.27's F3, the head turned; the back's: v0.0.22's front on)
+    const sideOn = facing === 'right' || facing === 'profile';
+    P.write(GAP + 1, y + 1, `TODAY (${sideOn ? 'V0.0.27: F3, THE HEAD TURNED' : 'V0.0.22: FRONT ON, HOWEVER HE FACES'}) · THE CANDIDATE, HIM FACING ${facing === 'back' ? 'AWAY' : 'YOUR RIGHT'}, AT 4 M, 14 M AND 30 M`, LABEL);
     y += LABEL_H;
-    P.blit(cardOf({ gear: RP, person: RP_PERSON, rec: recFor(cand, 'front'), rangeM: 4, words: 'TODAY · 4 M' }), GAP, y);
+    P.blit(sideOn ? cardOf({ gear: RP, person: RP_PERSON, rec: recFor(cand, 'right'), rangeM: 4, words: 'TODAY · F3 · 4 M', picks: { side: 'F3' } }) : cardOf({ gear: RP, person: RP_PERSON, rec: recFor(cand, 'front'), rangeM: 4, words: 'TODAY · 4 M' }), GAP, y);
     RANGES_M.forEach((r, i) => {
-      const c = cardOf({ gear: RP, person: RP_PERSON, rec: recFor(cand), rangeM: r, words: `${id} · ${r} M` });
+      const c = cardOf({ gear: RP, person: RP_PERSON, rec: recFor(cand), rangeM: r, words: `${id} · ${r} M`, picks: cand.picks ?? null });
       P.blit(c, GAP + (i + 1) * (CARD_W + GAP), y);
       report.cards.push({ rangeM: r, band: c.band, facing });
     });
     y += CARD_W + GAP;
     P.write(GAP + 1, y + 1, 'MOVING: THE CARD AS HE TURNS (A NEW CARD AS HIS FACING CROSSES A BAND) · THE STAGE\'S FRAMES, FACING YOU, SIDE ON, AWAY (X3)', LABEL);
     y += LABEL_H;
-    // (the turn: front, then the side (this candidate's, or F3's for F1), then from behind (F1's) when the candidate is the back)
-    const side = facing === 'back' ? GROUPS.F.find(c => c.id === 'F3') : cand;
+    // (the turn: front, then the side, then from behind, when the candidate is the back: the same man at the same moment, so the side
+    // card is F1's own record (his hold) drawn as F4 draws a man side on (the art director's pass 3: "front is the low ready, side is
+    // aimed, back has no rifle"))
+    const side = facing === 'back' ? { ...cand, picks: { ...(cand.picks ?? {}), side: 'F4' } } : cand;
     const turn = facing === 'back' ? [['front', cand], ['right', side], ['back', cand]] : [['front', cand], [facing, cand]];
     // (the turn's cards at the card's smallest size, CARD_MIN, so three and the stage's three frames fit across)
     turn.forEach(([f, c], i) => {
-      const card = cardOf({ gear: RP, person: RP_PERSON, rec: recFor(c, f), rangeM: 4, words: f.toUpperCase(), size: CARD_MIN });
+      const card = cardOf({ gear: RP, person: RP_PERSON, rec: recFor(c, f), rangeM: 4, words: f.toUpperCase(), size: CARD_MIN, picks: c.picks ?? null });
       P.blit(card, GAP + i * (card.w + GAP), y);
     });
     const x0 = W - 3 * (FCELL[0] + GAP);
@@ -89,6 +93,17 @@ export function picture(q = new URLSearchParams()) {
       P.fill(X, y, FCELL[0], FCELL[1], snap(FLOOR));
       drawFrame(P, f, X + Math.floor(FCELL[0] / 2), y + FCELL[1] - 4 * FK, { k: FK, clip: [X, y, FCELL[0], FCELL[1]] });
     });
+    // (F4: the profile at its other holds and poses, either way he faces, at the near band)
+    if (id === 'F4') {
+      y += Math.max(CARD_W, FCELL[1]) + GAP;
+      P.write(GAP + 1, y + 1, 'F4 AT HIS OTHER HOLDS, EITHER WAY HE FACES (THE LIGHT FROM THE UPPER LEFT ON BOTH) · 4 M', LABEL);
+      y += LABEL_H;
+      F4_MORE.forEach((m, i) => {
+        const gear = m.gear === 'pistol' ? RP_PISTOL : RP, card = cardOf({ gear, person: RP_PERSON, rec: recOf(gear, m.rec), rangeM: 4, words: m.words, picks: { side: 'F4' } });
+        P.blit(card, GAP + i * (CARD_W + GAP), y);
+        report.cards.push({ rangeM: 4, band: card.band, more: m.words });
+      });
+    }
   } else {
     [4, 14].forEach((r) => {
       const band = bandOf(r);

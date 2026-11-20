@@ -139,6 +139,8 @@ export const COURSES = deepFreeze({
     roGapMs: [1500, 4000], firstGapMs: 3000, nudgeMs: 30000, checkMs: 3000, moveOnMs: 60000, load: 'ball', kit: 'range-kd', hour: 10.0,
     zeroGroupsMax: 4, zeroOkCm: 1.0, relayN: 6, relay2N: 6, kdLaneK: 6, policeM: 4, policeCaseS: 1.2, pitsMin: 20,
     dummyIn: [['confirm', 30], ['s200-1', 35], ['s200-2', 35]], dummyRound: [2, 4],
+    // (the armoury round's stage 0: a case at rest kept and counted on the area's tiles, brass.js settle; the course's own literal before)
+    brassTiles: true,
   },
   // (0.0.8: test-pairs' course (see the header); the strings' draws by their weights: pairs.js drawStrings)
   pairs: {
@@ -247,6 +249,15 @@ export const COURSES = deepFreeze({
     // (the safety boat: a body floating still with no hold in reach for stuckMs is fetched to the station's mark boatMs after the
     // cadre's word, holding the boat's line on its pad-eye: never a dead end in the open well)
     stuckMs: 8000, boatMs: 5000,
+  },
+  // (test-armoury's "The window and the canopy" (its build sheet item 1, §5; src/sim/scenarios/armoury-day.js): no tower, no paper;
+  // the issue line pushed empty at the start (mags []) and filled at the count (ISSUE_N 20, three HAD-30s drawn empty, MAGS_DRAWN 3), the
+  // relay's lane drawn from the bay's 2 to 5, the brass on the tiles; the speakers' gaps (roGapMs) short, the line's nudge and move-on the
+  // range's; one magazine a string waived (no string is fired lived)
+  armoury: {
+    word: 'the armoury and the canopy', paper: 'card25', lanes: [1, 6], lane: { from: 2, to: 5 }, mags: [], strings: [], seq: 'armoury',
+    roGapMs: [1000, 2500], firstGapMs: 3000, nudgeMs: 30000, checkMs: 3000, moveOnMs: 60000, load: 'ball', kit: 'armoury-draw', hour: 7 + 50 / 60,
+    issueN: 20, magsDrawn: 3, oneMag: false, brassTiles: true,
   },
 });
 
@@ -1034,4 +1045,114 @@ export const BREACH_CHIEF = deepFreeze({
     faster: ['The door turned him. You were faster.', 'The door turned him, and you beat his rifle.'],
     slower: ['The door turned him, and he was on it before you. Speed is your bang.', 'He heard the door and got there first. Speed is your bang.'],
   },
+});
+
+// v0.0.28, "The window and the canopy" (its build sheet items 1 to 16, §5; src/sim/scenarios/armoury-day.js): the armourer at window 1, the
+// squad leader in front of the rank and at the canopy, the ammunition NCO at his table and at your shoulder on the lane, each line a text
+// bubble at its speaker (the user, 2026-11-19: "forget voice synthesis, no voices."). SEQ_ARMOURY is the scene's sequence on the course
+// engine (handling.js seqOf), each command { id, key (unique: the three UNLOAD, SHOW CLEARs share the id 'clear', so the step panel offers its
+// macro with the observer, shooting.js stepsOf), ready (armoury-day.js armouryReady; 'shown' the range's own), stage, who ('armourer' | 'nco' |
+// 'leader'), say (≥ 2 phrasings, {serial} the rifle's in words), short (its terms in a line) }, an id never in camel case (a save's id walk,
+// tests/ids-check.mjs, reads a record's `id` as a place's when it can: 'fall-in', not 'fallIn'); the next after one is the scene's (armouryNext: the
+// slip's way back to the window, a turn-back's to the table). ARM_SAY is every other line (≥ 2 phrasings, picked by hash); ARM_ROWS the rows'
+// labels, the one place a row is named (the R menu, the press words, T's lines); ARM_PRESS each command's station and the rows it asks for, read by
+// armouryPressOf, which builds the press words from these labels and core/keys.js' (never written by hand: the user's report of 2026-11-19).
+/** "The window and the canopy"'s sequence (see the section's head). */
+export const SEQ_ARMOURY = deepFreeze([
+  { id: 'brief', key: 'brief', ready: 'always', stage: 'window', who: 'leader', say: ['Echo two, draw weapons. Card, serial, show clear, sign. Bus at zero eight-twenty.', 'Echo two, draw your weapons: card, serial, show clear, sign. The bus is at zero eight-twenty.'] },
+  { id: 'card', key: 'card', ready: 'carded', stage: 'window', who: 'armourer', short: 'Weapons card.', say: ['Weapons card.', 'Next. Weapons card.'] },
+  { id: 'clear', key: 'window', ready: 'signed', stage: 'window', who: 'armourer', short: 'Show me clear and sign.', say: ['{Serial}. Show me clear and sign.', '{Serial}. Show it clear and sign for it.'] },
+  { id: 'fall-in', key: 'fallIn', ready: 'inRank', stage: 'rank', who: 'leader', short: 'Fall in.', say: ['Fall in.', 'Echo two, fall in.'] },
+  { id: 'serials', key: 'serials', ready: 'called', stage: 'rank', who: 'leader', short: 'Sensitive items. Serials.', say: ['Sensitive items. Serials.', 'Sensitive items check. Serials, down the rank.'] },
+  { id: 'back', key: 'back', ready: 'handedBack', stage: 'window', who: 'armourer', short: 'Hand it back.', say: ['Hand it back.', 'Give it here. Hand it back.'] },
+  { id: 'bus', key: 'bus', ready: 'arrived', stage: 'bus', who: 'leader', short: 'On the bus.', say: ['Echo two, on the bus.', 'Echo two, mount up. On the bus.'] },
+  { id: 'issue', key: 'issue', ready: 'issued', stage: 'ammo', who: 'nco', short: 'Count them and sign.', say: ['Twenty rounds ball. Count them and sign.', 'Twenty rounds of ball. Count them, then sign.'] },
+  { id: 'relay', key: 'relay', ready: 'arrived', stage: 'relay', who: 'nco', short: 'To the two-five line.', say: ['Relay one, to the two-five line.', 'Relay one, move to the two-five line.'] },
+  { id: 'clear', key: 'lane', ready: 'shown', stage: 'lane', who: 'nco', short: 'UNLOAD, SHOW CLEAR.', say: ['UNLOAD, SHOW CLEAR.', 'Relay one, UNLOAD, SHOW CLEAR.'] },
+  { id: 'police', key: 'police', ready: 'policed', stage: 'lane', who: 'nco', short: 'Police your brass.', say: ['Police your brass.', 'Relay one, police your brass. Every case.'] },
+  { id: 'walk', key: 'walk', ready: 'arrived', stage: 'walk', who: 'nco', short: 'To the ammunition point.', say: ['Relay one, to the ammunition point.', 'Relay one, back to the ammunition point.'] },
+  { id: 'turn-in', key: 'turnIn', ready: 'turnedIn', stage: 'ammo', who: 'nco', short: 'Unused rounds back.', say: ['Unused rounds back.', 'Any rounds you have left, back to me.'] },
+  { id: 'declare', key: 'declare', ready: 'declared', stage: 'ammo', who: 'nco', short: 'No brass, no ammo?', say: ['No brass, no ammo?', 'Your declaration: no brass, no ammo?'] },
+  { id: 'bus-back', key: 'busBack', ready: 'arrived', stage: 'bus', who: 'leader', short: 'On the bus.', say: ['Echo two, on the bus.', 'Echo two, mount up. Back to the lines.'] },
+  { id: 'clean', key: 'clean', ready: 'cleaned', stage: 'canopy', who: 'leader', short: 'Clean your weapons. Rifles in by ten-thirty.', say: ['Clean your weapons. Rifles in by ten-thirty.', 'Weapons cleaning. Rifles in by ten-thirty.'] },
+  { id: 'clear', key: 'barrel', ready: 'barrel', stage: 'barrel', who: 'armourer', short: 'Clear it at the barrel.', say: ['Clear it at the barrel.', 'At the barrel first. Clear it.'] },
+  { id: 'hand-in', key: 'handIn', ready: 'handedIn', stage: 'window', who: 'armourer', short: 'Turn it in.', say: ['Turn it in.', 'Next. Turn it in.'] },
+  { id: 'sign-in', key: 'signIn', ready: 'signedIn', stage: 'window', who: 'armourer', short: 'Sign it in.', say: ['Sign it in.', 'Sign here. It is back in my rack.'] },
+  { id: 'end', key: 'end', ready: 'never', stage: 'end', who: 'leader', say: ['Weapons are in. Echo two, fall out.', 'That is the day\'s weapons in. Echo two, fall out.'] },
+]);
+/** The rows' labels (see the section's head): the R menu's, the press words', T's. */
+export const ARM_ROWS = deepFreeze({
+  card: 'Hand over your weapons card', read: 'Read the serial back', show: 'UNLOAD, SHOW CLEAR', sign: 'Sign for it', back: 'Hand it back', call: 'Call your serial',
+  count: 'Count the rounds', sign20: 'Sign for twenty', police: 'Police your brass', roundsBack: 'Rounds back', declare: 'No brass, no ammo',
+  rushed: 'Clean, rushed', normal: 'Clean, normal', careful: 'Clean, careful', againRushed: 'Clean it again, rushed', againNormal: 'Clean it again, normal', againCareful: 'Clean it again, careful',
+  barrel: 'Clear it into the barrel', handIn: 'Hand it in', signIn: 'Sign it in', draw: 'Draw', backDeclare: 'Rounds back, declare',
+});
+/**
+ * Each command's station and the rows it asks for, in the order they are done (see the section's head): { station, rows, tempo? }; the press
+ * words name the next row not yet done (armoury-day.js armouryPressOf). The table's rows ({ tempo }) are its three tempos, R alone normal.
+ */
+export const ARM_PRESS = deepFreeze({
+  card: { station: 'window', rows: ['card'] },
+  window: { station: 'window', rows: ['read', 'show', 'sign'] },
+  fallIn: { station: 'rank', rows: [] },
+  serials: { station: 'rank', rows: ['call'] },
+  back: { station: 'window', rows: ['back'] },
+  issue: { station: 'ammo', rows: ['count', 'sign20'] },
+  lane: { station: 'lane', rows: ['show'] },
+  police: { station: 'lane', rows: ['police'] },
+  turnIn: { station: 'ammo', rows: ['roundsBack'] },
+  declare: { station: 'ammo', rows: ['declare'] },
+  clean: { station: 'table', rows: ['rushed', 'normal', 'careful'], tempo: true },
+  barrel: { station: 'barrel', rows: ['barrel'] },
+  handIn: { station: 'window', rows: ['handIn'] },
+  signIn: { station: 'window', rows: ['signIn'] },
+});
+/** "The window and the canopy"'s other lines (see the section's head), each ≥ 2 phrasings; {n}, {serial} and the like filled by the scene. */
+export const ARM_SAY = deepFreeze({
+  cardRead: ['{Name}, Echo two. {Card}.', '{Name}. Echo two, {card}.'],
+  fetched: ['Here. Bolt locked back.', 'Your rifle. Bolt is back.'],
+  readSlip: ['That is {read}. My card says {card}.', '{Read}, Sergeant. My card says {card}.'],
+  readMine: ['{Read}. That is mine.', '{Read}. Mine.'],
+  mistake: ['My mistake. Wait one.', 'My mistake. The next slot. Wait one.'],
+  showFirst: ['Show me clear first.', 'Clear first, then sign.'],
+  signed: ['Signed. Next.', 'Signed out to you. Next.'],
+  checkOne: ['{Serial}.', '{Serial}, Sergeant.'],
+  // (the rank's own calls, the serial's last three digits, one at a time: armoury-day.js CHECK_GAP_MS)
+  checkTail: ['{Tail}.', 'Ends {tail}.'],
+  checkYou: ['{Name}.', '{Name}, your serial.'],
+  checkSlip: ['That is not what my sheet says. Back to the window.', 'That number is not on my sheet against you. Back to the window.'],
+  checkOk: ['Good. All present.', 'All present. Good.'],
+  handedBack: ['Wait one.', 'The right one. Wait one.'],
+  countShort: ['Nineteen, Sergeant.', 'I make it nineteen, Sergeant.'],
+  countFull: ['Twenty, Sergeant.', 'Twenty, Sergeant. All there.'],
+  countAdded: ['Nineteen? So it is. Here.', 'So it is. One more. Here.'],
+  sign20: ['Signed. Twenty rounds ball.', 'Twenty ball, signed for.'],
+  air: { calm: ['Still air, for once.', 'Not a breath of wind.'], breezy: ['A breeze off the rim.', 'A breeze down off the rim.'], gusty: ['Grit in everything.', 'Gusts off the rim, and grit in everything.'] },
+  backN: ['{N} rounds back. Noted.', '{N} back to me. Noted.'],
+  back1: ['One round back. Noted.', 'One back to me. Noted.'],
+  backNone: ['Nothing back. Noted.', 'All fired. Noted.'],
+  declared: ['No brass, no ammo, Sergeant.', 'No brass and no ammo, Sergeant.'],
+  declOk: ['Clear. On the bus.', 'Good. On the bus.'],
+  declBrass: ['You fired {fired} and policed {policed}. Back on the line.', '{Fired} fired, {policed} policed. Back on the line.'],
+  declHeld: ['What is this, then?', 'And what is this?'],
+  declShort: ['One round unaccounted for. Nobody leaves.', 'One round short on my sheet. Nobody leaves.'],
+  declMag: ['Your magazine is still on {where}, {n} in it. Lost, on my sheet.', 'A magazine of yours left on {where}, {n} in it. It goes on my sheet as lost.'],
+  declLoose: ['And what is this? {N} live on my line. Your declaration was false.', 'What is this, then? {N} live on my line, yours.'],
+  shakedown: ['My count, and you signed for it. Count what you sign for.', 'It was my count, and you signed for it. Count what you sign for.'],
+  liveOnMat: ['A live round on your mat. Your declaration was false.', 'That is a live round. You declared no ammo.'],
+  inspect: ['Bolt. Carrier. Bore.', 'Bolt. Carrier. Bore. Let me look.'],
+  pass: ['Clean. Rack it. Condition {cond}.', 'Clean. Racked. Condition {cond}.'],
+  again: ['Carbon on the carrier. Clean it again.', 'Grit in the action. Clean it again.'],
+  taken: ['I will take it. It goes in the book.', 'I will take it, and it goes in the book.'],
+  pin: ['Where is your firing pin retaining pin?', 'Your firing pin retaining pin. Where is it?'],
+  chit: ['A chit, and twenty minutes of my day.', 'A chit for the pin, and twenty minutes of my day.'],
+  magsShort: ['{What}. You drew three.', 'I count {what}. You drew three.'],
+  magsOk: ['Three magazines.', 'Three magazines. Good.'],
+  signedIn: ['Racked. Next.', 'In the rack. Next.'],
+  late: ['Ten-thirty was the time. It goes on the sheet.', 'That is past ten-thirty. It goes on the sheet.'],
+  muzzle: { armourer: ['Muzzle! Watch it at my window.', 'Muzzle! Not at my window.'], leader: ['Muzzle! Watch it in my rank.', 'Muzzle! Not in my rank.'], nco: ['Muzzle! Watch it on my line.', 'Muzzle! Not on my line.'] },
+  box: ['Where are you going? Back here.', 'Where do you think you are going? Back here.'],
+  fetchedYou: ['The squad leader came for you.', 'Your squad leader fetched you back.'],
+  slow: ['The line waited on you.', 'We waited on you.'],
+  taken2: ['I will do it. It goes on the sheet.', 'Give it here. It goes on the sheet.'],
 });

@@ -188,8 +188,8 @@ export function overlayPixels(r, ppm = PX_PER_M, { clip = null } = {}) {
 /** The devices on a stage (see the header): { group, update, stats, pixels, dispose }. */
 export function createDevices(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
   const THREE = stage.THREE;
-  const body = createPixels(THREE, BODY_PIXELS, { ppm, order: 1 }), puff = createPixels(THREE, PUFF_PIXELS, { ppm, order: 1 });
-  const read = createPixels(THREE, READ_PIXELS, { ppm, order: 2 }), pop = createPixels(THREE, POP_PIXELS, { ppm, order: 3 });
+  const body = createPixels(THREE, BODY_PIXELS, { ppm, order: 1, name: 'device' }), puff = createPixels(THREE, PUFF_PIXELS, { ppm, order: 1, name: 'puff' });
+  const read = createPixels(THREE, READ_PIXELS, { ppm, order: 2, name: 'read' }), pop = createPixels(THREE, POP_PIXELS, { ppm, order: 3, name: 'pop' });
   pop.mesh.material.transparent = true; pop.mesh.material.depthWrite = false;
   // (a pixel's bytes: its matrix, colour, tint and part, float32)
   const bytes = (p) => p.max * (16 + 3 + 3 + 1) * 4;

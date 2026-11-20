@@ -2,18 +2,11 @@
  "title": "The shot: A0 to A5, your R-7 and P-12 in the shoot house through the suit, drawn and played by the game's code",
  "about": "Your words of 2026-11-15: \"Sound design is pretty weak, guns should bang harder and closer to realistic\". v0.0.17's shot peaked high but its loudest 50 ms, what the ear hears as loudness, sat at -15.6 dBFS: a click with a tail. Each view draws one candidate's first 300 ms (your R-7 through the combat EVA suit's hearing filter, the room's answer and the game's master; your P-12 under it), the loudest 10 ms and 50 ms shaded with their levels. Open a view live (O) to hear it: Space or a click the R-7, P the P-12, B a burst of five. In play, the Esc menu's To score page switches the shot live in the house (and &shot=A0..A5 anywhere). You starred A4 on 2026-11-19 and asked for the R-7's wave on the P-12 and the R-7 \"meaner, blunter, more bass heavy. less a \\\"PAF\\\" and more a \\\"DOOM\\\"\": that is A5, every scene's from v0.0.24, in group D beside A4.",
  "pixel": true,
- "open": {
-  "default": [
-   "D-b"
-  ],
-  "since": "2026-11-19",
-  "decides": "the R-7 rebuilt (A5: meaner, blunter, heavier in the bass; the P-12 on A4's R-7 wave), or A4 as you starred it",
-  "builtIn": "v0.0.24"
- },
  "scored": {
-  "on": "2026-11-19",
+  "on": "2026-11-20",
   "picks": [
-   "A-4"
+   "A-4",
+   "D-b"
   ]
  },
  "groups": [

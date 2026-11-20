@@ -248,16 +248,52 @@ export function manZone(part, roll) {
  * v0.0.25 (the user's report of 2026-11-19 on the hostage card, "kind of looks like the hit zone partly covers the hostage's head"): on
  * the hostage card the hostage stands in front of the hostile, her head over the side of his head circle at x < 0 (the card's H-a, she
  * at the viewer's left; art/doll/hitcard.js draws H-b mirrored, the marks with it), 40% of the circle at every band. A head round
- * scored on him (shoothouse.js: graded better than bad) lands on his own side, x ≥ HOSTAGE_CLEAR_CM; one scored on her (bad or worse)
- * on hers, x ≤ −HOSTAGE_CLEAR_CM, so a hole is never drawn on her head and called his. hostageHead(at, onHer) puts a point of the head
- * circle on that side (its x mapped across, its y kept inside the circle); manHole and the spin's shift (shot.js) both pass through it.
+ * scored on him (shoothouse.js: graded better than bad) lands on his own side; one scored on her (bad or worse) on hers, x ≤
+ * −HOSTAGE_HER_CM, so a hole is never drawn on her head and called his. hostageHead(at, onHer) puts a point of the head circle on that
+ * side (its x mapped across, its y kept inside the circle); manHole and the spin's shift (shot.js) both pass through it.
+ * v0.0.28 (the user's note of 2026-11-20 on target-view H: "If the hostage is hit, the shot is a fail."): judged on the card as drawn.
+ * Her outline is one table here, HOSTAGE_EDGE_CM (data only, so the sim reads no art module): her drawn right edge, the side toward
+ * him, in man-target centimetres over the rows of her head and neck, the outermost of every band, both sides (H-b mirrored), every
+ * hostage hold and gun (measured on art/doll/hitcard.js's pixels and held to them by tests/hostage-card.test.mjs). A round scored on him
+ * lands clear of that edge by its hole and a pixel at the coarsest band (HOSTAGE_CLEAR_CM: the 5 px hole, drawn from its whole pixel,
+ * and its gap, 3.5 px across on the mirrored card and 4.5 px down, at 0.64 px a cm), so no good shot is ever drawn touching her (v0.0.25 measured 2 cm from the circle's centre
+ * line, and his hole sat on the edge of her head: "ONE IN THE HEAD. HE WENT DOWN."); and a round whose hole touches her outline
+ * (hostageTouched: the hole's own pixels on hers at the coarsest band, HOSTAGE_TOUCH_CM, the widest reach in centimetres, so a hole
+ * that touches her on any card counts) is a hit on the hostage whatever its grade (shoothouse.js houseShot: the fault 'hostage',
+ * HOSTAGE HIT, NO-GO), and never drops him. The same rule for any hostage later. No hole the game places falls between the two reaches
+ * (his at HOSTAGE_HIS_CM or more, clear of her at every band; hers at −HOSTAGE_HER_CM or less, on her at every band), so at every band
+ * the card as drawn and the verdict agree; hostageTouched is the rule's guard for any later placement (the review of the picks).
  */
-export const HOSTAGE_CLEAR_CM = 2;
+export const HOSTAGE_HER_CM = 2;
+/** Her drawn right edge (see above): [y0, y1, x], from y0 down to y1 (cm, y down), her pixels at x or less; no row, no part of her there in reach of a head hole. */
+export const HOSTAGE_EDGE_CM = Object.freeze([
+  [-48, -43, -5], [-43, -40, -3.5], [-40, -35, -2], [-35, -32, -0.5], [-32, -22, 1], [-22, -20, -0.5], [-20, -12, -2], [-12, -10, 8],
+].map(r => Object.freeze(r)));
+/** A hole scored on him stands this clear of her edge, across and down (cm): the hole and a pixel's gap at the far band's 0.64 px a cm. */
+export const HOSTAGE_CLEAR_CM = Object.freeze([5.5, 7.5]);
+/** A hole this near her edge, across and down (cm), may have pixels on hers on a card at the far band (2.5 px and 3.5 px): the hole alone. */
+export const HOSTAGE_TOUCH_CM = Object.freeze([4, 5.5]);
+/** Her outermost edge (cm) over the rows from y0 to y1, or −Infinity where none of her stands. */
+export function hostageEdge(y0, y1) {
+  let x = -Infinity;
+  for (const [a, b, e] of HOSTAGE_EDGE_CM) if (b > y0 && a < y1) x = Math.max(x, e);
+  return x;
+}
+/** Whether a hole at `at` (man-target cm, she at x < 0) has its pixels on her as drawn (see above): a hit on the hostage. */
+export function hostageTouched(at) {
+  if (!Array.isArray(at)) return false;
+  const [tx, ty] = HOSTAGE_TOUCH_CM;
+  return at[0] - hostageEdge(at[1] - ty, at[1] + ty) < tx;
+}
+// (the least x a hole scored on him takes, the head circle's whole span: her edge over its rows and the hole's reach, and the clearance)
+const Zh = PAPERS.man.zones.head;
+/** The least x (cm) of a head hole scored on him: clear of her edge over the head circle's rows (see above); 6.5 cm, 1.5 short of his circle's edge. */
+export const HOSTAGE_HIS_CM = hostageEdge(Zh.at[1] - Zh.r - HOSTAGE_CLEAR_CM[1], Zh.at[1] + Zh.r + HOSTAGE_CLEAR_CM[1]) + HOSTAGE_CLEAR_CM[0];
 /** Whether a head round on the hostage card is scored on the hostage (its roll's grade bad or worse: shoothouse.js houseShot's rule). */
 export const onHostageHead = (roll) => ['bad', 'disaster'].includes(roll?.grade);
-/** A head circle's point put on the hostile's side (onHer false) or the hostage's (true): see HOSTAGE_CLEAR_CM. */
+/** A head circle's point put on the hostile's side (onHer false: x ≥ HOSTAGE_HIS_CM) or the hostage's (true: x ≤ −HOSTAGE_HER_CM): see above. */
 export function hostageHead(at, onHer = false) {
-  const Z = PAPERS.man.zones.head, R = Z.r, c = HOSTAGE_CLEAR_CM, x0 = at[0] - Z.at[0], y0 = at[1] - Z.at[1], sign = onHer ? -1 : 1;
+  const Z = PAPERS.man.zones.head, R = Z.r, c = onHer ? HOSTAGE_HER_CM : HOSTAGE_HIS_CM, x0 = at[0] - Z.at[0], y0 = at[1] - Z.at[1], sign = onHer ? -1 : 1;
   if (sign * x0 >= c && Math.hypot(x0, y0) <= R + 1e-9) return at;
   const ax = Math.min(R, Math.abs(x0)), x = sign * (c + ax * (R - c) / R), k = Math.sqrt(Math.max(0, R * R - x * x)) / Math.max(1e-6, Math.sqrt(Math.max(0, R * R - ax * ax)));
   const y = Math.max(-1, Math.min(1, k)) * y0;

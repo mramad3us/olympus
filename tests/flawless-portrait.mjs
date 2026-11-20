@@ -41,7 +41,8 @@ export const ORACLE_BACK_RAD = 3 * Math.PI / 4;
 
 const hexOf = (v) => ((v & 0xff) << 16) | (v & 0xff00) | ((v >>> 16) & 0xff);
 /** A card's pixels in the hold's tones. */
-export function holdTonePx(card) { let n = 0; for (const v of card.data) { const c = hexOf(v); if (c === PORTRAIT_HOLD.ink || c === PORTRAIT_HOLD.lit) n++; } return n; }
+// (v0.0.28: the gun in a tone of its own, G2's own colours from the user's star of 2026-11-20, or G1's ink: the card counts them, gun.toned)
+export function holdTonePx(card) { if (Number.isFinite(card.gun?.toned)) return card.gun.toned; let n = 0; for (const v of card.data) { const c = hexOf(v); if (c === PORTRAIT_HOLD.ink || c === PORTRAIT_HOLD.lit) n++; } return n; }
 
 /** F89 for one card (paintHitcard's output): { ok, px, inCrop, all, min, k }. board: tones counted; a man: the held pixels in the crop. */
 export function gunReads(card, { board = true } = {}) {

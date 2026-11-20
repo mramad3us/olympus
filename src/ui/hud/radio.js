@@ -89,8 +89,10 @@ export function standingLine(state) {
   if (!c) return null;
   // (0.0.9, the fixer's: on the pairs bay the coach runs the line beside you, so his command stands as his speech, not the
   // tower's: it stood twice, "◉ TOWER … NOW" over his own "BESIDE YOU" line (the integrator's, from v0.0.8))
-  const l = lineOf({ who: c.who, text: c.text, kind: rangeOf(state)?.course === 'pairs' ? 'speech' : 'pa' }, state);
-  return l ? { ...l, atMs: c.atMs, short: c.short, standing: true, key: `${c.i}` } : null;
+  // (at the armoury the armourer, the NCO and the squad leader beside you, never a tower; the standing line their words and what to
+  // press after them (said: the words alone, so the spoken line it stands for leaves the box))
+  const l = lineOf({ who: c.who, text: c.text, kind: ['pairs', 'armoury'].includes(rangeOf(state)?.course) ? 'speech' : 'pa' }, state);
+  return l ? { ...l, atMs: c.atMs, short: c.short, standing: true, key: `${c.i}`, ...(c.said ? { said: c.said } : {}) } : null;
 }
 /**
  * What the box shows (pure: the DOM trims it to its room), in the order said, the newest last: with a command standing,
@@ -101,7 +103,7 @@ export function standingLine(state) {
 export function boxLines(lines, standing = null) {
   if (!standing) return lines;
   const at = (l) => l.atMs ?? -Infinity;
-  const kept = lines.filter(l => !((l.kind === 'pa' && at(l) < standing.atMs) || (l.text === standing.text && l.head === standing.head)));
+  const kept = lines.filter(l => !((l.kind === 'pa' && at(l) < standing.atMs) || (l.text === standing.text && l.head === standing.head) || (standing.said && l.text === standing.said && l.head === standing.head)));
   const k = kept.findIndex(l => at(l) >= standing.atMs);
   return k < 0 ? [...kept, standing] : [...kept.slice(0, k), standing, ...kept.slice(k)];
 }

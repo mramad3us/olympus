@@ -7,7 +7,8 @@
 // basin did teeth, a shave and the face on one R, its words not saying so), R tapped does one of them,
 // named with its time before you press, and R held lists them all.
 //
-// handMenu(state) is the menu R held opens: { title, spotId, fixtureId, quick, rows: [Row] }, its rows the
+// handMenu(state) is the menu R held opens (a scene's own rows first, while it holds R: see registerHandScene below): { title,
+// spotId, fixtureId, quick, rows: [Row] }, its rows the
 // nearest spot's single actions in ROWS' order (src/data/activities.js: the order one does them in, a
 // chain's too), a resume first (a cut shower: "finish your shower · 7 min", TIME §7.5), the door at hand
 // and R's wait last; with no spot, the door's row and the wait. A Row is { key, id, verb, spotId, words,
@@ -292,6 +293,9 @@ function menuOf(state) {
 
 /** The menu R held opens (see the header), or null. */
 export function handMenu(state) {
+  // (the armoury round's stage 0: a scene's own rows while its offer stands, when it registered rows(state) (see below); else as built)
+  const sc = sceneOffer(state), sm = sc?.h.rows ? sc.h.rows(state) : null;
+  if (sm) return { title: sm.title, spotId: null, fixtureId: null, quick: sc.o.id, rows: sm.rows };
   const m = menuOf(state);
   if (m.none || m.rise) return null;
   return { title: m.title, spotId: m.spot?.spotId ?? null, fixtureId: m.spot?.fixtureId ?? null, quick: m.quick.row?.key ?? 'wait', rows: m.rows };
@@ -299,7 +303,10 @@ export function handMenu(state) {
 
 // (a scene's own acts at hand, R's quick action before the place's (test-burn's stowing and strap-in: scenarios/burn.js
 // registers them at its load, so no module of places imports a scenario): { offer(state) → { id, key?, label, durMs } | null,
-// act(state, bus, id) }. Absent from every other scene: its offer is null there, so R is as before)
+// act(state, bus, id), rows?(state) → { title, rows: [{ id, label, tag, struck?, why? }] } | null }. Absent from every other scene:
+// its offer is null there, so R is as before. v0.0.28's stage 0 (its build sheet §3.0): a scene that gives rows has R held list
+// them while its offer stands (handMenu, quick the offer's id), and R held's pick acts that row's id when it is listed and not
+// struck (handAction's args.id), else the offer's, as R tapped; test-burn gives none, so its R and its menu are as before)
 const HAND_SCENES = [];
 /** Register a scene's acts at hand (see above). */
 export function registerHandScene(h) { if (!HAND_SCENES.includes(h)) HAND_SCENES.push(Object.freeze(h)); }
@@ -339,9 +346,15 @@ const KIND_OF_VERB = Object.freeze({ open: 'door', close: 'door', rise: 'rise', 
 export function handAction(state, action, bus, ctx) {
   const offer = handOffer(state);
   if (!offer) return;
-  // (a scene's own act, the one its offer names)
-  if (offer.verb === 'scene') { const sc = sceneOffer(state); if (sc && sc.o.id === offer.id) sc.h.act(state, bus, offer.id); return; }
   const args = typeof action === 'object' ? action?.args ?? {} : {};
+  // (a scene's own act, the one its offer names, or the row R held picked when the scene lists it unstruck: v0.0.28's stage 0)
+  if (offer.verb === 'scene') {
+    const sc = sceneOffer(state);
+    if (!sc || sc.o.id !== offer.id) return;
+    const row = args.id && args.id !== offer.id && sc.h.rows ? (sc.h.rows(state)?.rows ?? []).find(r => r.id === args.id && !r.struck) ?? null : null;
+    sc.h.act(state, bus, row ? row.id : offer.id);
+    return;
+  }
   const want = args.want ?? null, kind = KIND_OF_VERB[offer.verb];
   // (R held's door row: the door the menu showed, if it is still at hand, whatever R tapped would do; the fixer's, 0.0.6)
   if (want === 'door' && args.from === 'menu' && kind !== 'door') {

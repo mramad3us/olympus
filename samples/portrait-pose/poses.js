@@ -10,13 +10,17 @@
 
 /** A: a rifle aimed at you. A1 end on, the muzzle a ring of steel at the chest, the optic over it (the default); A2 canted a quarter turn, the rifle across the chest toward the viewer's right so its length shows. */
 export const AIM = Object.freeze([
-  Object.freeze({ id: 'A1', name: 'end on, the muzzle a ring at his chest', rec: Object.freeze({ pose: 'stand', hold: Object.freeze({ how: 'rifle-aim' }), aimAt: 'you' }) }),
-  Object.freeze({ id: 'A2', name: 'canted, the rifle across his chest', rec: Object.freeze({ pose: 'stand', hold: Object.freeze({ how: 'rifle-aim', place: 'aimAway' }), aimAt: 'away' }) }),
+  Object.freeze({ id: 'A1', name: 'end on, the muzzle a ring at his chest', rec: Object.freeze({ pose: 'stand', hold: Object.freeze({ how: 'rifle-aim' }), aimAt: 'you' }), picks: Object.freeze({ aim: 'A1' }) }),
+  Object.freeze({ id: 'A2', name: 'canted, the rifle across his chest', rec: Object.freeze({ pose: 'stand', hold: Object.freeze({ how: 'rifle-aim', place: 'aimAway' }), aimAt: 'away' }), picks: Object.freeze({ aim: 'A2' }) }),
+  // (v0.0.28, the user's note of 2026-11-20, "aiming through ironsights": src/art/doll/held.js rifleAimed)
+  Object.freeze({ id: 'A3', name: 'through the sights: the stock in his shoulder, the sight at his eye, the muzzle toward you', rec: Object.freeze({ pose: 'stand', hold: Object.freeze({ how: 'rifle-aim' }), aimAt: 'you' }), picks: Object.freeze({ aim: 'A3' }) }),
 ]);
 /** P: a pistol aimed at you. P1 both arms out, the slide end on (the default); P2 cupped at the chest, the muzzle at you. */
 export const PISTOL = Object.freeze([
-  Object.freeze({ id: 'P1', name: 'both arms out, the slide end on', rec: Object.freeze({ pose: 'stand', hold: Object.freeze({ how: 'pistol-aim' }), aimAt: 'you' }) }),
-  Object.freeze({ id: 'P2', name: 'cupped at the chest', rec: Object.freeze({ pose: 'stand', hold: Object.freeze({ how: 'pistol-aim', place: 'cupped' }), aimAt: 'you' }) }),
+  Object.freeze({ id: 'P1', name: 'both arms out, the slide end on', rec: Object.freeze({ pose: 'stand', hold: Object.freeze({ how: 'pistol-aim' }), aimAt: 'you' }), picks: Object.freeze({ pistol: 'P1' }) }),
+  Object.freeze({ id: 'P2', name: 'cupped at the chest', rec: Object.freeze({ pose: 'stand', hold: Object.freeze({ how: 'pistol-aim', place: 'cupped' }), aimAt: 'you' }), picks: Object.freeze({ pistol: 'P2' }) }),
+  // (v0.0.28: src/art/doll/held.js pistolAimed)
+  Object.freeze({ id: 'P3', name: 'through the sights: both arms out to the P-12 at his eyes, its muzzle toward you', rec: Object.freeze({ pose: 'stand', hold: Object.freeze({ how: 'pistol-aim' }), aimAt: 'you' }), picks: Object.freeze({ pistol: 'P3' }) }),
 ]);
 /** K: kneeling (one candidate, a check): K1 on the right knee, the left foot planted, aimed. */
 export const KNEEL = Object.freeze([
@@ -24,9 +28,11 @@ export const KNEEL = Object.freeze([
 ]);
 /** D: down, ruled out and sitting where he is. D1 sitting, the rifle across the knees (the default, as the stage's sitLow); D2 slumped on his side. */
 export const DOWN = Object.freeze([
-  Object.freeze({ id: 'D1', name: 'sitting, the rifle across his knees', rec: Object.freeze({ pose: 'sit', hold: Object.freeze({ how: 'rifle-low' }) }) }),
+  Object.freeze({ id: 'D1', name: 'sitting, the rifle across his knees', rec: Object.freeze({ pose: 'sit', hold: Object.freeze({ how: 'rifle-low' }) }), picks: Object.freeze({ down: 'D1' }) }),
   Object.freeze({ id: 'D2', name: 'slumped on his side', rec: Object.freeze({ pose: 'sit', hold: Object.freeze({ how: 'rifle-low' }) }),
     bend: Object.freeze({ drop: 70, legsOver: true, lap: true, lean: 0.32, legs: Object.freeze({ r: Object.freeze([0, 0.75, 108]), l: Object.freeze([0, 0.6, 113]) }), arms: Object.freeze({ bendR: Object.freeze([16, 40]), bendL: Object.freeze([6, 44]) }) }) }),
+  // (v0.0.28, the user's "Needs way more polish" of 2026-11-20: sitting drawn whole, src/art/doll/held.js seated)
+  Object.freeze({ id: 'D3', name: 'sitting slumped, the knees up, the rifle across his lap, the hands open on it', rec: Object.freeze({ pose: 'sit', hold: Object.freeze({ how: 'rifle-low' }) }), picks: Object.freeze({ down: 'D3' }) }),
 ]);
 /** C: cowering (a check): C1 crouched, the fists at the head's sides. */
 export const COWER = Object.freeze([

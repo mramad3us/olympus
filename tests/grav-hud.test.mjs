@@ -48,7 +48,7 @@ export default [
     },
   },
   {
-    name: 'grav-hud: the siren plays one cycle a second through a 15 s warning (15 cycles, at SIREN_DB through the compartment\'s air) and none before it or after the onset; its recipe the two tones of samples/void-look\'s S-a',
+    name: 'grav-hud: the siren plays one cycle a second through a 15 s warning (15 cycles, at SIREN_DB through the compartment\'s air) and none before it or after the onset; its recipe the rising whoop of samples/void-look\'s S-b (v0.0.28, the user\'s star of 2026-11-20; was S-a\'s two tones)',
     fn() {
       const g = createGame({ scenario: 'sandbox', seed: SEED, env: 'ship-coast' }), s = g.state, t0 = s.clock.ms;
       setProfile(s, [{ kind: 'burn', toG: 1, atS: 20, warnS: 15 }]);
@@ -56,10 +56,11 @@ export default [
       const siren = createSiren(engine), cycles = new Set();
       for (let k = 0; k < 30_000 / TICK_MS; k++) { g.step(1); siren.frame(s); const c = sirenCycle(gravNow(s), s.clock.ms); if (c !== null) cycles.add(c); }
       const want = SIREN_DB + airDb(airAt(s).pKpa);
-      console.log(`      ${shots.length} cycles from +${shots[0]?.ms} to +${shots.at(-1)?.ms} ms, at ${shots[0]?.gainDb.toFixed(2)} dB (${want.toFixed(2)}), low-passed at ${Math.round(shots[0]?.lowHz)} Hz; cycles ${[...cycles].join(',')}; the recipe ${JSON.stringify(WORLD.siren.layers[0].notes)}`);
+      console.log(`      ${shots.length} cycles from +${shots[0]?.ms} to +${shots.at(-1)?.ms} ms, at ${shots[0]?.gainDb.toFixed(2)} dB (${want.toFixed(2)}), low-passed at ${Math.round(shots[0]?.lowHz)} Hz; cycles ${[...cycles].join(',')}; the recipe ${WORLD.siren.layers[0].kind} ${WORLD.siren.layers[0].hz} to ${WORLD.siren.layers[0].toHz} Hz over ${WORLD.siren.layers[0].durS} s`);
       // (each cycle played on the first frame of its second: within a tick of 5 s + i s, the warning's start)
       assert(shots.length === 15 && cycles.size === 15 && shots.every(x => x.kind === 'siren') && shots.every((x, i) => x.ms - (5000 + i * SIREN_CYCLE_MS) >= 0 && x.ms - (5000 + i * SIREN_CYCLE_MS) <= TICK_MS), JSON.stringify(shots.map(x => x.ms)));
-      assert(Math.abs(shots[0].gainDb - want) < 1e-9 && JSON.stringify(WORLD.siren.layers[0].notes) === '[[960,0.5],[770,0.5]]', 'the level and the tones');
+      const L = WORLD.siren.layers[0], J = WORLD.sirenJink?.layers?.[0];
+      assert(Math.abs(shots[0].gainDb - want) < 1e-9 && L.kind === 'glide' && L.hz === 500 && L.toHz === 1200 && Math.abs(L.durS - 0.98) < 1e-9 && J?.kind === 'glide' && Math.abs(J.durS - 0.48) < 1e-9, `the level and the whoop: ${JSON.stringify({ L, J })}`);
     },
   },
   {

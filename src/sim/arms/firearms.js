@@ -6,8 +6,12 @@
 // SKILLS' paceOf replaces tradecraft's pace() (base times are at value 10, thumb work takes the pace
 // squared, long guns LONG_K but on up, stow and thumb work); SKILLS' grades and routine work read the
 // roll (a routine natural 1 costs time and nothing else); the reliability is WEAPONS §4.3's, service
-// grade, with dust, fouling, lube and heat as fields read and never moved this round; the coach's
-// dummy is a set stoppage of three kinds; and the holder's belief is new.
+// grade, with dust, fouling, lube and heat as fields read here and moved only by src/sim/arms/upkeep.js
+// behind its gate (v0.0.28: a pull given `live` calls its roundFired after the last draw; no caller but
+// shot.js gives it, and only where state.armoury.upkeep is set); the coach's dummy is a set stoppage of
+// three kinds; and the holder's belief is new. A gun whose fault is set (gun.fault 'pin': the firing pin
+// retaining pin lost at the bench, absent by default) will not fire: pull refuses it as 'broken' and
+// ready() says no, one rule.
 //
 // **The truth** (WEAPONS §4.1) is the gun's record in state.items: { type: 'gun', model, mag (the
 // magazine in it: an item id, its holder field, written only by kit.move), chamber ('live' | 'dud' |
@@ -124,6 +128,7 @@ import { ndOf, SLUNG } from './carry.js';
 import { surfaceAt } from '../places/env.js';
 import { MATERIALS } from './penetrate.js';
 import { handsFullWhy } from './devices.js';
+import { roundFired } from './upkeep.js';
 import { ISSUE_FINISH, isFinish, finishId } from '../../data/finishes.js';
 
 // ---- constants (WEAPONS §4.3, §5.1, §5.4, §5.5; the build sheet's §4) ----
@@ -358,7 +363,7 @@ export function newMag(state, { fam = 'had30', n = null, load = 'ball', set = nu
 // ---- reliability (WEAPONS §4.3) ----
 
 const wearK = (g) => Math.max(0, Math.min(1, (WORN_FROM - (g.cond ?? 0.95)) / WORN_SPAN));
-/** The chance a live round doesn't go off at a pull. Dust, fouling, lube and heat are read; nothing moves them this round. */
+/** The chance a live round doesn't go off at a pull. Dust, fouling, lube and heat are read here; upkeep.js moves them, behind its gate (v0.0.28). */
 export function misfireP(gun, mag = null, M = modelOf(gun)) {
   return (MISFIRE + MISFIRE_WORN * wearK(gun) + MISFIRE_DUST * gunField(gun, 'dust')) * (M?.unreliable ?? 1);
 }
@@ -386,21 +391,36 @@ export function feed(gun, mag) {
 
 /** Whether a trigger pull would fire it: a live round chambered, the bolt closed and in battery, cocked, off safe, not broken. */
 export function ready(gun) {
-  if (!gun || (gun.cond ?? 1) < BROKEN) return false;
+  if (!gun || (gun.cond ?? 1) < BROKEN || gun.fault) return false;
   return gunField(gun, 'mode') !== 'safe' && gunField(gun, 'chamber') === 'live' && !gunField(gun, 'jam') && !gunField(gun, 'locked') && gunField(gun, 'cocked');
+}
+
+/** A round fired, in the gun's own books (pull's, and upkeep.js firedOutcome's for a span behind a splash): counted, the condition worn. Writes gun. */
+export function countRound(gun) {
+  setG(gun, 'rounds', gunField(gun, 'rounds') + 1);
+  gun.cond = q(Math.max(0, (gun.cond ?? 0.95) - WEAR), 1e-6);
 }
 
 /**
  * The trigger pulled, one round (w the gun and its magazine): { fired, why (not fired: 'safety' |
  * 'broken' | 'jammed' | 'open' | 'dead' | 'empty' | 'dud'), stoppage ('case' | 'double': fired, and
  * it stopped cycling), empty (the last round gone), set (the coach's round, what it was), dummy }.
- * opts: { model (a fixture's), wh }. Draws on rng: the misfire, then the stoppage, then its kind
- * (tradecraft's order).
+ * opts: { model (a fixture's), wh, live, ms, air, suppressor }. Draws on rng: the misfire, then the stoppage, then
+ * its kind (tradecraft's order). live (v0.0.28, upkeep.js liveOpts: only behind its gate): a round that
+ * fired goes into upkeep's books after the last draw (roundFired at ms in the air), so every draw read
+ * the gun as it was when the trigger broke; without it the pull is the one it was, to the bit.
  */
-export function pull(rng, gun, mag = null, { model = null, wh = 10 } = {}) {
+export function pull(rng, gun, mag = null, opts = {}) {
+  const r = pullOnce(rng, gun, mag, opts);
+  // (a suppressor's carbon, × FOUL_SUPP_K, where the caller says one is on: it was never passed (the fixer of v0.0.28's code review, finding 8))
+  if (opts.live && r.fired) roundFired(gun, { ms: opts.ms, air: opts.air, suppressor: !!opts.suppressor });
+  return r;
+}
+// (the pull itself: its draws and its writes, the gun's truth)
+function pullOnce(rng, gun, mag, { model = null, wh = 10 } = {}) {
   const M = model ?? modelOf(gun);
   if (gunField(gun, 'mode') === 'safe') return { fired: false, why: 'safety' };
-  if ((gun.cond ?? 1) < BROKEN) return { fired: false, why: 'broken' };
+  if ((gun.cond ?? 1) < BROKEN || gun.fault) return { fired: false, why: 'broken' };
   if (gunField(gun, 'jam')) return { fired: false, why: 'jammed' };
   if (gunField(gun, 'locked')) return { fired: false, why: 'open' };
   if (!gunField(gun, 'cocked')) return { fired: false, why: 'dead' };
@@ -413,8 +433,7 @@ export function pull(rng, gun, mag = null, { model = null, wh = 10 } = {}) {
   if (chance(rng, misfireP(gun, mag, M))) { setG(gun, 'chamber', 'dud'); setG(gun, 'cocked', false); return { fired: false, why: 'dud' }; }
   // (it fires: the round counted, the condition worn, the port cover opens itself; its kind leaves with it)
   const load = gunField(gun, 'load');
-  setG(gun, 'rounds', gunField(gun, 'rounds') + 1);
-  gun.cond = q(Math.max(0, (gun.cond ?? 0.95) - WEAR), 1e-6);
+  countRound(gun);
   setG(gun, 'portOpen', true);
   setG(gun, 'set', null);
   const left = !!mag && mag.n > 0;

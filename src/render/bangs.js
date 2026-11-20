@@ -29,7 +29,7 @@ export const FLASH_LATE_MS = 500;
 
 /** The bangs on a stage (see the header): { group, update, stats, dispose }. */
 export function createBangs(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
-  const THREE = stage.THREE, px = createPixels(THREE, BANG_BODY_PIXELS, { ppm, order: 1 }), smokePx = createPixels(THREE, BANG_SMOKE_PIXELS, { ppm, order: 1 }), flash = createPixels(THREE, BANG_FLASH_PIXELS, { ppm, order: 3 });
+  const THREE = stage.THREE, px = createPixels(THREE, BANG_BODY_PIXELS, { ppm, order: 1, name: 'bang' }), smokePx = createPixels(THREE, BANG_SMOKE_PIXELS, { ppm, order: 1, name: 'smoke' }), flash = createPixels(THREE, BANG_FLASH_PIXELS, { ppm, order: 3, name: 'flash' });
   flash.mesh.material.transparent = true; flash.mesh.material.depthWrite = false;
   const group = new THREE.Group();
   group.name = 'bangs';

@@ -73,6 +73,8 @@ import { RANGE_RULES } from './instinct/range.js';
 import { PAIRS_RULES } from './instinct/pairs.js';
 import { CQB_RULES, stopLead, walkInKey } from './instinct/cqb.js';
 import { VOID_RULES } from './instinct/void.js';
+import { ARMOURY_RULES } from './instinct/armoury.js';
+import { armouryTAct } from '../scenarios/armoury-day.js';
 import { rangeOf } from '../scenarios/handling.js';
 import { contactNow, pendingOf } from '../combat/contact.js';
 import { takeInWords } from '../combat/react.js';
@@ -100,6 +102,11 @@ const offHouse = (r) => (RANGE_OFF_HOUSE.has(r.id) ? Object.freeze({ ...r, when:
 export const RANGE_OFF_VOID = Object.freeze(new Set(['range-cmd', 'range-kd', 'range-reload', 'range-fire', 'range-wait', 'range-muzzle']));
 // (a range rule kept quiet on the void range: the same rule, its when() answering nothing there)
 const offVoid = (r) => (RANGE_OFF_VOID.has(r.id) ? Object.freeze({ ...r, when: (state, me, ms) => (rangeOf(state)?.course === 'anchors' ? null : r.when(state, me, ms)) }) : r);
+/** The range's rules that keep quiet at the armoury (v0.0.28, "The window and the canopy"): the tower's commands, the card and the bay's moves (the armoury's rules, instinct/armoury.js, say the window's, the lane's, the canopy's and the ammunition point's, each by R), and the bay's muzzle off the lane (on it, the range's "downrange" holds). */
+export const RANGE_OFF_ARMOURY = Object.freeze(new Set(['range-cmd', 'range-kd', 'range-reload', 'range-fire', 'range-wait', 'range-muzzle']));
+// (a range rule kept quiet at the armoury: range-muzzle but on the lane after the relay, the rest everywhere there; the lane's commands are
+// the armoury's rows (two lines for one command, the range's naming the panel's macro and the armoury's R, sent the T bot round the mode)
+const offArmoury = (r) => (RANGE_OFF_ARMOURY.has(r.id) ? Object.freeze({ ...r, when: (state, me, ms) => { const R = rangeOf(state); return R?.course === 'armoury' && (r.id !== 'range-muzzle' || R.arm?.stage !== 'lane') ? null : r.when(state, me, ms); } }) : r);
 // (test-burn, the fixer of D's review: aboard, while the scene runs (its record state.armoury.burn, no end yet), the base's
 // 'situation' says the scene's line by the ship's phase (data/courses.js BURN_T) in place of the barracks' day ("Free time. Spend it
 // like it costs something." under the 1MC's warning), no act (R does the scene's acts), no humour. The record is read here, not
@@ -121,7 +128,8 @@ const offBurn = (r) => (r.id === 'situation' ? Object.freeze({
 const offBurnWoke = (r) => (r.id === 'woke' ? Object.freeze({ ...r, when: (state, me, ms) => (burnPhase(state) ? null : r.when(state, me, ms)) }) : r);
 /** Every rule the instinct weighs: the base's, the grooming's, the range's, then the pairs' (merged by tone in settle(): within a tone, in that order). */
 // (the void range's next step (instinct/void.js) after the base's, so a wound still comes first)
-export const RULES = Object.freeze([...BASE_RULES.map(offBurn).map(offBurnWoke), ...VOID_RULES, ...GROOM_RULES, ...RANGE_RULES.map(offHouse).map(offPairs).map(offVoid), ...PAIRS_RULES, ...CQB_RULES]);
+// (the armoury's rules after the range's, the range's tower and card quiet there off the lane (offArmoury))
+export const RULES = Object.freeze([...BASE_RULES.map(offBurn).map(offBurnWoke), ...VOID_RULES, ...GROOM_RULES, ...RANGE_RULES.map(offHouse).map(offPairs).map(offVoid).map(offArmoury), ...ARMOURY_RULES, ...PAIRS_RULES, ...CQB_RULES]);
 /** The line's lead while stop motion holds time (VIEWS §7.4; the build sheet §8 item 10). */
 export const STOP_LEAD = 'Time stands still.';
 
@@ -288,7 +296,8 @@ export function instinctAction(state, action, bus, ctx) {
   }
   if (!target?.act) return false;
   if (isHeld(state) && !isHeld(state, 'stop') && target.tone !== 'urgent') return false;
-  const ok = target.act === 'breathe' ? !!breatheAction(state, bus)?.ok : doAct(state, bus, ctx, target.act);
+  // (the armoury's acts, 'arm:<row>' and its bundles, the scene's (armoury-day.js armouryTAct))
+  const ok = target.act === 'breathe' ? !!breatheAction(state, bus)?.ok : String(target.act).startsWith('arm:') ? armouryTAct(state, bus, target.act) : doAct(state, bus, ctx, target.act);
   if (ok) { const inst = state.$instinct; if (inst) inst.atMs = undefined; }   // (settled again on the next tick, not the next second)
   return ok;
 }

@@ -1,7 +1,6 @@
 {
  "title": "The void's places and sounds: Well A's steel deck and its holds, the ship's siren and the mag boots' clank",
  "about": "v0.0.24 takes you off Mars: \"Anchor before you fire\" in Well A at Phobos, the void range, and \"Secure for burn\" aboard Testudo, your ship coasting to Phobos. Both are floored in steel plate a mag boot holds on, with holds for the hands on a grid (a hold every 1.5 m along a bulkhead, a pad-eye in the deck every 3 m for a lanyard's clip), and a burn is warned by a siren before the 1MC's words; a locked mag boot clanks on the steel where a bare foot in free fall weighs nothing. None of these was in a sample, so here they are, each drawn and played by the game's own code (the deck by its plate painter at 16 px/m, snapped to the stage's palette, the game's marine standing in it for scale and the corner three times larger; the sounds by its synthesiser, mix and master, drawn as their level over time). P: the deck. P-a (the default until scored) plain plate, its weld seams; P-b the same plate with the hold grid painted on it in a worn safety yellow. H: the holds. H-a (the default) yellow rungs on the bulkhead and ringed pad-eyes in the deck; H-b recessed rails in the bulkhead and flush pad-eyes. S: the siren. S-a (the default) two tones, 960 and 770 Hz, a half second each; S-b a rising whoop, 500 to 1,200 Hz over a second. K: the clank. K-a (the default) at the level the boots measure, -7.09 dB; K-b 3 dB quieter. Open a sound's view live (O): Space or a click plays it. The game builds at the defaults until you score; a score swaps one table each.",
- "open": {"default": ["P-a", "H-a", "S-a", "K-a"], "since": "2026-11-19", "decides": "Well A's and the berth's deck (P) and holds (H), the burn's siren (S), the mag boots' clank (K)", "builtIn": "v0.0.24"},
  "pixel": true,
  "groups": [
   {
@@ -40,5 +39,6 @@
     { "id": "K-b", "name": "K-b: 3 dB quieter, -10.09 dB", "query": "k=K-b", "pixel": "320x120" }
    ]
   }
- ]
+ ],
+ "scored": {"on": "2026-11-20", "picks": ["P-a", "H-a", "S-b", "K-a"]}
 }

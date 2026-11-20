@@ -3,7 +3,7 @@
 // The user, 2026-11-17: "show us what we would be seeing, including what they are holding", a hand on a hold included. The gear
 // record's boots and anchor (A's fields, src/sim/arms/gear.js gearOf) ride in the Seen record's gear, and a hand on a hold is the
 // record's hold 'hold' (src/data/portrait.js HOLD_HOWS: a hand on a rail, the gun in the other). The doll draws mag boots as
-// mag-boots' B-b (the magnet's sole under the boot and its grey housing round the ankle, worn.js's MAG_BOOT_C) and the anchor the gear
+// mag-boots' B-a from v0.0.28 (the user's star of 2026-11-20: the magnet's sole two rows deep, no cuff; B-b's grey housing before) and the anchor the gear
 // names as its H candidate (H-a the left fist on a rail overhead, H-b the lanyard to a plate on the deck, H-c wedged, a boot under a
 // rail): each draws its own pixels, and none of it is on a shipped person's doll, whose bytes are v0.0.23's (their digests recorded on
 // the round's base tree). Without the change the boots and the anchor were not drawn at all (dressOf dropped them). Prints the
@@ -69,8 +69,9 @@ export default [
       setAnchor(s, two, null);
       const free = card();
       const n = (pm, cs) => count(pm, cs);
-      console.log(`      boots locked: gear.boots ${booted.r.gear.boots}, anchor ${booted.r.gear.anchor}, hold ${booted.r.hold.how}, ${n(booted.pm, [MAG_BOOT_C.cuff])} cuff px; on the hold (${took.ok ? 'taken' : took.why}): anchor ${held.r.gear.anchor}, hold ${held.r.hold.how}, ${n(held.pm, [ANCHOR_C.rail, ANCHOR_C.lit])} rail px; let go: anchor ${free.r.gear.anchor}, ${n(free.pm, [ANCHOR_C.rail, ANCHOR_C.lit])} rail px`);
-      assert(booted.r.gear.boots === 'mag' && n(booted.pm, [MAG_BOOT_C.cuff]) > 10 && took.ok && held.r.gear.anchor === 'hold' && held.r.hold.how === 'hold' && n(held.pm, [ANCHOR_C.rail, ANCHOR_C.lit]) > 10 && !free.r.gear.anchor && n(free.pm, [ANCHOR_C.rail, ANCHOR_C.lit]) === 0, 'the record and the card');
+      console.log(`      boots locked: gear.boots ${booted.r.gear.boots}, anchor ${booted.r.gear.anchor}, hold ${booted.r.hold.how}, ${n(booted.pm, [MAG_BOOT_C.sole])} sole px, ${n(booted.pm, [MAG_BOOT_C.cuff])} cuff px; on the hold (${took.ok ? 'taken' : took.why}): anchor ${held.r.gear.anchor}, hold ${held.r.hold.how}, ${n(held.pm, [ANCHOR_C.rail, ANCHOR_C.lit])} rail px; let go: anchor ${free.r.gear.anchor}, ${n(free.pm, [ANCHOR_C.rail, ANCHOR_C.lit])} rail px`);
+      // (v0.0.28: mag-boots B-a, the user's star of 2026-11-20, the heavier sole and no cuff; was the cuff counted, B-b's)
+      assert(booted.r.gear.boots === 'mag' && n(booted.pm, [MAG_BOOT_C.sole]) > 10 && n(booted.pm, [MAG_BOOT_C.cuff]) === 0 && took.ok && held.r.gear.anchor === 'hold' && held.r.hold.how === 'hold' && n(held.pm, [ANCHOR_C.rail, ANCHOR_C.lit]) > 10 && !free.r.gear.anchor && n(free.pm, [ANCHOR_C.rail, ANCHOR_C.lit]) === 0, 'the record and the card');
     },
   },
 ];

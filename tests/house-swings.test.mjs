@@ -60,6 +60,14 @@ export default [
     },
   },
   {
+    name: 'your #2 never held inside a doorway: the honest tier one on drawn seed 23, room 1\'s mouth on your heels and room 3\'s door out to the hall, not a still tick in a live zone (the build sheet v0.0.28 item 21, F4\'s #2 clause; three ticks of 50 ms before the hold looked ahead)',
+    fn() {
+      const r = flawlessLane({ tier: 'tierone', seed: 23, fill: { draw: 'drawn' } });
+      console.log(`      drawn seed 23, the honest tier one: to the card ${r.done}, the lane ${r.laneS?.toFixed(1)} s; your #2 still in a live zone ${(r.door.twoMs / 1000).toFixed(2)} s, longest ${(r.door.twoLongestMs / 1000).toFixed(2)} s at once (0.15 s and 0.05 s before the fix: 8.70 s at room 1's mouth, 38.40 and 38.50 s at room 3's door)`);
+      assert(r.done && r.door.twoMs === 0, JSON.stringify({ done: r.done, twoMs: r.door.twoMs, longest: r.door.twoLongestMs }));
+    },
+  },
+  {
     name: '(heavy) the honest tier one on 40 drawn seeds: F1, F3, F4, F25 and F26 met as on the set',
     heavy: true,
     timeoutMs: 15 * 60_000,

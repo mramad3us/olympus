@@ -3260,7 +3260,7 @@ export function runSlot(state, bus, rec, ms = state.clock.ms) {
       // (the build sheet v0.0.20 item 19: in the hall at Fast while you lead him by over HALL_PAIR_M (hallHurry), and held at or
       // behind you plus HALL_LEAD_M along its axis (hallHold))
       if (rec.doing.door === 'hall' && hallHurry(state, rec, a, mv, ms)) p = moveAt(mv, ms);
-      const held = zoneGate(state, rec, a, p, mv, ms) || gapHold(state, rec, a, p, ms, false, bus) || hallHold(state, rec, a, p, mv, ms);
+      const held = zoneGate(state, rec, a, p, mv, ms) || gapHold(state, rec, a, p, ms, false, bus, mv) || hallHold(state, rec, a, p, mv, ms);
       // (v0.0.19: his walk to the front held by you: his "Give me the door!" once it is TWO_BLOCK_SAY_MS long (frontSay))
       if (rec.doing.task && mv.key === 'front') { if (held) frontSay(state, bus, rec, ms); else if (rec.front) delete rec.front; }
       if (held) {
@@ -3955,15 +3955,51 @@ function passGate(state, area, a, p, ms) {
   }
   return dP < lim && dA >= lim;
 }
+/** v0.0.28 (the build sheet's item 21, F4's #2 clause): how far ahead his step into a live doorway is read for a body-gap hold inside it (ms; my call: a funnel's depth and out at his Combat walk, about 1.8 m). */
+export const GAP_LOOK_MS = 1500;
+// v0.0.28 (the build sheet's item 21; the hardening lens §2.2): your #2 never held inside a doorway. The body gap held his running
+// walk the tick his next step would close on you, wherever he stood: 12 single ticks of 50 ms in a funnel on 8 of 40 drawn lanes
+// of the honest tier one (house-swings, F4's #2 clause), each a gapHold (none the beat handover the lens suspected): following you
+// into a room (seed 23's room 1 at 8.70 s: he entered its funnel at 8.60 s on your heels, your walk turned for your corner and his
+// next step closed to 0.52 m) or walking out of room 3 to the hall's stack behind you (seed 23 at 38.40 and 38.50 s). So the hold
+// is judged on the step it would allow: when the step takes him from outside every live zone (zones.js liveZoneAt) into one, his
+// walk and yours are read on by their closed forms a tick at a time while he is still inside it, up to GAP_LOOK_MS; if the body
+// gap would hold him in there, he is held now, where he stands, at the zone's edge (the last place of his walk before it), and
+// steps in once the reading finds his way across clear. Outside zones, and with him already inside one, nothing changes (F2's
+// 0.50 m and TWO_PIN_MS as built); read only while a walk of yours runs and is not held (its closed form is then where you go), and
+// only where holding him keeps him out of your way.
+function gapAhead(state, me, a, p, mv, ms) {
+  const area = state.places?.live?.area;
+  if (!area || !mv?.prof || liveZoneAt(state, area, a.x, a.z) || !liveZoneAt(state, area, p.x, p.z)) return false;
+  const lead = moveNow(state, playerId(state)), lim = BODY_GAP_M + GAP_GUARD_M;
+  if (!lead || heldStill(state, lead)) return false;
+  const endMs = Math.min(ms + GAP_LOOK_MS, lead.untilMs ?? Infinity);
+  let at = p, held = false;
+  for (let t = ms + TICK_MS; t <= endMs && t <= mv.untilMs; t += TICK_MS) {
+    // (out of the zone again: nothing of his crossing is held in it)
+    if (!liveZoneAt(state, area, at.x, at.z)) break;
+    const m = moveAt(lead, t), nx = moveAt(mv, t), now = dist([at.x, at.z], [m.x, m.z]), next = dist([nx.x, nx.z], [m.x, m.z]);
+    if (next < lim && next < now - 1e-6) { held = true; break; }
+    at = nx;
+  }
+  if (!held) return false;
+  // (and only where holding him keeps out of your way: your walk over the look never within the gap of where he stands. Held at a
+  // cell's hatch on the Wreck across your walk down the passage, he held you there too, and gave way back into the cell (the
+  // honest tier one on 48213, 10 s on the lane))
+  for (let t = ms + TICK_MS; t <= endMs; t += TICK_MS) { const m = moveAt(lead, t); if (dist([a.x, a.z], [m.x, m.z]) < lim) return false; }
+  return true;
+}
 // (the body gap's guard for the #2's walk this tick: his next place p closing within BODY_GAP_M + GAP_GUARD_M of yours; for his
 // own carry out of your way (`giving`: way 'away' or 'aside', planned by places/move.js bodyClear to keep BODY_GAP_M off you), within
 // BODY_GAP_M only, the bound it was planned to: the guard's 2 cm held a carry that passed 0.516 m from you for good, and your walk,
 // held by his body, with it (the review of 2026-11-16: F4, the tier one's fuzz lane on 1037, both of you 2 s and more in room 1's
 // doorway))
-function gapHold(state, rec, a, p, ms, giving = false, bus = null) {
+// (and, for his doing's walk (mv), judged on the step it would allow: see gapAhead)
+function gapHold(state, rec, a, p, ms, giving = false, bus = null, mv = null) {
   const me = playerActor(state);
   if (!me) return false;
-  const now = dist([a.x, a.z], [me.x, me.z]), next = dist([p.x, p.z], [me.x, me.z]), hold = next < BODY_GAP_M + (giving ? 0 : GAP_GUARD_M) && next < now - 1e-6;
+  const now = dist([a.x, a.z], [me.x, me.z]), next = dist([p.x, p.z], [me.x, me.z]);
+  const hold = (next < BODY_GAP_M + (giving ? 0 : GAP_GUARD_M) && next < now - 1e-6) || (!giving && !!mv && gapAhead(state, me, a, p, mv, ms));
   const G = (rec.gap ??= { holds: 0, ms: 0, maxMs: 0, runMs: 0 });
   // (a hold over: its way round tried afresh in the next (G.roundAt is the run's; kept across runs, the next was tried only at 3.05 s)
   if (!hold) { G.runMs = 0; delete G.roundAt; if (rec.block?.gap) blockEnd(state, rec, ms); return false; }

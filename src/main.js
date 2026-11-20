@@ -310,6 +310,7 @@ import * as houseScene from './sim/scenarios/shoothouse.js';
 import { parseBoarding } from './sim/scenarios/opfor.js';
 // (the anywhere round's two scenes: their end cards' lines (cards/anchors.js) from the scenes' own views)
 import { anchorsNow } from './sim/scenarios/anchors.js';
+import { armouryNow, armouryGunShort, armourySplashSpot } from './sim/scenarios/armoury-day.js';
 import { burnNow } from './sim/scenarios/burn.js';
 import { anchorsSaid, anchorsAspects, burnSaid, burnAspects } from './ui/cards/anchors.js';
 // (0.0.18: the loadout, its code and the screen's numbers (src/sim/arms/loadout.js))
@@ -1104,6 +1105,10 @@ const FAULT_WORD = STOP_WORDS;
 // (the splash hears TIME's facts at once: on skip-start the target is held at its start, so the loop's first outcome frame never runs the whole skip)
 bus.on('skip-start', (e) => {
   const s = loop.state;
+  // (a clean at the armoury's canopy takes no spot of its own (upkeep.js): its table is the scene's (armoury-day.js armourySplashSpot),
+  // so the splash frames it and its vignette finds the mat's table)
+  const spotId = e.spotId ?? armourySplashSpot(s);
+  if (spotId && !e.spotId) e = { ...e, spotId };
   splash.start(e, splashContext(s, e));
   loop.skipTarget(e.engine === 'ff' ? null : e.fromMs);
 });
@@ -1407,8 +1412,9 @@ function hardOfSheet(tier) {
 // currently worn gear": you as in a mirror, the Seen record's (seen.js seenOf with mirror: front on, your stance and your hold: kneeling
 // with your carry, prone behind the rifle, a G-11 in the fist, the P-12 at the ready) painted by portrait.js at the doll's scale; the
 // gear as worn when the record cannot be read)
-// (the build sheet v0.0.24 item 17; samples/portrait-suit: the cards' ground by the place you stand in, D-a (the doll's own
-// wall, today's) until scored; portrait.js cardBackdrop, by suitPlaceOf: the shoot house, an indoor place, or the street)
+// (the build sheet v0.0.24 item 17; samples/portrait-suit: the cards' ground by the place you stand in, D-b from v0.0.28 (the
+// place's backdrop, the user's star of 2026-11-20; D-a the doll's own wall, v0.0.24's); portrait.js cardBackdrop, by suitPlaceOf:
+// the shoot house, an indoor place, or the street)
 function mirrorDoll(s, gear, person) {
   let rec = null;
   try { rec = seenOf(s, s.player.id, { mirror: true }); } catch (e) { broke(e, 'the portrait'); }
@@ -1479,7 +1485,10 @@ function openActions() {
         openLate(late, (answer) => ({ ...action, args: { ...action.args, late: answer } }));
         return;
       }
-      input.queue(action);
+      // (a scene's own row (registerHandScene's rows: no verb, "The window and the canopy"'s) goes to R with its id, the scene's act,
+      // never to time's activities, which know none of them)
+      const sceneRow = action.act === 'activity' && menu.spotId === null && menu.rows.some(r => r.id === action.args?.id && !r.verb);
+      input.queue(sceneRow ? { act: 'hand', args: { id: action.args.id } } : action);
     },
   });
   boot.openCard('actions', card.body, [], { guard: false });
@@ -1519,6 +1528,8 @@ function openEnd() {
   if (loop.state?.armoury?.range?.course === 'house') return openHouseEnd(rec, seed);
   // (the void's two scenes, their own lines on the scene's card)
   if (loop.state?.armoury?.range?.course === 'anchors' || loop.state?.armoury?.burn) return openVoidEnd(rec, seed);
+  // ("The window and the canopy": the scene's own lines (armoury-day.js armouryNow's card))
+  if (loop.state?.armoury?.range?.course === 'armoury') return openArmouryEnd(rec, seed);
   let said = null, pn = null;
   // (the range's summary, and on the KD an incident on a line of its own: sceneLines)
   try { const s = loop.state, r = s ? rangeNow(s) : null; said = sceneLines(r, r?.course === 'kd' ? kdOf(s) : null, { clockText }); } catch (e) { broke(e, 'the end card'); }
@@ -1596,6 +1607,33 @@ function openVoidEnd(rec, seed) {
   } catch (e) { broke(e, 'the end card'); }
   const again = played ? againTiers(sheets, played, Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? null) : [];
   const { body, lines } = endCard({ scene: rec, seed, said, sheet: played ? sheets[played]?.label ?? played : null, aspects, again, on: {
+    again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played }),
+    againAs: (t) => playScene(rec, { seed, tier: t }),
+    score: () => openScore(),
+    title: () => quitToTitle(),
+  } });
+  boot.openCard('end', body, lines);
+}
+/**
+ * v0.0.28, "The window and the canopy" (its build sheet item 16): the scene's card, its summary and the day's lines (armoury-day.js
+ * armouryNow's card), this session's runs on the seed a line a sheet (page memory, never saved), "Again as …" each other sheet on the same
+ * seed (the same slip, short count and air), "Another day" a new seed.
+ */
+function openArmouryEnd(rec, seed) {
+  const s = loop.state, sheets = TEMPLATES.TEST_SHEETS ?? {};
+  let said = [], aspects = [], played = null, runs = [];
+  try {
+    const N = s ? armouryNow(s) : null;
+    if (N) {
+      said = N.card.lines; aspects = N.card.aspects; played = N.tier;
+      const key = `${rec.id}|${seed}`, m = sessionRuns.get(key) ?? new Map();
+      m.set(played, N.card.summary);
+      sessionRuns.set(key, m);
+      runs = m.size > 1 ? [...m.entries()].map(([t, text]) => ({ text, now: t === played })) : [];
+    }
+  } catch (e) { broke(e, 'the end card'); }
+  const again = played ? againTiers(sheets, played, Array.isArray(rec.sheets) ? rec.sheets : TEMPLATES.PICKER_TIERS ?? null) : [];
+  const { body, lines } = endCard({ scene: rec, seed, said, sheet: played ? sheets[played]?.label ?? played : null, runs, aspects, again, on: {
     again: (same) => playScene(rec, { seed: same ? seed : randomSeed(), tier: played }),
     againAs: (t) => playScene(rec, { seed, tier: t }),
     score: () => openScore(),
@@ -2223,7 +2261,7 @@ function weaponHud(s, alpha, { hidden = false } = {}) {
   const onPairs = sim.range?.course === 'pairs' || sim.range?.course === 'house' || s.armoury?.range?.course === 'house';
   let stepsText = '', reflexText = '', paperText = '';
   // (zeroing: on the KD zero until the coach accepts it, the card counts the clicks dialled in this zero: kdNow's, shot.js zeroingOf)
-  const distance = { distance: !!sim.kd, line: kdLineOf(sim.kd), hold: s.stop?.hold ?? null, zeroing: sim.kd?.zeroing ?? null, finish: sim.finish, other: sim.other, gunShort: sim.belief?.short ?? null };
+  const distance = { distance: !!sim.kd, line: kdLineOf(sim.kd), hold: s.stop?.hold ?? null, zeroing: sim.kd?.zeroing ?? null, finish: sim.finish, other: sim.other, gunShort: armouryGunShort(s, sim.belief?.short ?? null) };
   // (0.0.7: the range's own actions at their commands (range.js kdActs: police your brass, rounds to the coach, "No brass,
   // no ammo"), rows of the panel among the commands, the tower's current marked; sent as the range's action, not a step)
   const acts = (sim.kd?.acts ?? []).map(a => ({ id: a.id, kind: 'command', label: a.label, ms: a.ms ?? null, rushMs: null, carefulMs: null, odds: null, routine: null, off: null, subs: [], cmd: true, skill: null, act: a.id }));
@@ -2737,7 +2775,8 @@ async function bench(name) {
       bang: [lastBurst, lastBlank].some(b => b && Number.isFinite(b.atMs) && loop.state && loop.state.clock.ms - b.atMs >= 0 && loop.state.clock.ms - b.atMs < BANG_FRAMES_MS),
       // (the build sheet §1 item 22: the sim's busiest tick since the warm, the UI's ms, the programs linked and the upload queue's biggest job this frame)
       // (a figure's band sent whole outside the queue named by its look and band (render/figures.js lastFrame.bands))
-      tickMax: loop.stats.tickMsMax ?? 0, uiMs: report.frame?.uiMs ?? 0, links: report.gl?.last?.links ?? 0, upKey: uploads.stats.last?.key ?? (view.figures?.stats?.lastFrame?.bands?.join(' ') || null) }),
+      // (F73: the frame's senders by the GL counters' tags, render/stats.js tag, largest first; the queue's key without them)
+      tickMax: loop.stats.tickMsMax ?? 0, uiMs: report.frame?.uiMs ?? 0, links: report.gl?.last?.links ?? 0, upKey: report.gl?.last?.top ?? uploads.stats.last?.key ?? (view.figures?.stats?.lastFrame?.bands?.join(' ') || null) }),
     onWarm: () => { loop.stats.tickMsMax = 0; },
     onLeft: (left) => { benchLead = `Bench: ${name}, ${left} s left`; },
   });

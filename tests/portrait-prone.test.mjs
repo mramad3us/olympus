@@ -17,7 +17,15 @@ const bytes = (pm) => { const u = new Uint8Array(pm.data.buffer, pm.data.byteOff
 // (v0.0.24 F, re-recorded on the merged tree: the user's picks of 2026-11-19 on the combat EVA suit, the helmet R3 in the Mars trim
 // (helmets.js HELMET_DRAWN_AS) and the gloves grey (outfits.js COMBAT_SUIT.glove), drawn on every doll in it, prone too; the redraw of
 // the low ready and the light still never reach a prone doll; v0.0.23's were rifle '0d96d1670895a7', pistol '05b87d1c67e90d')
-const V023 = Object.freeze({ rifle: '162ab66123ec34', pistol: '16867179b0fbf8' });
+// (v0.0.28, re-recorded by name: the picks of 2026-11-20 on the aimed holds, "we need the gun held to be like soldiers hold a gun,
+// aiming through ironsights" (the triage's C1: one aimed hold for every card with a gun pointed, the prone Y-p with them): you prone
+// behind the R-7 through its sights (A3, src/art/doll/held.js rifleAimed) and behind the P-12 (P3, pistolAimed), the prone bend as
+// before; v0.0.24 F's were rifle '162ab66123ec34', pistol '16867179b0fbf8'. The low ready's redraw and his light still never reach it)
+// (v0.0.28, re-recorded by name a second time, the art director's pass of 2026-11-20 on Y-p: "the chest plate faces you as if he
+// stood ... the support arm is a grey pipe": you prone low behind the gun, both elbows out wide on the deck (held.js PRONE_ELBOW_Y,
+// doll.js POSE_BENDS.prone's line moved to it), the arms flat limbs bent at the elbow, the fists a grey block of their own, the
+// R-7 end on with its grip in the fist; the first v0.0.28 recording was rifle '18c9b346b56d75', pistol '0f9aec9cada28a')
+const V023 = Object.freeze({ rifle: '0899995fb58bb3', pistol: '0cb93c352e0042' });
 
 export default [
   {

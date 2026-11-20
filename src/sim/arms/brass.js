@@ -1,8 +1,9 @@
 // OLYMPUS arms: the brass on the KD range, every case that came to rest kept and counted on its tile, and the brass call (WEAPONS §2.8, §10.4; the build sheet 0.0.7 §2.3, §8 item 19).
 //
 // A fired case flies from the port as v0.0.5's does (look.js ejectCase, caseAt: the place's gravity), held in the
-// session's live list R.brass (at most BRASS_LIVE 64, the stage's flying cases). On the KD course (test-range)
-// a case at rest leaves that list for R.brassTiles, a count on the area's 1 m tiles ({ '<ix>,<iz>': { n, mine } },
+// session's live list R.brass (at most BRASS_LIVE 64, the stage's flying cases). On a course that keeps its brass on the
+// tiles (COURSES[course].brassTiles: the KD course, test-range, from v0.0.28 by its row, not a literal of its name) a case at
+// rest leaves that list for R.brassTiles, a count on the area's 1 m tiles ({ '<ix>,<iz>': { n, mine } },
 // mine the player's), so every case of the relay stays drawn and counted however many are fired (settle, each
 // tick lived and at a skip's end); test-handling's list is left exactly as v0.0.6 kept it (its cases live
 // and die in R.brass). A live round or the coach's dummy thrown out of the port is not brass: it stays in the
@@ -24,6 +25,7 @@
 import { playerId, playerActor } from '../../core/ids.js';
 import { navOf } from '../places/nav.js';
 import { overlaps, onFloor } from '../places/collide.js';
+import { COURSES } from '../../data/courses.js';
 
 /** The tiles' size, the reach of a police, a case's pick-up time (m, s): the build sheet 0.0.7 §4. */
 export const TILE_M = 1, POLICE_M = 4, POLICE_CASE_S = 1.2;
@@ -34,10 +36,10 @@ const tileCentre = (key) => { const [i, j] = key.split(',').map(Number); return 
 const tileNear = (key, x, z, m) => { const [i, j] = key.split(',').map(Number); const nx = Math.max(i * TILE_M, Math.min(x, (i + 1) * TILE_M)), nz = Math.max(j * TILE_M, Math.min(z, (j + 1) * TILE_M)); return Math.hypot(nx - x, nz - z) <= m; };
 const session = (state) => state.armoury?.range ?? null;
 
-/** Every case at rest at ms moved from the live list to its tile (the KD course only: see the header). Returns how many moved. */
+/** Every case at rest at ms moved from the live list to its tile (a course whose row keeps its brass on the tiles: see the header). Returns how many moved. */
 export function settle(state, ms = state.clock.ms) {
   const R = session(state);
-  if (!R || R.course !== 'kd' || !R.brass?.length) return 0;
+  if (!R || !COURSES[R.course]?.brassTiles || !R.brass?.length) return 0;
   const me = playerId(state), keep = [];
   let n = 0;
   R.brassTiles ??= {};

@@ -20,7 +20,7 @@ const MARKS = [{ n: 1, shotId: 'a', called: [-8, 4], seen: true, hole: [-8, 4], 
 
 export default [
   {
-    name: 'F120 a man turned is drawn as scored: 150° from your eye from behind (F1), 90° and 60° side on (F3, the head turned), 30° front on; F2 the profile only on its pick; the paint on his plane at the cosine of his yaw side on, where the front card puts it from behind',
+    name: 'F120 a man turned is drawn as scored: 150° from your eye from behind (F1), 90° and 60° side on (F4 from v0.0.28, a true profile facing his side; F3 the head turned on its pick), 30° front on; F2 the squeezed profile only on its pick; the paint on his plane at the cosine of his yaw side on, where the front card puts it from behind',
     fn() {
       const g = live(), s = g.state, me = actorOf(s, s.player.id), rp = s.armoury.range.turners.find(T => T.live).live.who, a = actorOf(s, rp);
       a.x = me.x + 4; a.z = me.z;
@@ -39,10 +39,10 @@ export default [
         if (side && c.yawK >= 0.999) bad.push(`${deg}°: side on, the plane not foreshortened`);
       }
       for (const r of rows) console.log(`      ${r}`);
-      // (the profile only on F2's pick; F3 the head turned)
-      const side90 = at(90), f2 = paintPortrait(side90, person, { pxPerM: 96, picks: { side: 'F2' } }), f3 = paintPortrait(side90, person, { pxPerM: 96 });
-      console.log(`      90° on F2: ${f2.pm.pose.facing}, on F3 (the default): ${f3.pm.pose.facing}; the yaw in the key side on only: ${seenKey(side90).split('|').at(-1)} / front ${seenKey(front).split('|').at(-1) || '(none)'}`);
-      assert(f2.pm.pose.facing === 'profile' && f3.pm.pose.facing === 'left' && seenKey(side90).split('|').at(-1) !== '' && seenKey(front).split('|').at(-1) === '', 'F2 on its pick, F3 by default; the yaw keyed side on only');
+      // (the squeezed profile only on F2's pick; F3 the head turned on its; F4, the default from v0.0.28, the true profile his way)
+      const side90 = at(90), f2 = paintPortrait(side90, person, { pxPerM: 96, picks: { side: 'F2' } }), f3 = paintPortrait(side90, person, { pxPerM: 96, picks: { side: 'F3' } }), f4 = paintPortrait(side90, person, { pxPerM: 96 });
+      console.log(`      90° on F2: ${f2.pm.pose.facing}, on F3: ${f3.pm.pose.facing}, on F4 (the default): ${f4.pm.pose.facing}; the yaw in the key side on only: ${seenKey(side90).split('|').at(-1)} / front ${seenKey(front).split('|').at(-1) || '(none)'}`);
+      assert(PORTRAIT_PICKS.side === 'F4' && f2.pm.pose.facing === 'profile' && f3.pm.pose.facing === 'left' && f4.pm.pose.facing === 'sideL' && seenKey(side90).split('|').at(-1) !== '' && seenKey(front).split('|').at(-1) === '', 'F2 and F3 on their picks, F4 by default; the yaw keyed side on only');
       assert(!bad.length && LOOKS_ENFORCED.has('F120'), bad.join('; '));
     },
   },

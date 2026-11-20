@@ -91,6 +91,12 @@
 // 0.0.7: the KD range's four (kd-walk, kd-pits, police-brass, kd-casualty: the build sheet 0.0.7 §2.3) end in
 // the scene's kdPartEnd (src/sim/scenarios/range.js): the relay at the next line, the pits' outcome, the
 // brass picked up, the casualty's outcome; whatever share was done, since the scene starts them and never cuts them.
+// v0.0.28 ("The window and the canopy", its build sheet items 10, 11, 13; TIME §8.5): the bench's two, clean-rifle and clean-again,
+// started by the scene's row (args { tempo, again }; begun, args.gunId the gun in your hands, src/sim/arms/upkeep.js cleanGunOf), their
+// length the rule 'clean' (upkeep.js cleanMs, the part's share of CLEAN_PARTS: strip, clean, oil, assemble), struck with upkeep.js
+// cleanOff's words ("Magazine out first." and the rest, offOf), the strip's start upkeep.js cleanStart (a round left in falls out on
+// the mat) and the assembly's end cleanEnd (the bench's roll, lived or skipped alike), what each found in the outcome's result
+// ({ found, grade, margin, residual, fault }); activitiesAt offers neither this round (§0 item 13).
 import { isHeld, SEC_MS, MIN_MS, TICK_MS, wholeTicks, durationText } from '../../core/clock.js';
 import { playerActor, playerId, cmpId } from '../../core/ids.js';
 import { post, cancel, sorted } from '../../core/queue.js';
@@ -120,6 +126,7 @@ import { stagesOf, hasBeard } from '../body/cues.js';
 import { hairOf, cutsFor, cutHair, SOL_H } from '../body/hair.js';
 import { kdPartEnd } from '../scenarios/range.js';
 import { skipBarred } from '../places/gravity.js';
+import { cleanMs, cleanOff, cleanStart, cleanEnd, cleanGunOf, CLEAN_ACTIVITIES, CLEAN_PARTS, CLEAN_PART_IDS } from '../arms/upkeep.js';
 /** The words of a skip refused while a brace is pending (v0.0.24, step 6; my call). */
 export const BRACE_REFUSED = 'Not now: secure for the burn.';
 
@@ -253,6 +260,12 @@ function partMs(state, id, def, args, atMs, wearing) {
     case 'nap': return (NAP_MIN.includes(args.min) ? args.min : 45) * MIN_MS;
     case 'asked': return Math.max(TICK_MS, Number(args.ms) || MIN_MS);
     case 'standdown': { const d = state.time?.drills?.open; return d && d.endMs > atMs ? wholeTicks(d.endMs - atMs) : 0; }
+    // (the bench's length by upkeep.js cleanMs, this part's share of it)
+    case 'clean': {
+      const pid = playerId(state), share = CLEAN_PARTS[CLEAN_PART_IDS.indexOf(def.part)];
+      if (share === undefined) throw new Error(`no bench share for the part '${def.part}' (${id})`);
+      return Math.round(cleanMs(state, pid, args.gunId ?? cleanGunOf(state, pid), args.tempo ?? 'normal', { again: id === 'clean-again' || !!args.again }) * share);
+    }
     default: throw new Error(`no length rule '${def.ms}' (${id})`);
   }
 }
@@ -358,6 +371,11 @@ export function offOf(state, id, spot = null, args = {}, { atMs = state.clock.ms
       if (h < BARBER_H[0]) return `the barber opens at ${String(BARBER_H[0]).padStart(2, '0')}:00`;
       if (h >= BARBER_H[1]) return `the barber shut at ${BARBER_H[1]}:00`;
       return args.cut && !cutsFor(state.people?.[pid]).includes(args.cut) ? 'not your cut' : null;
+    }
+    // (the bench, struck while the rifle is not believed clear: upkeep.js cleanOff's words, their stop left to the refusal's)
+    case 'clean-rifle': case 'clean-again': {
+      const why = cleanOff(state, pid, args.gunId ?? cleanGunOf(state, pid));
+      return why ? why.replace(/\.$/, '') : null;
     }
     default: return null;
   }
@@ -533,7 +551,7 @@ export function beginDoing(state, bus, { id, sp = null, plan, kind, args = {}, l
   state.time.doing = {
     activity: id, spotId: sp?.id ?? null, mode: kind, fromMs: t0, toMs: plan.endMs,
     parts: plan.parts.map(p => ({ part: p.part, toMs: p.toMs, ...(p.fullMs ? { fullMs: p.fullMs, doneMs: p.doneMs ?? 0, ...(p.fit ? { fit: true } : {}) } : {}) })),
-    from, args: { ...args, ...(id === 'dress' ? { to: args.to ?? defaultDressTo(state) } : {}) },
+    from, args: { ...args, ...(id === 'dress' ? { to: args.to ?? defaultDressTo(state) } : {}), ...(CLEAN_ACTIVITIES.has(id) ? { gunId: args.gunId ?? cleanGunOf(state, pid) } : {}) },
   };
   if (plan.fullMs > plan.durMs) state.time.doing.fullMs = plan.fullMs;
   if (late) state.time.doing.late = late;
@@ -558,6 +576,8 @@ function partStart(state, bus, d, part, ms) {
   const me = playerActor(state), pid = playerId(state);
   if (!def || !me) return;
   if (def.outfit) setOutfit(me, def.outfit);
+  // (the bench's strip, a round the belief missed out on the mat (upkeep.js cleanStart), what it found kept for the outcome)
+  if (part === 'strip' && CLEAN_ACTIVITIES.has(d.activity)) d.result = { ...(d.result ?? {}), found: cleanStart(state, bus, pid, d.args?.gunId).found };
   if (def.lie) {
     layPlayer(state, me, ownOf(state).seatId, ms);
     sleepBegin(state, pid, ms, { bed: 'own-rack' }, bus);
@@ -592,6 +612,11 @@ function partEnd(state, bus, d, part, f, ms, whole = f) {
     case 'turn-in': if (me && whole >= 0.5) setOutfit(me, 'pt'); break;
     // (0.0.7: the KD range's records, their ends the scene's (src/sim/scenarios/range.js kdPartEnd))
     case 'kd-walk': case 'kd-pits': case 'police': case 'kd-casualty': kdPartEnd(state, bus, part, whole, ms); break;
+    // (the bench's roll at the assembly's end and the function check (upkeep.js cleanEnd), lived or skipped alike)
+    case 'assemble': if (CLEAN_ACTIVITIES.has(d.activity) && whole >= 1) {
+      const r = cleanEnd(state, bus, pid, d.args?.gunId, { tempo: d.args?.tempo ?? 'normal', again: d.activity === 'clean-again' || !!d.args?.again });
+      if (r) d.result = { ...(d.result ?? {}), grade: r.grade, margin: r.margin, residual: r.residual, fault: r.fault };
+    } break;
     case 'lie': {
       const by = d.stopBy ?? 'natural';
       const r = sleepEnd(state, pid, ms, { by }, bus);

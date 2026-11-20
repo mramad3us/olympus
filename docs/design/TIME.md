@@ -725,6 +725,8 @@ A standard night at Melas, taps 22:00 to reveille 05:30, is 7 h 30 m on the cloc
 
 ### 8.5 Weapons, kit and the barracks
 
+**As built in v0.0.28**: `clean-rifle` and `clean-again` (`src/data/activities.js`) are started by the scene's row only (no `activitiesAt` row this round), their length is `upkeep.js cleanMs` (30 min × pace × dirt × the tempo; again 10 min × pace × the tempo) split strip 10%, clean 70%, oil 10%, assemble 10%, a clean with no spot (the scene writes the table's spot after `startActivity` for the splash); not stoppable here (a stopped clean, the rifle left stripped and its reassembly lived, comes with the career). Its end line is "Rifle stripped, cleaned, oiled, back together: {dur}." (a spotless clean read "The armourer will still find something." on every seed, so it is gone). `HANDS.CLEAN` 40: the hands come away "Gun oil and carbon on your hands."; the same roll, rifle, hands and clock lived or skipped (`upkeep-clean`).
+
 | Activity | Where | Duration rule | What it changes | Mask | If cut short |
 |---|---|---|---|---|---|
 | `clean-rifle` | cleaning bench, footlocker, armoury cleaning area | 30 min at Weapon handling 10 × `paceOf(Weapon handling)` × dirt (1.0 lightly used, 1.3 after a range day, 1.6 after dust or a field day, 2.0 after a dust storm: WEAPONS sets dirt); strip, clean, oil, reassemble, function check | condition, dust cleared, lubrication, "you know it's empty" (WEAPONS) | `D A O B S` | the rifle stays field-stripped on the mat; reassembly lived (WEAPONS steps) |
@@ -793,7 +795,7 @@ The log voice is the house voice: dry, specific, numbers where they matter (trad
 | `sleep` | the rack's curtain, the red night light, breathing | "Rack at {from}. Up at {to}{slip}: {dur}." ({slip} = ", through the slip" if crossed) |
 | `nap` | the curtain edge bright with day | "{dur} with your boots on." |
 | `rest` | the slats of the rack above | "Half an hour on your back." |
-| `clean-rifle` | parts on the mat, the bore light, solvent | "Rifle stripped, cleaned, oiled, back together: {dur}. The armourer will still find something." |
+| `clean-rifle` | parts on the mat, the bore light, solvent | "Rifle stripped, cleaned, oiled, back together: {dur}." |
 | `load-mags` | rounds pressed in one by one | "{n} magazines, {rounds} rounds: {dur}, sore thumbs." |
 | `armoury-line` | the window grille, the backs ahead | "{dur} in the armoury line." |
 | `kit` | polish, gear laid out on the rack | "Boots, belt, the uniform squared away: {dur}." |

@@ -72,15 +72,16 @@ export default [
     },
   },
   {
-    name: 'the rest as scored: the walk the cycle W-c draws (B, the game\'s), the house\'s light HL-a, the second gun\'s strip WC2-A; the shot A4 rebuilt as A5 in every scene, its D group waiting with A5 its default',
+    name: 'the rest as scored: the walk the cycle W-c draws (B, the game\'s), the house\'s light HL-a, the second gun\'s strip WC2-A; the shot A4 rebuilt as A5 in every scene, its D group scored D-b, A5 (2026-11-20, "Better"), and the set folded',
     fn() {
       const W = sample('walk'), H = sample('house-light'), C2 = sample('wcard2'), A = sample('audio');
       const wc = new URLSearchParams(viewOf(W, W.scored.picks[0]).query).get('c');
-      console.log(`      walk scored ${W.scored.picks.join()}: its view draws cycle ${wc}, the game's ${CYCLE}; house-light ${H.scored.picks.join(', ')}; wcard2 ${C2.scored.picks.join()}; audio scored ${A.scored.picks.join()}, open ${JSON.stringify(A.open.default)}: the shot ${SHOT_DEFAULT} everywhere (the house ${SHOT_HOUSE})`);
+      console.log(`      walk scored ${W.scored.picks.join()}: its view draws cycle ${wc}, the game's ${CYCLE}; house-light ${H.scored.picks.join(', ')}; wcard2 ${C2.scored.picks.join()}; audio scored ${A.scored.picks.join()} (${A.scored.on}), open ${JSON.stringify(A.open ?? null)}: the shot ${SHOT_DEFAULT} everywhere (the house ${SHOT_HOUSE})`);
       assert(wc === CYCLE && CYCLE === 'B', JSON.stringify({ wc, CYCLE }));
       assert(H.scored.picks.every(p => /-a$/.test(p)) && C2.scored.picks[0].startsWith('WC2-A'), JSON.stringify({ H: H.scored, C2: C2.scored }));
-      const d = viewOf(A, A.open.default[0]);
-      assert(A.scored.picks.includes('A-4') && SHOT_DEFAULT === 'A5' && SHOT_HOUSE === 'A5' && new URLSearchParams(d.query).get('c') === SHOT_DEFAULT && SHOT_CANDIDATES.A5, JSON.stringify({ d, SHOT_DEFAULT }));
+      // (v0.0.28: the user's star of 2026-11-20 on D-b, A5, "Better": the set's D group scored, its open dropped; was open with D-b its default)
+      const d = viewOf(A, A.scored.picks.find(p => /^D-/.test(p)));
+      assert(!A.open && A.scored.picks.includes('A-4') && A.scored.picks.includes('D-b') && SHOT_DEFAULT === 'A5' && SHOT_HOUSE === 'A5' && new URLSearchParams(d.query).get('c') === SHOT_DEFAULT && SHOT_CANDIDATES.A5, JSON.stringify({ d, SHOT_DEFAULT }));
     },
   },
 ];

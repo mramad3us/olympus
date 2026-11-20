@@ -26,19 +26,19 @@ import { frameOf } from '../samples/portrait-lib/figure.js';
 
 const SAMPLES = path.join(root, 'samples');
 const ID = 'breach-poses';
-const WANT = Object.freeze({ groups: ['D', 'C'], views: 4, open: ['D-a', 'C-a'] });
+const WANT = Object.freeze({ groups: ['D', 'C'], views: 4, scored: ['D-a', 'C-a'] });
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const eqPm = (a, b) => a.w === b.w && a.h === b.h && a.data.length === b.data.length && a.data.every((v, i) => v === b.data[i]);
 
 export default [
   {
-    name: 'breach-poses shot whole: groups D and C, four views each at its own whole-pixel size, open with D-a and C-a since 2026-11-19, built in v0.0.26, indexed as sample.json says with every shot on disk, each view drawn in node at its size',
+    name: 'breach-poses shot whole: groups D and C, four views each at its own whole-pixel size, D-a and C-a scored on 2026-11-20 (the defaults of v0.0.26) and folded, indexed as sample.json says with every shot on disk, each view drawn in node at its size',
     async fn() {
       const s = JSON.parse(readFileSync(path.join(SAMPLES, ID, 'sample.json'), 'utf8')), groups = expand(ID, s), views = groups.flatMap(g => g.views);
       assert(same(groups.map(g => g.id), WANT.groups) && views.length === WANT.views && new Set(views.map(v => v.id)).size === views.length, JSON.stringify({ groups: groups.map(g => g.id), views: views.length }));
-      assert(same(s.open?.default, WANT.open) && s.open.since === '2026-11-19' && s.open.builtIn === 'v0.0.26' && typeof s.open.decides === 'string' && s.open.decides.length > 10, JSON.stringify(s.open));
+      assert(!s.open && s.scored?.on === '2026-11-20' && same(s.scored.picks, WANT.scored), JSON.stringify({ open: s.open, scored: s.scored }));
       const index = JSON.parse(readFileSync(path.join(SAMPLES, 'index.json'), 'utf8')), entry = index.samples.find(e => e.id === ID);
-      assert(entry && same(entry.open, s.open), 'the index\'s entry and its open');
+      assert(entry && !entry.open && same(entry.scored, s.scored), 'the index\'s entry and its scored');
       const shot = new Map(entry.groups.flatMap(g => g.views).map(v => [v.id, v])), sizes = [];
       for (const v of views) {
         const n = nativeOf(v.pixel, v.query), e = shot.get(v.id);
@@ -46,9 +46,9 @@ export default [
         const P = await drawn(`${ID}/breach.js`, v);
         sizes.push(`${v.id} ${P.w}×${P.h}`);
       }
-      // (the waiting set on top of the gallery, the rated ones folded below: the user's rule of 2026-11-19; open means waiting)
+      // (the rated sets folded below the waiting ones: the user's rule of 2026-11-19; no open means rated)
       const at = index.samples.findIndex(e => e.id === ID);
-      console.log(`      ${ID}: ${groups.map(g => `${g.id} ${g.views.length}`).join(', ')}; ${sizes.join(', ')}; default ${s.open.default.join(', ')} (since ${s.open.since}, ${s.open.builtIn}); the index's entry ${at + 1} of ${index.samples.length}, open`);
+      console.log(`      ${ID}: ${groups.map(g => `${g.id} ${g.views.length}`).join(', ')}; ${sizes.join(', ')}; scored ${s.scored.picks.join(', ')} (${s.scored.on}); the index's entry ${at + 1} of ${index.samples.length}, folded`);
     },
   },
   {

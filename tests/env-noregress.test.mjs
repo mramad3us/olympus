@@ -35,6 +35,17 @@
 // ship-seam and the deck's hauler-place among the suites and tests/saves/v0.0.26-*.json.gz in game-upgrade's. Nothing of v0.0.26 moves
 // through the round but zerocqb-pin's seven cells and test-zerocqb's digest by K3 (D's named re-record: your #2's hatch stack points
 // within 0.9 m), each cell's cause on its line; D adds 'test-collar' to SCENE_DIGESTS with its first digest.
+// v0.0.28's stage 0 (F170, its build sheet §2 step 1, §8): the same set is "The window and the canopy"'s, on v0.0.27's integrated snapshot
+// (c805e72f, every digest above unmoved there, test-collar's 1275f38fbf38fc among them), with collar-pin's four boarding lanes and the
+// hauler's derived plans (hauler-plans, its golden of the house's plans), which v0.0.27 left out, among the suites, and
+// tests/saves/v0.0.27-*.json.gz in game-upgrade's (a KD course with brass on the ground, the boarding's hold before the send). Nothing of
+// v0.0.27 moves through the round but the pins D names at its merge (house-pin-drawn, zerocqb-pin, collar-pin, and any keys cell of
+// house-pin or private cell of breach-pin its keys bot's memory moves), each cell's cause on its line; B adds 'test-armoury' to
+// SCENE_DIGESTS with its first digest. Upkeep is live only where state.armoury.upkeep says so, so no shipped scene writes a field of it.
+// v0.0.28's D re-records nothing: the doorway's look-ahead (bundle.js gapAhead) and the feet-aft line (instinct/base.js) move no pin,
+// digest or save; the house's leave aboard (the sheet's item 22, which would have moved zerocqb-pin's seven cells, collar-pin's four and
+// two of game-upgrade's ticks) is held out by the sheet's risk 6, kept for the lead in .run/v028/d-ship-trial.patch, and the keys bot's
+// memory of a deferred challenge was not built (.run/v028/d.md).
 import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { PRINT_HASH } from './golden.mjs';
@@ -94,6 +105,9 @@ export const SCENE_DIGESTS = Object.freeze({
   // the lamp goes green.", activities.js durSeconds: it read "3 min") 0f917fb0a4fd16 → 1c50416cb32d45, the clock at GO; checked with it
   // alone undone: 0f917fb0a4fd16
   'test-collar': '1c50416cb32d45',
+  // (v0.0.28 B's scene, "The window and the canopy": its own first pin, recorded on the tree after E, D, A and C with B's patch (the brief at
+  // window 1, 1,000 ticks with no keys: the card handed for you on the move-on, the armourer's fetch, the window's command standing))
+  'test-armoury': '1fdcda3586af4e',
 });
 /** The bay at 23:00 (the quick cell): the barracks at hour 23, 1,000 ticks. */
 export const BAY_2300 = Object.freeze({ scenario: 'barracks', hour: 23, seed: 48213, ticks: 1000, digest: '154a1ea53a1608' });
@@ -106,6 +120,8 @@ export const HELD_SUITES = Object.freeze([
   'zerocqb-pin',
   // (v0.0.27's stage 0: "Bang, then go"'s four lanes, v0.0.26's pin; the ship registry's seam and the hauler's deck, its golden)
   'breach-pin', 'ship-seam', 'hauler-place',
+  // (v0.0.28's stage 0: the boarding's four lanes, v0.0.27's pin, and the hauler's derived plans with their golden, left out by v0.0.27)
+  'collar-pin', 'hauler-plans',
 ]);
 /** void-house's steel copy (v0.0.25's F124): the sergeant by T on 48213, house 1 at 0 G in mag boots and at 1 G, every leg clear, ms from the start. */
 export const STEEL_COPY = Object.freeze({ steelMs: 107_550, oneMs: 47_650 });
@@ -155,7 +171,7 @@ export default [
     },
   },
   {
-    name: 'env-noregress (F100, F124): every shipped scene at 1,000 ticks on 48213 is the snapshot\'s to the byte, and the pins, the saves, moment 2\'s walk, the goldens and the steel copy hold (their own suites, run whole)',
+    name: 'env-noregress (F100, F124, F170): every shipped scene at 1,000 ticks on 48213 is the snapshot\'s to the byte, and the pins, the saves, moment 2\'s walk, the goldens and the steel copy hold (their own suites, run whole)',
     heavy: true,
     timeoutMs: 60 * 60_000,
     async fn() {

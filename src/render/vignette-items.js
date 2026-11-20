@@ -8,11 +8,18 @@
 // the pieces dissolve in as it closes and out as it opens, never there at zoom 1 and gone the next
 // frame: the review of v0.0.4); insideSpot() is where you are drawn while the activity has you inside
 // its fixture (in a shower stall, facing its head; elsewhere hidden).
+// v0.0.28 ("The window and the canopy", its build sheet §1 C, item 20): the clean at a cleaning table (vignette 'clean', the activities
+// clean-rifle and clean-again): the mat on the table's top before you, its picture by the clean's part (cleanFrameOf: CLEAN_PARTS'
+// strip, clean, oil and together, the clean's first half dirty and its second cleaned, together the strip's picture of the rifle
+// whole), your hands at its north corners in your skin, and the air hose's puff over its outer end in the clean part's first fifth
+// (PUFF_SHARE, "blow it out"): two cards at most; cleanWarmItems the same pieces dissolved, stood once at the scene's brief (the view's
+// one line) so the clean's splash uploads nothing.
 // Pure: no DOM, no three.js.
 import { VIGNETTE_PIECES } from '../art/kit/vignette.js';
 import { FOOTPRINTS } from '../art/kit/index.js';
 import { turn, FACINGS } from '../art/kit/kit.js';
 import { hash01 } from '../core/hash.js';
+import { SKIN } from '../art/figures/outfits.js';
 
 /** How far the steam stands in front of the bather, toward the camera, and the heights it covers on them (metres: shins to shoulders, the chibi's shoulders at 0.875 m, so the whole wet head shows above it). */
 export const STEAM_FRONT_M = 0.22, STEAM_COVER_M = Object.freeze([0.2, 1.0]);
@@ -25,11 +32,45 @@ export const STEAM_FPS = 3, WATER_FPS = 8, TAP_FPS = 6;
 /** The alert's beacon: its place in hall-2 (the build sheet §8, item 23: the horn at (57.7, 8.8)) is the alert's; it hangs this high (metres). */
 export const BEACON_Y_M = 2.35;
 
+/**
+ * The clean's parts as shares of its length: strip, clean, oil, together (src/sim/arms/upkeep.js CLEAN_PARTS, the build sheet v0.0.28 §5:
+ * the render may not import the sim (TECH §2.2), so the shares are written twice, as the catalogue's sizes and the kit's are, and
+ * vig-clean is the one place that reads both), the puff's share of the clean part from its start, the puff's rate on the view's clock,
+ * and how far in from your edge of the table the mat lies (metres).
+ */
+export const CLEAN_PARTS = Object.freeze([0.1, 0.7, 0.1, 0.1]);
+export const PUFF_SHARE = 0.2, PUFF_FPS = 6, MAT_IN_M = 0.15;
+/** The mat's picture by the clean's stage (0 strip, 1 clean and dirty, 2 clean and cleaned, 3 oiled, 4 together): together is the strip's, the rifle whole. */
+export const MAT_FRAME_OF = Object.freeze([0, 1, 2, 3, 0]);
+/** At vk, the share of the clean shown: { stage (0 to 4, as MAT_FRAME_OF), frame (the mat's picture), puff (whether the hose blows) }. */
+export function cleanFrameOf(vk, parts = CLEAN_PARTS) {
+  const k = Math.max(0, Math.min(1, Number.isFinite(vk) ? vk : 0)), [a, b, c] = [parts[0], parts[0] + parts[1], parts[0] + parts[1] + parts[2]];
+  const stage = k < a ? 0 : k < b ? ((k - a) / parts[1] < 0.5 ? 1 : 2) : k < c ? 3 : 4;
+  return { stage, frame: MAT_FRAME_OF[stage], puff: k >= a && k < a + PUFF_SHARE * parts[1] };
+}
+/**
+ * The clean's pieces as the cleaner will see them, every picture of the mat (in his skin) and every frame of the puff, at fade 0 (drawn
+ * dissolved, so nothing shows): stood once at the scene's brief, they put the pieces into the vignettes' atlas then, and the clean's
+ * splash uploads nothing (F188: nothing uploaded after the brief's cut). you: { x, z, look }.
+ */
+export function cleanWarmItems(you) {
+  const colour = skinOf(you?.look), x = you?.x ?? 0, z = you?.z ?? 0;
+  return [...MAT_FRAME_OF.filter((f, i) => MAT_FRAME_OF.indexOf(f) === i).map(frame => ({ name: 'cleanMat', opts: { frame, colour }, x, y: 0, z, fade: 0 })),
+    ...[0, 1, 2].map(frame => ({ name: 'airPuff', opts: { frame }, x, y: 0, z, fade: 0 }))];
+}
+/** A look's skin as a colour (outfits.js SKIN by name, or its own hex), or 0 for none. */
+const skinOf = (look) => { const s = look?.skin; return typeof s === 'number' ? s : SKIN[s] ?? 0; };
+
 const SOL_MS = 88_775_244;
 /** Where a point in a fixture's own frame lies in the world: [x, z]. */
 export function fixturePoint(f, lx, lz) {
   const [dx, dz] = turn(lx, lz, FACINGS[f.face] ?? 0);
   return [f.x + dx, f.z + dz];
+}
+/** A world point in a fixture's own frame: [lx, lz] (fixturePoint's inverse). */
+export function toLocal(f, x, z) {
+  const q = FACINGS[f.face] ?? 0, [a, b] = turn(1, 0, q), [c, d] = turn(0, 1, q), dx = x - f.x, dz = z - f.z;
+  return [dx * a + dz * b, dx * c + dz * d];
 }
 /** The facing a figure takes looking from a fixture's middle toward a point of its own frame (the shower's head, a toilet's bowl). */
 export function faceToward(f, lx, lz) {
@@ -53,9 +94,9 @@ export function insideSpot(f) {
 /**
  * What a vignette stands this frame: [{ name, opts, x, y, z, fade }] (x, z the card's foot in the world, y its
  * bottom, metres). ctx: { sp (the splash frame: vignette, part, vk, phase, interrupt), fixture (its record),
- * you ({ x, z, face }), tS (the view's real seconds), ppm }.
+ * you ({ x, z, face, look }), tS (the view's real seconds), ppm (the stage's density: the mat's depth in whole pixels) }.
  */
-export function vignetteItems({ sp, fixture: f, you = null, tS = 0 } = {}) {
+export function vignetteItems({ sp, fixture: f, you = null, tS = 0, ppm = 16 } = {}) {
   if (!sp || !f) return [];
   const seed = vignetteSeed(sp), out = [], fp = FOOTPRINTS[f.kind] ?? { w: 1, d: 1, h: 1 };
   const part = sp.part ?? null, v = sp.vignette ?? null;
@@ -104,6 +145,16 @@ export function vignetteItems({ sp, fixture: f, you = null, tS = 0 } = {}) {
       const doorW = fp.w - 0.14, [sx, sz] = fixturePoint(f, doorW / 2 - 0.12, D / 2 + 0.04);
       out.push({ name: 'slide', opts: {}, x: sx, y: 0.92, z: sz });
     }
+  } else if (v === 'clean' && f.kind === 'cleanTable') {
+    // (the mat on the top before you, MAT_IN_M in from your edge, its middle at your x kept on the table; upright, its foot at its south
+    // edge and its depth as painted (a whole number of pixels: 6 at 16 px/m), so its rows lie where the flat mat's would: a top view on
+    // an upright card; your hands on it; the puff over its outer end)
+    const W = fp.w, D = fp.d, mat = VIGNETTE_PIECES.cleanMat, at = you ?? (() => { const [x, z] = fixturePoint(f, 0, -D); return { x, z }; })(), hM = Math.max(1, Math.round(mat.hM * ppm)) / ppm;
+    const [lx, lz] = toLocal(f, at.x, at.z), side = lz < 0 ? -1 : 1, mx = Math.max(-W / 2 + mat.wM / 2, Math.min(W / 2 - mat.wM / 2, lx));
+    const near = side * (D / 2 - MAT_IN_M), far = near - side * hM, [cx, cz] = fixturePoint(f, mx, side < 0 ? far : near);
+    const { frame, puff } = cleanFrameOf(sp.vk);
+    out.push({ name: 'cleanMat', opts: { frame, colour: skinOf(you?.look) }, x: cx, y: fp.h, z: cz + 0.01 });
+    if (puff) { const [px, pz] = fixturePoint(f, mx + (lx < 0 ? -1 : 1) * (mat.wM / 2 - 0.1), side < 0 ? far : near); out.push({ name: 'airPuff', opts: { frame: frameAt(PUFF_FPS, 3) }, x: px, y: fp.h + 0.02, z: pz + 0.02 }); }
   } else if (v === 'locker' && f.kind === 'wallLocker') {
     const [lx, lz] = fixturePoint(f, 0, fp.d / 2 + 0.012);
     out.push({ name: 'lockerOpen', opts: { seed: Math.floor(hash01('locker', f.id) * 60) }, x: lx, y: 0, z: lz });

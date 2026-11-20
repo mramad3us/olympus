@@ -1,42 +1,45 @@
 {
  "title": "The man as he stands on the target card, and you on the C card: aimed at you, the pistol aimed, kneeling, down, cowering; you kneeling, with a G-11, the P-12, prone",
  "about": "Your note of 2026-11-17: \"the portraits need to be more dynamic and show us what we would be seeing, including what they are holding\" (and your rule of 2026-11-12, \"anything that moves is shown moving\"). Until now the card drew every man standing, his gear as worn, whatever he did. Each picture is one candidate, drawn by the game's own doll and card code on the portraits round's pose engine (C's: the poses as bends of the doll, the holds on the gear's places): first today's card for comparison, then the candidate on the target card at the near, mid and far bands (4, 14 and 30 m), the live lane's role-player (utilities, the plate carrier, the force-on-force mask, the R-7; his P-12 out for P); then the moment moving: the card at its paint rate (it repaints only when what you see changes, so before and after) beside the stage's frames of the same moment, toward you, three times their size. Y is you on the C card as in a mirror (today's doll, then the candidate's, twice their size). Drawn in this release at the defaults A1, P1, K1, D1, C1 and Y-p (the poses ship at their defaults, question 16); your picks replace them, in v0.0.24 if they land after the merge.",
- "open": {"default": ["A1", "P1", "K1", "D1", "C1", "Y-p"], "since": "2026-11-18", "decides": "the man as he stands on the target card (A, P, K, D, C) and you prone on the C card (Y-p)", "builtIn": "v0.0.23"},
+ "open": {"default": ["A3", "P3", "D3", "Y-p"], "since": "2026-11-20", "decides": "the man aimed at you with the rifle (A) and the pistol (P), and down sitting (D), each redrawn on your notes of 2026-11-20; you prone on the C card (Y-p, unscored)", "builtIn": "v0.0.28", "rank": 2},
  "pixel": true,
  "groups": [
   {
    "id": "A",
    "title": "A: a rifle aimed at you",
-   "about": "Moving: the low ready, then aimed; the stage's low ready, raise and aim.",
+   "about": "Moving: the low ready, then aimed; the stage's low ready, raise and aim. A3 (v0.0.28, your note of 2026-11-20: \"we need the gun held to be like soldiers hold a gun, aiming through ironsights\"; redrawn on the art director's pass the same day, \"two fists, one ring, one lens\"): the rifle end on at you, built nearest last; painted by hand on the third pass (\"a photographer with a camera\": the drawing at the near band is a pixel template written in the game's code, the 14 and 30 m cards taken from it): the SO-4's box over his right eye with its blue lens, the muzzle's steel ring and black bore under it before his chin, the nearest thing; his support hand cradling the handguard under the muzzle, a third larger than his firing fist, which sits lower and to his right on the grip behind the magazine; each arm bent at its elbow, out and down, the sleeves in the camouflage the shoulders wear. Today's card is v0.0.27's A1.",
    "views": [
     { "id": "A1", "name": "A1: end on, the muzzle a ring at his chest (the default)", "query": "c=A1", "pixel": "820x439" },
-    { "id": "A2", "name": "A2: canted, the rifle across his chest", "query": "c=A2", "pixel": "820x439" }
+    { "id": "A2", "name": "A2: canted, the rifle across his chest", "query": "c=A2", "pixel": "820x439" },
+    { "id": "A3", "name": "A3: through the sights, drawn in depth: the lens at his eye, the muzzle nearest, the support hand under it, the firing fist lower (the redraw, the default)", "query": "c=A3", "pixel": "820x439" }
    ]
   },
   {
    "id": "P",
    "title": "P: a pistol aimed at you",
-   "about": "The P-12 out, the R-7 slung. Moving: the pistol at the ready, then aimed; the stage's draw and pistol aimed.",
+   "about": "The P-12 out, the R-7 slung (drawn from the weapon card). Moving: the pistol at the ready, then aimed; the stage's draw and pistol aimed. P3 (v0.0.28, the same note; redrawn on the art director's pass of the same day, \"hands over the mouth\"): the isosceles seen from the front, painted by hand on the third pass (\"still hands to the mouth\"): the P-12 end on a third over its size, its slide in lit steel with the rear sight at his eye over his right eye, the muzzle's bore its middle, the trigger guard under it; one double fist below, the two thumbs forward along the frame; the arms level from the front of his shoulders in to the hands, wider at the hands, lit on top and dark under. Today's card is v0.0.27's P1.",
    "views": [
     { "id": "P1", "name": "P1: both arms out, the slide end on (the default)", "query": "c=P1", "pixel": "820x439" },
-    { "id": "P2", "name": "P2: cupped at the chest", "query": "c=P2", "pixel": "820x439" }
+    { "id": "P2", "name": "P2: cupped at the chest", "query": "c=P2", "pixel": "820x439" },
+    { "id": "P3", "name": "P3: the isosceles from the front: the slide at his eye over one double fist, the arms level from the shoulders (the redraw, the default)", "query": "c=P3", "pixel": "820x439" }
    ]
   },
   {
    "id": "K",
    "title": "K: kneeling (a check)",
-   "about": "Moving: standing aimed, then kneeling aimed; the stage's aim, the knee going down and the kneeling aim.",
+   "about": "Moving: standing aimed, then kneeling aimed; the stage's aim, the knee going down and the kneeling aim. K1 is your star of 2026-11-20 and its kneel is drawn as you starred it; only its aim is redrawn, to A3's hold (your note on the cards with a gun pointed).",
    "views": [
-    { "id": "K1", "name": "K1: on the right knee, aimed (the default)", "query": "c=K1", "pixel": "820x439" }
+    { "id": "K1", "name": "K1: on the right knee, aimed, set down to the floor (the default)", "query": "c=K1", "pixel": "820x439" }
    ]
   },
   {
    "id": "D",
    "title": "D: down, ruled out and sitting where he is",
-   "about": "Moving: standing at the low ready, then sitting; the stage's low ready and sitting low. D2 is a new bend, drawn on a card composed by the card's own geometry.",
+   "about": "Moving: standing at the low ready, then sitting; the stage's low ready and sitting low. D2 is a new bend, drawn on a card composed by the card's own geometry. D3 (v0.0.28, your note \"Needs way more polish\" on D1; redrawn on the art director's pass of 2026-11-20): drawn whole, not bent from the standing doll: his head dropped and tilted, the eyes shut; the knees up toward you as two round masses lit on their tops, the shins down to the boots set wide, their soles dark; the R-7 lying nearly level across his thighs, low enough that the belt shows over it; his right hand open on it, his left slid off to the floor by his boot, palm up (ruled out: no grip); on the third pass the neck drawn from the collar to the dropped head, the knees in the trousers' pattern, the arms a step darker, a dark seam where the thighs meet the body. Today's card is v0.0.27's D1.",
    "views": [
     { "id": "D1", "name": "D1: sitting, the rifle across his knees (the default)", "query": "c=D1", "pixel": "820x439" },
-    { "id": "D2", "name": "D2: slumped on his side", "query": "c=D2", "pixel": "820x439" }
+    { "id": "D2", "name": "D2: slumped on his side", "query": "c=D2", "pixel": "820x439" },
+    { "id": "D3", "name": "D3: sitting slumped, the head down on its neck, the knees up in the pattern, the rifle low across his lap, one hand on it, one slid off (the redraw, the default)", "query": "c=D3", "pixel": "820x439" }
    ]
   },
   {
@@ -50,7 +53,7 @@
   {
    "id": "Y",
    "title": "Y: you on the C card, as in a mirror",
-   "about": "The black combat EVA suit, the carrier, the R-7, the P-12 on the thigh. Y-p is the default of its own question (you prone on the C card); the others are checks of the I and C cards.",
+   "about": "The black combat EVA suit, the carrier, the R-7, the P-12 on the thigh. Y-p is the default of its own question (you prone on the C card): from v0.0.28 the helmet low behind the sight, the muzzle end on under it, both elbows out wide on the deck, the chest under the line, grey gloves on the black suit. The others are checks of the I and C cards.",
    "views": [
     { "id": "Y-p", "name": "Y-p: prone, behind the rifle, end on (the default)", "query": "c=Y-p", "pixel": "586x463" },
     { "id": "Y-k", "name": "Y-k: kneeling, the rifle at the low ready", "query": "c=Y-k", "pixel": "586x463" },
@@ -58,5 +61,6 @@
     { "id": "Y-12", "name": "Y-12: the P-12 at the ready", "query": "c=Y-12", "pixel": "586x463" }
    ]
   }
- ]
+ ],
+ "scored": {"on": "2026-11-20", "picks": ["K1", "C1"]}
 }

@@ -1,0 +1,94 @@
+{
+ "title": "The window and the canopy: the issue window, you at the cleaning table, the rifle stripped on the mat and the weapon card's dirt",
+ "about": "v0.0.28, \"The window and the canopy\", draws your R-7 at the armoury's issue window, takes it to the 25 m lane and back, and cleans it under the canopy before the armourer's inspection. Four looks are new and scored first; every picture is the game's own code where the game has it (the people composed and shaded by the figure engine at the stage's 16 px a metre in utilities, snapped to the Mars palette; the stage's camera from 45 degrees above; the stage's own 16 px R-7; the weapon card painted by the game's card), and the candidate's piece is the sample's alone, so the game is unchanged until you score. W, the window: a strip of the armoury's south face with window 1 in it (1.2 m wide, its counter 1.1 m high and 0.6 m deep), the armourer behind it, the rifle across the counter with its bolt open, and you at the customer spot beside it, three times larger and at its own size: W-a (the default) the counter at the hip and the upper half open, W-b a grille over the upper half. F, you at the cleaning table (2.4 by 0.9 m, 0.9 m high) at its north spot facing the camera, the mat before you, in daylight and under the canopy's evening lamps: F-a (the default) the lean the sink already uses, no new frame; F-b a pair of its own, a hand on a part over the mat and the cleaning rod held up to the light, two new frames. By depth the stage would draw you behind the table's top, which hides you below 0.6 m; your hands are drawn over it where they reach it. M, the mat (1.0 by 0.4 m, 16 by 6 pixels on the stage) in its five frames by the clean's part (the rifle whole, laid out dirty with grit on the upper and carbon at the bolt, cleaned, oiled, together again) and the air hose's puff: M-a (the default) the Corps' olive rubber, M-b a tan canvas roll-out, more contrast for the black parts. D, the weapon card at each word the game uses for a rifle's state (fine, gritty, fouled, wants cleaning): D-a (the default) dust as tan speckle on the receiver's upper edges and in the open port, carbon at the port and the muzzle, heavier at wants cleaning, fine as today; D-b the card as today, the word only. Not sampled, built at these and yours to ask about: the clearing barrel (a sand drum, its tube at 45 degrees), the tables, the solvent tanks and the air hoses, the rank's rings on the apron, the second window. The game builds the defaults until you score.",
+ "open": {
+  "default": [
+   "W-a",
+   "F-a",
+   "M-a",
+   "D-a"
+  ],
+  "since": "2026-11-20",
+  "decides": "how The window and the canopy draws the issue window with the armourer behind it (W), you at the cleaning table (F), the rifle stripped on the mat by the clean's part (M) and the weapon card's dirt by its word (D)",
+  "builtIn": "v0.0.28"
+ },
+ "pixel": true,
+ "groups": [
+  {
+   "id": "W",
+   "title": "W: the issue window in the armoury's south front",
+   "about": "Window 1 from the apron, three times larger, then at its own size: the armourer behind the counter, the rifle across it with its bolt open, you at the customer spot beside it.",
+   "views": [
+    {
+     "id": "W-a",
+     "name": "W-a: the counter at the hip, the armourer in his utilities to the chest (the default)",
+     "query": "c=W-a",
+     "pixel": "396x236"
+    },
+    {
+     "id": "W-b",
+     "name": "W-b: a grille over the upper half of the window",
+     "query": "c=W-b",
+     "pixel": "396x236"
+    }
+   ]
+  },
+  {
+   "id": "F",
+   "title": "F: you at the cleaning table",
+   "about": "The table's north spot three times larger, in daylight and under the canopy's lamps, the mat before you at M-a.",
+   "views": [
+    {
+     "id": "F-a",
+     "name": "F-a: the sink's lean, no new frame (the default)",
+     "query": "c=F-a",
+     "pixel": "474x218"
+    },
+    {
+     "id": "F-b",
+     "name": "F-b: the bench pair: a hand on a part over the mat, the rod held up to the light",
+     "query": "c=F-b",
+     "pixel": "944x218"
+    }
+   ]
+  },
+  {
+   "id": "M",
+   "title": "M: the mat and the rifle stripped on it",
+   "about": "The mat's five frames by the clean's part at six times its size and at twice it on the table, and the air puff's three frames.",
+   "views": [
+    {
+     "id": "M-a",
+     "name": "M-a: the Corps' olive rubber mat (the default)",
+     "query": "c=M-a",
+     "pixel": "582x96"
+    },
+    {
+     "id": "M-b",
+     "name": "M-b: a tan canvas roll-out",
+     "query": "c=M-b",
+     "pixel": "582x96"
+    }
+   ]
+  },
+  {
+   "id": "D",
+   "title": "D: the weapon card's dirt by its word",
+   "about": "The card as the game paints it at each word: fine, gritty, fouled, wants cleaning.",
+   "views": [
+    {
+     "id": "D-a",
+     "name": "D-a: dust on the receiver and in the port, carbon at the port and the muzzle (the default)",
+     "query": "c=D-a",
+     "pixel": "740x183"
+    },
+    {
+     "id": "D-b",
+     "name": "D-b: the card as today, the word only",
+     "query": "c=D-b",
+     "pixel": "740x183"
+    }
+   ]
+  }
+ ]
+}

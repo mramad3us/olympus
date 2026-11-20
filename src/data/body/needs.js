@@ -140,7 +140,11 @@ export const STUBBLE_BANDS = deepFreeze([
  * regolith REGOLITH; washed to 0 at a basin or in a shower. R's quick action at a sink washes them from
  * band WASH_AT_I (dirty) on.
  */
-export const HANDS = deepFreeze({ RATE_K: 1.0, HEAD: 40, STALL: 60, FOOD: 10, RIFLE_SUB: 1.5, REGOLITH: 15, WASH_AT_I: 2, MAX: 100 });
+export const HANDS = deepFreeze({ RATE_K: 1.0, HEAD: 40, STALL: 60, FOOD: 10, RIFLE_SUB: 1.5, REGOLITH: 15, WASH_AT_I: 2, MAX: 100,
+  // (a rifle stripped, cleaned and oiled at the canopy's table (src/sim/arms/upkeep.js cleanEnd): "Gun oil and carbon on your
+  // hands.", BODY's 'dirty' band, as the head's; the build sheet v0.0.28 §5, UK§5)
+  CLEAN: 40,
+});
 /** The hands' bands by dirt (my calls); the words name the last soiling where it shows (cues.js handsWords). */
 export const HANDS_BANDS = deepFreeze([
   { id: 'clean', tone: 'fine', fill: 0, words: 'Clean hands.' },

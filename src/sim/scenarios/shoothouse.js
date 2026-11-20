@@ -61,8 +61,9 @@
 // gapMs; 'zone' at your first tick in the zone + gapMs. The take-in is contact.js's on them as on the bay. Each round
 // (houseShot, from handling.js recordShot): the hit sensor as the bay's (a paper threat down at STOP_TORSO 2 torso or
 // STOP_HEAD 1 head hits, turned away SENSOR_MS after; the armoured by its head plate); a no-shoot hit the fault 'noshoot';
-// the hostage card: a torso round on it is the hostage's (the fault 'hostage'), a head round graded bad or worse is too,
-// a head hit drops the hostile. Zones by room and by shooter (yours and the #2's). Pars (PAR_MS by the sheet's
+// the hostage card: a torso round on it is the hostage's (the fault 'hostage'), a head round graded bad or worse is too, and
+// from v0.0.28 any round whose hole touches her as the card draws her (paper.js hostageTouched; the user, 2026-11-20: "If the
+// hostage is hit, the shot is a fail."), which never drops him; a head hit clear of her drops the hostile. Zones by room and by shooter (yours and the #2's). Pars (PAR_MS by the sheet's
 // PAR_OF_TIER, or the picker's): each threat's from the sighting of the man whose sector it is (your window's seenMs on
 // your corner's men, the #2's own on his: slot 2; the first by either where the other never saw him) to the first round
 // on it by either of you; past it with no round, the harness's low tone ('house' par, met false) and "he fired first" on
@@ -206,6 +207,7 @@ import { rollerOf } from '../combat/roll.js';
 import { takeInMs, takeInWords, goMs } from '../combat/react.js';
 import { pendingOf, IDENT_DC0, IDENT_PER_M, CHALLENGE_MS, searchOn, searchableOf } from '../combat/contact.js';
 import { lanePlanOf, inFunnel, pastThreshold, coveredNow, sectorOf } from '../combat/room.js';
+import { hostageTouched } from '../arms/paper.js';
 import { cornerTableOf, aidK, aidHoldMs, sectorWedgeOf, pointOfRule, CORNER_POINT, frameOf, MARK_AT_M, MARK_H_M } from '../combat/corner.js';
 import { startled, blockOf, FLASH_BLIND_MS } from '../combat/supp.js';
 import { runSlot, freeBody, gapSettle, twoLegOver, handBack, legsOf as bodyLegsOf, useClearGate, useCallVoid, skillsOf, crossingOf, doorSwing, CALL_S, TWO_SAY, BODY_GAP_M, GAP_GUARD_M } from '../combat/bundle.js';
@@ -2493,6 +2495,8 @@ export function windowWords(state) {
 // figure from bangWindowOf, seconds from the bang (else the door's opening) to two places)
 const BAND_CARD = Object.freeze(['CALM', 'UNDER FIRE', 'SUPPRESSED', 'PINNED']);
 const GRADE_CARD = Object.freeze({ pass: 'NERVE HELD', miss: 'NERVE MISSED', bad: 'NERVE FAILED', disaster: 'NERVE BROKE' });
+// (a choice on the card: its word in capitals, a give as GAVE UP, the men's own line's word; v0.0.28: the table's 'surrender' is 'give', F157's key)
+const choiceCard = (what) => (what === 'give' ? 'GAVE UP' : String(what).toUpperCase());
 function breachCardOf(state, H) {
   const W = bangWindowOf(state);
   if (!W) return null;
@@ -2513,7 +2517,7 @@ function breachCardOf(state, H) {
       bang && M.onDoorAtMs !== null && M.downAtMs === null && M.gaveAtMs === null ? `ON THE DOOR AGAIN AT ${at(M.onDoorAtMs)}` : bang && M.onDoorAtMs !== null && (M.downAtMs ?? M.gaveAtMs) > M.onDoorAtMs ? `ON THE DOOR AGAIN AT ${at(M.onDoorAtMs)}` : null,
       M.downAtMs !== null ? `DOWN AT ${at(M.downAtMs)}` : null, M.gaveAtMs !== null ? `GAVE UP AT ${at(M.gaveAtMs)}` : null].filter(Boolean);
   }).filter(xs => xs.length > 1).map(xs => `${xs[0]}: ${xs.slice(1).join(' · ')}`);
-  const choices = keys.flatMap(k => W.men[k].choices.filter(c => (c.choice && c.choice !== 'fight') || c.grade).map(c => `${String(W.men[k].stand).toUpperCase()} ${String(c.choice).toUpperCase()} AT ${at(c.atMs) ?? `${s2(c.atMs - (H.goAtMs ?? 0))} S FROM GO`}${c.band !== null && c.band !== undefined ? ` (${[BAND_CARD[c.band] ?? `BAND ${c.band}`, c.grade ? GRADE_CARD[c.grade] ?? String(c.grade).toUpperCase() : null].filter(Boolean).join(', ')})` : ''}`));
+  const choices = keys.flatMap(k => W.men[k].choices.filter(c => (c.choice && c.choice !== 'fight') || c.grade).map(c => `${String(W.men[k].stand).toUpperCase()} ${choiceCard(c.choice)} AT ${at(c.atMs) ?? `${s2(c.atMs - (H.goAtMs ?? 0))} S FROM GO`}${c.band !== null && c.band !== undefined ? ` (${[BAND_CARD[c.band] ?? `BAND ${c.band}`, c.grade ? GRADE_CARD[c.grade] ?? String(c.grade).toUpperCase() : null].filter(Boolean).join(', ')})` : ''}`));
   // (no choice made: they fought, where anyone went in or a man of them fired; else nothing was asked of them (the play review of v0.0.26,
   // finding 10: "THEY FOUGHT" on a lane nobody entered))
   const fought = W.inAtMs !== null || rangeOf(state).turners.some(T => isLive(T) && ((T.live.fired ?? 0) > 0 || T.live.st === 'down'));
@@ -3231,8 +3235,9 @@ export function houseShot(state, bus, shot) {
   if (isLive(T)) { liveShot(state, bus, H, L, T, shot, mine, tally); return; }
   if (T.face === 'noshoot') { tally('noshoot'); houseFault(state, bus, 'noshoot', HOUSE_CHIEF.noshoot, L); return; }
   if (T.face === 'hostage') {
+    // (a hole on her as drawn is hers whatever its grade (paper.js hostageTouched), the shot failed, the hostile left up)
     const bad = ['bad', 'disaster'].includes(shot.roll?.grade);
-    if (part !== 'head' || bad) { tally('hostage'); houseFault(state, bus, 'hostage', HOUSE_CHIEF.hostage, L); return; }
+    if (part !== 'head' || bad || hostageTouched(shot.hole?.at)) { tally('hostage'); houseFault(state, bus, 'hostage', HOUSE_CHIEF.hostage, L); return; }
   }
   tally(shot.down ? 'headDown' : shot.ring && !shot.through ? 'ring' : zone);
   T.firstAtMs ??= shot.atMs;
@@ -3895,7 +3900,7 @@ function collarRowsOf(state, R, H, ms) {
   const name = (T) => String(T.stand).toUpperCase();
   // (a ruling at a compartment's "Clear!" ('out') is no choice of his: it follows his DOWN or GAVE UP, and read "DOWN" it named a man who
   // gave up unhurt down, and every man down twice (the v0.0.27 play review, finding 5); the track keeps it for the gauges)
-  const choices = R.turners.filter(isLive).flatMap(T => (B.track?.[T.stand] ?? []).filter(e => e.what || e.st !== 'out').map(e => `${name(T)} ${String(e.what ?? W.states[e.st] ?? e.st ?? '').toUpperCase()} AT ${mss(e.atMs - t0)}`));
+  const choices = R.turners.filter(isLive).flatMap(T => (B.track?.[T.stand] ?? []).filter(e => e.what || e.st !== 'out').map(e => `${name(T)} ${e.what ? choiceCard(e.what) : String(W.states[e.st] ?? e.st ?? '').toUpperCase()} AT ${mss(e.atMs - t0)}`));
   if (R.turners.some(isLive)) rows.push(choices.length ? `THEIR CHOICES: ${choices.join(' · ')}` : 'THEIR CHOICES: NONE SEEN');
   // (the corpsman's card after the fight (aid.js boardingCare, B's): ours first, then theirs, each his care and his outcome, at any end)
   if (H.end) {

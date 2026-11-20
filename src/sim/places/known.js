@@ -8,17 +8,20 @@
 // tests/syntax.test.mjs's SIM_FOR_VIEW); the view's half (the known cells, the hidden men) is src/render/known.js and
 // src/render/memory.js.
 //
-//   familiarOf(state, areaId)  whether the place is known before it is seen. A scene says when it is not (src/data/scenes.js
-//                        `familiar`): 'set' on the shoot house's two scenes, so the house as set (lane A, briefed on its plan)
-//                        is familiar and the house drawn from the seed is not, on its own lane area only (my calls, the build
-//                        sheet's question 8). A named house (&layout=B or C, R.house.draw's `layout`: the instructors' other
-//                        panel settings, as fixed as lane A) is briefed as lane A is, so familiar (my call). Every other place,
-//                        and every scene without the field, is familiar: today's picture, untouched.
-//                        v0.0.25 (the build sheet v0.0.25 item 9, §3.1; the user, 2026-11-19, of H2: "we shouldn't know what's
-//                        behind closed doors or walls without looking"): 'walls', the Wreck's, a ship's plan briefed: false on the
-//                        scene's host area, whatever the house's record (the Wreck is no drawn house), so its compartments are black
-//                        until seen and its walls known (footprintOf's `walls`).
-//   footprintOf(state)   the drawn house's known parts, which never move (scenes/assemble.js's header: "its footprint fixed
+//   familiarOf(state, areaId)  whether the place is known before it is seen. A scene says how much its brief told you (src/data/
+//                        scenes.js `familiar`, the intel), on its host area and on the drawn house's area (the lane's), every
+//                        other place familiar. v0.0.28 (the user's note of 2026-11-20 on house-unknown U: "special forces would
+//                        have the layout when they were briefed ... although we can't know what is inside the rooms, the layout
+//                        would be known most of the time, unless the scenario justifies the lack of intel"), one field:
+//                        'walls', every combat scene's (the house as set, drawn or a named layout, the live lane, the breach, the
+//                        Wreck, the hauler): the plan briefed, every wall, door and hatch known from the start (footprintOf's
+//                        `walls`), every room's inside, its floor and whatever stands on it, unknown until seen (the instructors
+//                        move the stands between runs, so the house as set is no longer drawn dimmed through the fog: my call,
+//                        overrulable); 'none', a scene whose brief says why there is no intel (no shipped scene yet, my call):
+//                        only the outside known, the footprint and its fixed parts (v0.0.23's drawn-house rule). No field, a
+//                        place you live in (the base, the ranges): familiar, today's picture. v0.0.23 to v0.0.27's 'set' (the
+//                        set house familiar, the drawn one not) is gone.
+//   footprintOf(state)   the house's known parts (drawn or as set), which never move (scenes/assemble.js's header: "its footprint fixed
 //                        (HOUSE1_RECT, the hall, the apron, the catwalk and the booth never move)"): the footprint's rect (its
 //                        outer walls known, the apron outside it), the catwalk's band over the hall and the booth (the
 //                        instructors', never a room of the exercise); { rect, fixed: [[x0, z0, x1, z1]] }, or null off the house.
@@ -42,7 +45,7 @@
 import { SCENES } from '../../data/scenes.js';
 import { houseSpecOf } from '../scenes/assemble.js';
 import { areaOf } from './model.js';
-import { planOf, wallsOf, wallRect } from './plan.js';
+import { planOf, wallsOf, wallRect, leafRect } from './plan.js';
 import { opOf, hostOf, NULL_HOST } from '../combat/op.js';
 import { turnersOf } from '../arms/turners.js';
 import { contactOf } from '../people/mind.js';
@@ -63,21 +66,21 @@ function familiarRule(state) {
   return null;
 }
 /**
- * The familiarity a state's scene names (see the header): { familiar: 'set' | 'walls', area } or null. A test may pass its own rule
- * to familiarOf and footprintOf in place of this (the scene that names 'walls' is the lane's, not this module's).
+ * The intel a state's scene names (see the header): { familiar: 'walls' | 'none', area } or null. A test may pass its own rule to
+ * familiarOf and footprintOf in place of this.
  */
 export const sceneFamiliar = (state) => familiarRule(state);
 // (the house's drawn record, R.house.draw = { mode: 'drawn', … }, or null as set)
 const drawnOf = (state) => { const d = opOf(state)?.draw; return d?.mode === 'drawn' ? d : null; };
+/** The intels a scene may name (see the header): the walls briefed, or nothing past the outside. */
+export const INTELS = Object.freeze(['walls', 'none']);
+// (the area a rule's brief covers: the scene's host, or the drawn house's own area, a variant of the host's ('melas.wheel.s4~<v>'))
+const briefed = (state, rule, areaId) => areaId === rule.area || (!!drawnOf(state) && houseSpecOf(state)?.area === areaId);
 
 /** Whether an area is known before it is seen (see the header). rule: the scene's (sceneFamiliar), or a test's own. */
 export function familiarOf(state, areaId, rule = familiarRule(state)) {
-  if (!state || !areaId) return true;
-  // ('walls', the Wreck's: its plan briefed, every compartment unknown until seen, on the scene's host area only)
-  if (rule?.familiar === 'walls') return rule.area !== areaId;
-  const d = drawnOf(state);
-  if (rule?.familiar !== 'set' || !d || d.layout) return true;
-  return houseSpecOf(state)?.area !== areaId;
+  if (!state || !areaId || !INTELS.includes(rule?.familiar)) return true;
+  return !briefed(state, rule, areaId);
 }
 
 // (an area's wall runs as rects [x0, z0, x1, z1], the very walls the nav grid blocks and the cutaway draws: plan.js wallsOf)
@@ -87,24 +90,38 @@ function wallRectsOf(A) {
   if (!w) { w = Object.freeze(wallsOf(planOf(A)).map(q => { const r = wallRect(q); return Object.freeze([r.x0, r.z0, r.x1, r.z1]); })); WALLS.set(A, w); }
   return w;
 }
+// (the review of the picks: "every wall, door and hatch drawn from GO" held for the walls alone, a door's gap was its jambs' cells and
+// no more (on the house 1 to 4 of a door's 9 points known, the Wreck's 3 of 8), so a shut door could read as an open gap. An area's
+// doors and bulkhead hatches, every opening with a leaf (the plan's kind 'door'), as the rects their leaves block (plan.js leafRect:
+// WALL_T_M astride the line, across the gap), briefed with the walls. A doorway (the plan's 'gap') shuts nothing: its threshold is
+// a room's floor, unknown until seen, the gap between its two known jambs saying what it is; a deck's scuttle lies in a
+// compartment's floor and is seen with it)
+const DOORS = new WeakMap();
+function doorRectsOf(A) {
+  let d = DOORS.get(A);
+  if (!d) { d = Object.freeze((planOf(A).openings ?? []).filter(o => o.kind === 'door').map(o => { const r = leafRect(o); return Object.freeze([r.x0, r.z0, r.x1, r.z1]); })); DOORS.set(A, d); }
+  return d;
+}
 
 /**
- * The known parts (see the header), or null where there is none. Under 'walls' (v0.0.25, the Wreck: its plan briefed) the scene's
- * host area's: { rect: its bounds (outside them nothing to hide), fixed: [], walls: every wall run's rect, known from the start with
- * its ring (render/known.js marks them with WALL_CELLS), the compartments' floors not }. Else the drawn house's, as before.
+ * The known parts (see the header), or null where there is none: { rect (outside it nothing to hide), fixed: [[x0, z0, x1, z1]]
+ * (known from the start with their ring), walls? and doors? (under 'walls': every wall run's rect, and every door's and bulkhead
+ * hatch's leaf (doorRectsOf), the plan briefed; render/known.js marks the cells they touch, and every cell in no room) }. On the house (as set, drawn or named, the rule's area its own) the footprint's rect,
+ * the catwalk's band and the booth; on a ship or another area the area's bounds and nothing fixed (v0.0.25's, the Wreck's). With no
+ * rule, the house's footprint as v0.0.23 drew a drawn house (the view reads it only where a place is unfamiliar).
  */
 export function footprintOf(state, rule = familiarRule(state)) {
-  if (rule?.familiar === 'walls') {
+  const intel = INTELS.includes(rule?.familiar) ? rule.familiar : null, H = opOf(state);
+  const S = H ? houseSpecOf(state) : null;
+  const onHouse = !!S?.rect && (!intel || briefed(state, rule, S.area));
+  if (intel && !onHouse) {
     const A = areaOf(rule.area);
     if (!A?.boundsM) return null;
     const b = A.boundsM;
-    return { rect: [b.x0, b.z0, b.x1, b.z1], fixed: [], walls: wallRectsOf(A).map(r => [...r]) };
+    return { rect: [b.x0, b.z0, b.x1, b.z1], fixed: [], ...(intel === 'walls' ? { walls: wallRectsOf(A).map(r => [...r]), doors: doorRectsOf(A).map(r => [...r]) } : {}) };
   }
-  const H = opOf(state);
-  if (!H) return null;
-  const S = houseSpecOf(state), A = areaOf(S.area);
-  if (!S?.rect) return null;
-  const fixed = [];
+  if (!H || !S?.rect) return null;
+  const A = areaOf(S.area), fixed = [];
   const cw = S.catwalk?.path ?? [];
   for (let i = 1; i < cw.length; i++) {
     const [ax, az] = cw[i - 1], [bx, bz] = cw[i];
@@ -112,7 +129,7 @@ export function footprintOf(state, rule = familiarRule(state)) {
   }
   const booth = S.booth?.room ? A?.rooms?.find(r => r.id === S.booth.room) : null;
   if (booth) fixed.push([...booth.rect]);
-  return { rect: [...S.rect], fixed };
+  return { rect: [...S.rect], fixed, ...(intel === 'walls' && A ? { walls: wallRectsOf(A).map(r => [...r]), doors: doorRectsOf(A).map(r => [...r]) } : {}) };
 }
 
 // (a leg's rooms: its own and an ell's far part, the room id with '-far')

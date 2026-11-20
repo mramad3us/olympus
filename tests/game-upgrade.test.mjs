@@ -173,6 +173,9 @@ import { anchorsBot } from './bots/void.mjs';
 import { anchorsNow } from '../src/sim/scenarios/anchors.js';
 import { breachBot } from './breach-lanes.mjs';
 import { liveStateOf } from '../src/sim/combat/men.js';
+import { kdBot } from './bots/kd.mjs';
+import { collarBotOf, runCollar } from './bots/collar.mjs';
+import { brassLeft } from '../src/sim/arms/brass.js';
 // (v0.0.22's C: the two v0.0.21 saves' end ticks under v0.0.22's rules (see their case), recorded on C's tree)
 const SAVE_TICKS = Object.freeze({ showclear: 4562, paint: 3362 });
 /** v0.0.24's stage 0: the keys private on 48213 from setup 'go' to his card, the tick on v0.0.23's snapshot (the room 2 save's lane). */
@@ -191,6 +194,16 @@ const V025_ANCHORS_STRAIGHT_TICK = 2782;
 const V025_PAUSE_TICK = 3082, V025_LIVE_TICK = 2822;
 /** v0.0.27's stage 0: "Bang, then go"'s private by the keys with the bang, and the Wreck's sergeant by T, from GO to the card, the ticks on v0.0.26's snapshot (a49eac55). */
 const V026_DAZED_TICK = 3462, V026_DECK6_TICK = 3861;
+/**
+ * v0.0.28's stage 0: the KD course by kdBot from the fill to its card, and the boarding's private by the keys against pirates from the
+ * fill to his card, the ticks on v0.0.27's snapshot (c805e72f). The boarding's save is remade by v0.0.27's released code (the tag
+ * 4a1bc7c, the integration of v0.0.28) and its straight lane re-read there, 3303 → 3103: v0.0.27's carried stage after the snapshot
+ * ("Flash it" at a hatch, the defenders' misses met, the bang window aboard; collar-pin's keys/private/pirates cell, 3103), the
+ * save's lane and the straight one still equal. D's ship rule is held out (eda-lead-edits §1): nothing of this round moves it.
+ */
+const V027_KD_TICK = 5804, V027_HOLD_TICK = 3103;
+/** The fields upkeep writes on a gun where the scene says so (v0.0.28 A's upkeep.js; absent on every gun of every other scene). */
+const UPKEEP_FIELDS = Object.freeze(['foul', 'dust', 'barrelC', 'heatMs']);
 
 const LON = SITES.melas.lonEDeg, MIN_TICKS = 20 * 60;
 // (v0.0.21, the build sheet §1 item 25, §0 item 17: a house save from before v0.0.20's pars gains them on load, the stands' books,
@@ -869,6 +882,36 @@ export default [
         console.log(`      ${name}: tick ${old.clock.tick}, the pick ${S0.pick} (${T0.stand}) in ${T0.room}, ${json.length} bytes; saved again at once ${saved === json ? 'byte for byte (no key gained)' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; ${g.errors.length} errors; a save at 300 carried on ${carried ? 'byte for byte' : 'DIFFERENTLY'}; to the card ${done(s)} (${s.armoury.range.house.end?.why ?? 'none'}) at tick ${s.clock.tick}, the lane straight ${done(f.state)} at ${f.state.clock.tick} (the snapshot's ${c.tick})`);
         assert(saved === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried, JSON.stringify({ same: saved === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 2), carried }));
         assert(done(s) && done(f.state) && s.clock.tick === f.state.clock.tick && s.clock.tick === c.tick, JSON.stringify({ tick: s.clock.tick, straight: f.state.clock.tick, want: c.tick }));
+      }
+    },
+  },
+  {
+    name: 'v0.0.28 (its build sheet §2 step 7): two saves made by v0.0.27\'s own code load with nothing written, gain no key, write no upkeep field and carry on byte for byte: the KD course mid-course with brass on the ground (the zero\'s string) (the tiles\' count as saved, settle by the course\'s row) to its card on the course\'s tick from the fill, and the boarding\'s private by the keys at the hold in the lock before the send to his card on his lane\'s tick from the fill',
+    heavy: true,
+    timeoutMs: 300_000,
+    fn() {
+      const upkeepOf = (st) => ({ gate: st.armoury?.upkeep ?? null, fields: Object.values(st.items ?? {}).flatMap(it => UPKEEP_FIELDS.filter(k => it && k in it).map(k => `${it.type ?? '?'}.${k}`)) });
+      const CASES = {
+        'v0.0.27-range-kd': { opts: { scenario: 'test-range', seed: 48213 }, bot: () => kdBot(), tick: V027_KD_TICK, done: (st) => !!st.armoury.range?.end,
+          run: (g, b) => { let n = 0; while (n++ < 20 * 60 * 60 && !g.state.armoury.range?.end) g.step(1, b); },
+          at: (st) => st.armoury.range.course === 'kd' && brassLeft(st).n > 0 && st.armoury.range.brass.some(r => r.kind === 'case'), what: (st) => `brass on the tiles ${brassLeft(st).n} (yours ${brassLeft(st).mine}), live cases ${st.armoury.range.brass.filter(r => r.kind === 'case').length}` },
+        'v0.0.27-collar-hold': { opts: { scenario: 'test-collar', seed: 48213, tier: 'private', holdouts: 'pirates' }, bot: () => collarBotOf('keys', 'private', 48213), tick: V027_HOLD_TICK, done: (st) => !!st.armoury.range.house.end,
+          run: (g, b) => runCollar(g, b),
+          at: (st) => { const H = st.armoury.range.house; return H.boarding && H.goAtMs !== null && H.cur === 0 && !H.rooms[0].held && st.stop?.mode === 'stop'; }, what: (st) => `${((st.clock.ms - st.armoury.range.house.goAtMs) / 1000).toFixed(2)} s after GO, the passage not yet held, in stop motion (${st.stop.phase})` },
+      };
+      for (const [name, c] of Object.entries(CASES)) {
+        const json = read(name), old = JSON.parse(json);
+        assert(old.meta.version === '0.0.27' && old.meta.seed === 48213 && old.meta.scenario === c.opts.scenario && c.at(old), `${name}: ${old.meta.version} ${old.meta.seed} ${old.meta.scenario}`);
+        const g = createGame(c.opts), s = g.load(json), saved = g.save(), ids = checkIds(JSON.parse(saved), g.sim.domains), b = c.bot();
+        const brass0 = c.opts.scenario === 'test-range' ? JSON.stringify(brassLeft(s)) : null, brassAt = brass0 === null ? null : JSON.stringify(brassLeft(old));
+        g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
+        const h = createGame(c.opts); h.load(mid); h.step(300, c.bot());
+        const carried = h.save() === end, up = upkeepOf(s);
+        c.run(g, b);
+        const f = createGame(c.opts); c.run(f, c.bot());
+        console.log(`      ${name}: tick ${old.clock.tick}, ${c.what(old)}, ${json.length} bytes; saved again at once ${saved === json ? 'byte for byte (no key gained)' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; upkeep: gate ${up.gate}, fields ${up.fields.join(', ') || 'none'}${brass0 ? `; the brass on load ${brass0} (as saved ${brassAt})` : ''}; ${g.errors.length} errors; a save at 300 carried on ${carried ? 'byte for byte' : 'DIFFERENTLY'}; to the card ${c.done(s)} at tick ${s.clock.tick}, the lane straight ${c.done(f.state)} at ${f.state.clock.tick} (the snapshot's ${c.tick})`);
+        assert(saved === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried && up.gate === null && !up.fields.length && brass0 === brassAt, JSON.stringify({ same: saved === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 2), carried, up, brass0, brassAt }));
+        assert(c.done(s) && c.done(f.state) && s.clock.tick === f.state.clock.tick && s.clock.tick === c.tick, JSON.stringify({ tick: s.clock.tick, straight: f.state.clock.tick, want: c.tick }));
       }
     },
   },

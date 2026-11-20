@@ -35,6 +35,8 @@ import { dressedDoll } from '../../src/art/doll/dress.js';
 import { DOLL_SCALE } from '../../src/art/doll/doll.js';
 
 export const SETS = Object.freeze(['today', 'ps', 'rh']);
+/** v0.0.27's drawing of the stances redrawn in v0.0.28 (shown first as today's): PS-b the old high ready, PS-c P1 end on. */
+const TODAY_OF = Object.freeze({ 'PS-b': Object.freeze({ over: Object.freeze({ hold: Object.freeze({ how: 'pistol-high', place: 'highOld' }) }) }), 'PS-c': Object.freeze({ picks: Object.freeze({ pistol: 'P1' }) }) });
 const DIRS = Object.freeze(['down', 'right', 'up', 'left']), K = 2, CW = 34, CH = 40, LABEL_H = 9, LABEL = 0x9aa0ab, HEAD = 0xd8dce4, FLOOR = 0x76726c;
 /** The frames shown (see the header): [label, frame, beat pose name or null]. */
 export const TODAY_ROWS = Object.freeze([
@@ -78,11 +80,14 @@ function candidate(set, id) {
   const hang = rh.hang, rec = (gear, over = {}) => recOf(gear, { ...ps.rec, hang, ...over });
   P.write(GAP + 1, GAP + 1, `${set === 'ps' ? ps.id : rh.id}: ${set === 'ps' ? ps.name : rh.name}`, HEAD);
   let y = GAP + LABEL_H;
-  P.write(GAP + 1, y + 1, set === 'ps' ? 'YOU ON THE I AND C CARDS (X2): TODAY, THE CANDIDATE · A MAN WITH HIS P-12 SO ON THE TARGET CARD, 4 M AND 14 M' : 'YOU ON THE I AND C CARDS (X2): FROM THE FRONT, FROM BEHIND · ON THE TARGET CARD, 4 M AND 14 M', LABEL);
+  P.write(GAP + 1, y + 1, set === 'ps' ? (TODAY_OF[ps.id] ? 'YOU ON THE I AND C CARDS (X2): TODAY (V0.0.27), THE CANDIDATE · A MAN WITH HIS P-12 SO ON THE TARGET CARD: TODAY, THE CANDIDATE (4 M)' : 'YOU ON THE I AND C CARDS (X2): TODAY, THE CANDIDATE · A MAN WITH HIS P-12 SO ON THE TARGET CARD, 4 M AND 14 M') : 'YOU ON THE I AND C CARDS (X2): FROM THE FRONT, FROM BEHIND · ON THE TARGET CARD, 4 M AND 14 M', LABEL);
   y += LABEL_H;
-  big(P, set === 'ps' ? dollOf(ME_P, ME_PERSON, DOLL_SCALE, null) : dollOf(ME_P, ME_PERSON, DOLL_SCALE, rec(ME_P)), GAP, y);
+  // (v0.0.28: PS-b and PS-c redrawn (src/art/doll/held.js pistolHigh, pistolAimed); today's is v0.0.27's drawing, on the doll and the card)
+  const was = set === 'ps' ? TODAY_OF[ps.id] ?? null : null;
+  big(P, set === 'ps' ? (was ? dollOf(ME_P, ME_PERSON, DOLL_SCALE, rec(ME_P, was.over ?? {}), null, was.picks ?? null) : dollOf(ME_P, ME_PERSON, DOLL_SCALE, null)) : dollOf(ME_P, ME_PERSON, DOLL_SCALE, rec(ME_P)), GAP, y);
   big(P, set === 'ps' ? dollOf(ME_P, ME_PERSON, DOLL_SCALE, rec(ME_P)) : dollOf(ME_P, ME_PERSON, DOLL_SCALE, rec(ME_P, { facing: 'back' })), GAP + YD[0] + GAP, y);
-  [4, 14].forEach((r, i) => P.blit(cardOf({ gear: RP_PISTOL, person: RP_PERSON, rec: rec(RP_PISTOL), rangeM: r, words: `${set === 'ps' ? ps.id : rh.id} · ${r} M` }), GAP + 2 * (YD[0] + GAP) + i * (CARD_W + GAP), y));
+  if (was) [[was, 'TODAY · 4 M'], [null, `${ps.id} · 4 M`]].forEach(([w, words], i) => P.blit(cardOf({ gear: RP_PISTOL, person: RP_PERSON, rec: rec(RP_PISTOL, w?.over ?? {}), rangeM: 4, words, picks: w?.picks ?? null }), GAP + 2 * (YD[0] + GAP) + i * (CARD_W + GAP), y));
+  else [4, 14].forEach((r, i) => P.blit(cardOf({ gear: RP_PISTOL, person: RP_PERSON, rec: rec(RP_PISTOL), rangeM: r, words: `${set === 'ps' ? ps.id : rh.id} · ${r} M` }), GAP + 2 * (YD[0] + GAP) + i * (CARD_W + GAP), y));
   y += YD[1] + GAP;
   const across = Math.floor((W - GAP) / (FC[0] + GAP));
   const row = (label, frames) => {

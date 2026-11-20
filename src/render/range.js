@@ -67,8 +67,9 @@
 // thinned as it fades (range-items.js cornerAidPixels).
 // v0.0.25 (the build sheet items 7 and 8, §3.4; PC§3.3): the Wreck's boards on every face. A house stand with onFace (src/data/
 // faces.js: the deckhead, a bulkhead; absent the deck) is drawn by range-items.js boardPixels: turned by its face about its centre
-// (the deckhead's hangs head down), a pop-up (`pop`) rising from flat on its face by its facingK (popupPixels, P-a); on the deckhead
-// its footprint dashed on the deck below (overheadPixels, K-b); its stand's box set on its face (buildHouse: a post from the deckhead
+// (the deckhead's hangs head down), a pop-up (`pop`) coming up on its face by its facingK (popupPixels: P-b from v0.0.28, sliding out
+// of a slot, the user's star of 2026-11-20; P-a hinged out, v0.0.25's); on the deckhead
+// its footprint dashed on the deck below under K-b (overheadPixels; none under K-a, the game's from v0.0.28); its stand's box set on its face (buildHouse: a post from the deckhead
 // down, an arm from the bulkhead); a lane with no catwalk (the Wreck's: the cadre in the Shed's gallery) builds none. houseLook's
 // anchors (look.js rangeLook's, where the house is a ship's) are drawn as the void range's: a hand on a hold, the lanyard, the brace's
 // arm (anchorPixels). stats.house.faces lists each board drawn with its face and its turn (F130).
@@ -125,14 +126,14 @@ export function anchorPixels(A, ppm) {
  * ms) or null (nothing drawn); kd: KD_RANGE; tintOf(x, z) the light there.
  */
 export function createRange(stage, { ppm = stage.ppm ?? PX_PER_M } = {}) {
-  const THREE = stage.THREE, px = createPixels(THREE, MAX_RANGE_PIXELS, { ppm, order: 1 });
+  const THREE = stage.THREE, px = createPixels(THREE, MAX_RANGE_PIXELS, { ppm, order: 1, name: 'range' });
   // (the flash star its own draw after the figures, so it lies over the head: the figures' cards are drawn in
   // three.js's transparent pass, which comes after every opaque draw whatever its order, and write no depth)
-  const blast = createPixels(THREE, BLAST_PIXELS, { ppm, order: 3 });
+  const blast = createPixels(THREE, BLAST_PIXELS, { ppm, order: 3, name: 'blast' });
   blast.mesh.material.transparent = true; blast.mesh.material.depthWrite = false;
   // (0.0.16, the fixer's: your corner's aid on the floor of the room, over the walls that would hide it: no depth test, drawn
   // after them (range-items.js cornerAidPixels))
-  const over = createPixels(THREE, AID_PIXELS, { ppm, order: 4 });
+  const over = createPixels(THREE, AID_PIXELS, { ppm, order: 4, name: 'aid' });
   over.mesh.material.depthTest = false; over.mesh.material.depthWrite = false;
   const group = new THREE.Group();
   group.name = 'range';

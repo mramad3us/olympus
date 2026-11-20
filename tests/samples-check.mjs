@@ -13,7 +13,7 @@ import { expand, nativeOf } from '../tools/gallery.mjs';
 export const SAMPLES = path.join(root, 'samples');
 const sampleOf = (id) => JSON.parse(readFileSync(path.join(SAMPLES, id, 'sample.json'), 'utf8'));
 const indexOf = () => JSON.parse(readFileSync(path.join(SAMPLES, 'index.json'), 'utf8'));
-const ROUNDS = ['v0.0.23', 'v0.0.24'];
+const ROUNDS = ['v0.0.23', 'v0.0.24', 'v0.0.28'];
 
 /**
  * The checks every set shares (see the header): returns { groups, views } (expanded) and prints its line.
@@ -34,7 +34,10 @@ export function checkSet(id, want) {
     for (const d of o.default) assert(views.some(v => v.id === d), `${id}: the default ${d} is no view of the set`);
     assert(/^2026-11-\d\d$/.test(o.since) && typeof o.decides === 'string' && o.decides.length > 10 && ROUNDS.includes(o.builtIn) && o.builtIn === want.builtIn,
       JSON.stringify({ id, since: o.since, decides: o.decides, builtIn: o.builtIn, want: want.builtIn }));
-  } else assert(!s.open, `${id}: open, though nothing of it is scored yet`);
+  } else assert(!s.open, `${id}: open, though ${want.scored ? 'every group of it is scored' : 'nothing of it is scored yet'}`);
+  // (v0.0.28: a set the user scored carries what they picked and when, "scored" { on, picks }, whole or beside an "open" narrowed to
+  // the groups sent back (tools/gallery.mjs indexEntry copies it; samples/to-score.js ratedSets folds a set with no "open"))
+  if (want.scored) assert(JSON.stringify(s.scored ?? null) === JSON.stringify(want.scored), JSON.stringify({ id, scored: s.scored ?? null, want: want.scored }));
   // (the index: every view shot at its own size, the shot on disk)
   const entry = indexOf().samples.find(e => e.id === id);
   assert(entry, `${id}: not in samples/index.json (run node tools/gallery.mjs ${id})`);

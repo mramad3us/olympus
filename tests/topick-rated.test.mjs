@@ -13,13 +13,18 @@ import { root } from './helpers.mjs';
 
 export default [
   {
-    name: 'the rated rows are those whose set the user scored (the helmets, the walk, the room\'s mark), every one of RATED_SETS scored or retired in samples; the waiting ones (the stack, the shot, the card\'s) and the corner aid stay on top; no voices\' row, waiting or rated (the user, 2026-11-19: "forget about voices, those are all terrible use text bubble only")',
+    name: 'the rated rows are those whose set the user scored (the helmets, the walk, the room\'s mark; from 2026-11-20 the stack, the shot and the card\'s gun), every one of RATED_SETS scored or retired in samples; the waiting ones (the card\'s hands not read, aimed and pistol aimed, offering the redrawn A3, P3 and V3 first) and the corner aid stay on top; no voices\' row, waiting or rated (the user, 2026-11-19: "forget about voices, those are all terrible use text bubble only")',
     fn() {
       const rated = ROWS.filter(ratedRow).map(r => r.id), waiting = ROWS.filter(r => !ratedRow(r)).map(r => r.id);
       const S = (id) => { try { return JSON.parse(readFileSync(path.join(root, 'samples', id, 'sample.json'), 'utf8')); } catch { return null; } };
       const bad = RATED_SETS.filter(id => { const s = S(id); return !s || !!s.open || !(s.scored || s.retired); });
       console.log(`      rated: ${rated.join(', ')}; on top: ${waiting.join(', ')}; RATED_SETS ${RATED_SETS.join(', ')}${bad.length ? `; not scored: ${bad.join(', ')}` : ''}`);
-      assert(['helm', 'walk', 'jamb'].every(id => rated.includes(id)) && ['stack', 'shot', 'aid', 'drawn', 'card.gun'].every(id => waiting.includes(id)) && !bad.length, JSON.stringify({ rated, waiting, bad }));
+      // (v0.0.28, the user's picks of 2026-11-20: the stack (S1 and S5 joined), the shot (A5) and the card's gun (G2) folded; was the three on top)
+      assert(['helm', 'walk', 'jamb', 'stack', 'shot', 'card.gun'].every(id => rated.includes(id)) && ['card.unread', 'card.aim', 'card.pistol', 'aid', 'drawn'].every(id => waiting.includes(id)) && !bad.length, JSON.stringify({ rated, waiting, bad }));
+      // (the card's rows: the game's pick first, the redrawn holds and the hidden hands; the hands not read are portrait-light's V, not portrait-gun's)
+      const ids = Object.fromEntries(ROWS.filter(r => r.card).map(r => [r.id, r.ids.join(' ')]));
+      console.log(`      the card's rows: ${JSON.stringify(ids)}; card.unread's set ${ROW_SETS['card.unread']}`);
+      assert(ids['card.gun'] === 'G2 G1 G3' && ids['card.unread'] === 'V3 V1' && ids['card.aim'] === 'A3 A2' && ids['card.pistol'] === 'P3 P1' && ROW_SETS['card.unread'] === 'portrait-light', JSON.stringify({ ids, ROW_SETS }));
       assert(Object.values(ROW_SETS).every(id => S(id)), JSON.stringify(ROW_SETS));
       // (the fixer of F's review, 2026-11-19: the Voice row was only folded under "Already rated"; DESIGN.md's log drops it)
       const voiceRows = ROWS.filter(r => r.id === 'voice' || /voice/i.test(r.title)).map(r => r.title);
@@ -59,11 +64,11 @@ export default [
           return { open: det?.open ?? null, summary: det?.querySelector('summary')?.textContent, rated: det ? titles(det) : [], top, after: det ? det.compareDocumentPosition(T.querySelector(':scope > .topick-rows')) : 0 };
         });
         const copy = () => page.evaluate(() => { [...document.querySelectorAll('.overlay .topick .item')].find(b => b.textContent === 'Copy my picks').click(); return document.querySelector('.overlay .topick > .note:last-child')?.textContent ?? ''; });
-        await page.evaluate(() => { const row = [...document.querySelectorAll('.overlay .topick .topick-row')].find(r => r.querySelector('.title').textContent === 'The shot'); const sl = row.querySelector('input[type=range]'); sl.value = '80'; sl.dispatchEvent(new Event('input')); });
+        await page.evaluate(() => { const row = [...document.querySelectorAll('.overlay .topick .topick-row')].find(r => r.querySelector('.title').textContent === 'Aimed'); const sl = row.querySelector('input[type=range]'); sl.value = '80'; sl.dispatchEvent(new Event('input')); });
         const one = await copy(), two = await copy();
         console.log(`      on top: ${shape.top.join(', ')}; "${shape.summary}" (open ${shape.open}): ${shape.rated.join(', ')}; the first copy: "${one}"; the second: "${two}"`);
         // (compareDocumentPosition 2: the waiting rows precede the section)
-        assert(shape.open === false && ['Helmets', 'The walk', 'The room\'s mark'].every(t => shape.rated.includes(t)) && !shape.rated.includes('The voices') && !shape.top.includes('The voices') && !shape.top.includes('Helmets') && shape.top.includes('The shot') && shape.after === 2, JSON.stringify(shape));
+        assert(shape.open === false && ['Helmets', 'The walk', 'The room\'s mark'].every(t => shape.rated.includes(t)) && !shape.rated.includes('The voices') && !shape.top.includes('The voices') && !shape.top.includes('Helmets') && !shape.top.includes('The shot') && shape.rated.includes('The shot') && shape.top.includes('Aimed') && shape.after === 2, JSON.stringify(shape));
         assert(/Copied/.test(one) && /^No new picks since your last copy/.test(two), JSON.stringify({ one, two }));
         assert(!errors.length, errors.join(' | '));
       }, { port: BROWSER_TEST_PORT });

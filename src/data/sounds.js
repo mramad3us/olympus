@@ -157,13 +157,19 @@ export const CLIPPER_HZ = 120;
 const G4 = 392, C5 = 523.25, E5 = 659.26, G5 = 783.99;
 
 /**
- * The brace siren aboard a ship (v0.0.24, ROADMAP "anywhere" step 6; src/ui/audio/siren.js plays it): samples/void-look's S-a, the
- * default until the user scores it (stage 0's set, the build sheet §0 item 27): two tones a minor third apart, SIREN_HZ, high and
- * low a half cycle each (my calls: a ship's alarm), one cycle a recipe played every SIREN_CYCLE_MS while a brace is warned, at
- * SIREN_DB against the recipe's peak (the sample's level, what the user hears and scores) through the compartment's air. S-b, the
- * rising whoop, is the sample's other candidate: a score swaps this row.
+ * The brace siren aboard a ship (v0.0.24, ROADMAP "anywhere" step 6; src/ui/audio/siren.js plays it): samples/void-look's S-b from
+ * v0.0.28 (the user's star of 2026-11-20), a rising whoop, a sawtooth gliding SIREN_WHOOP_HZ, 500 to 1,200 Hz, over its cycle (the
+ * sample's recipe: its 1.5 kHz formant, 10 ms in and 30 ms out), one cycle a recipe played every SIREN_CYCLE_MS while a brace is
+ * warned, at SIREN_DB against the recipe's peak (the sample's level, what the user heard and scored) through the compartment's air.
+ * A jink's warning whoops twice as fast (siren.js SIREN_CYCLE_BY_KIND): its own recipe, 'sirenJink', the same glide over its half
+ * cycle, so each whoop ends before the next. v0.0.24's S-a, two tones a minor third apart (960 and 770 Hz), is retired with the score.
  */
-export const SIREN_HZ = Object.freeze([960, 770]), SIREN_CYCLE_MS = 1000, SIREN_DB = -6;
+export const SIREN_WHOOP_HZ = Object.freeze([500, 1200]), SIREN_CYCLE_MS = 1000, SIREN_DB = -6;
+/** A whoop's recipe over a cycle of cycleMs (see above: the glide ends 20 ms before the next cycle starts). */
+const whoop = (cycleMs) => Object.freeze({
+  levelDb: -3, durS: cycleMs / 1000 + 0.02, variants: 1, rateHz: WORLD_RATE_HZ,
+  layers: Object.freeze([Object.freeze({ kind: 'glide', hz: SIREN_WHOOP_HZ[0], toHz: SIREN_WHOOP_HZ[1], durS: cycleMs / 1000 - 0.02, attackS: 0.01, releaseS: 0.03, formant: Object.freeze([1500, 0.8]), db: 0 })]),
+});
 /** The world's sounds of the round (see the header). */
 export const WORLD = Object.freeze({
   water: Object.freeze({
@@ -214,11 +220,10 @@ export const WORLD = Object.freeze({
       Object.freeze({ kind: 'tone', hz: 3200, toHz: 3000, attackS: 0.0002, decayS: 0.0018, db: -6 }),
     ]),
   }),
-  // (ROADMAP "anywhere" step 6: a ship's brace siren, samples/void-look's S-a until scored: SIREN below)
-  siren: Object.freeze({
-    levelDb: -3, durS: 1.02, variants: 1, rateHz: WORLD_RATE_HZ,
-    layers: Object.freeze([Object.freeze({ kind: 'notes', notes: Object.freeze(SIREN_HZ.map(hz => Object.freeze([hz, SIREN_CYCLE_MS / 2000]))), gapS: 0.01, vibratoK: 0, scoopK: 0, attackS: 0.01, releaseS: 0.02, db: 0 })]),
-  }),
+  // (ROADMAP "anywhere" step 6: a ship's brace siren, samples/void-look's S-b, the rising whoop (the user's star of 2026-11-20):
+  // SIREN_WHOOP_HZ above; a jink's at twice the pace)
+  siren: whoop(SIREN_CYCLE_MS),
+  sirenJink: whoop(SIREN_CYCLE_MS / 2),
   // (the 0.0.6 round's, below: the clippers' loop and the R menu's sounds)
   clippers: Object.freeze({
     levelDb: -24, durS: 1.0, loop: true, variants: 1, rateHz: WORLD_RATE_HZ,

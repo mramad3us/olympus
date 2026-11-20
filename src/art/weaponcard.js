@@ -25,7 +25,14 @@
 //     when its kind is known, "?" on its plate when nothing is known, and under it its count ("5", "≈5"), its
 //     weight's band ("A FEW") or "?", and "TR" when it is believed tracer.
 // The optic (the SO-4) is drawn as fitted, no sling (the user, 2026-11-08: "get rid of the green arch it serves no
-// purpose"); dust and carbon wait.
+// purpose").
+//   - v0.0.28 ("The window and the canopy", its build sheet §1 C, item 20; UK§8): the rifle's dirt drawn as believed, by condWord's
+//     band (beliefOf's, already in the card's repaint key, steps.js BELIEF_FIELDS), never by the number: "gritty" dust as tan
+//     speckle on the receiver's upper edges (25 to 75% of its length) and in an open port, "fouled" carbon in the port and on the
+//     muzzle device (its last 4%), "wants cleaning" both and heavier; "fine" (and "wants the armourer", a word of wear, not of
+//     dirt) the card as before, byte for byte. The pixels are samples/armoury-day's D-a (the default until the user scores D;
+//     D-b would be the word alone), read from the card as painted (the rifle's pixels, its ink and its shadow, above the words'
+//     rows), so a design or a finish takes its dirt where its own port and edges are; a pistol's card is left clean (my call).
 //   - 0.0.12 (the user's gallery picks of 2026-11-08): the rifle is its model's design in its gun's finish (src/art/rifles.js
 //     drawingOf(model, finish); the R-7 the standard issue they picked, G2's body with V1's sight and the SO-4's flip
 //     magnifier, drawn in line at the believed 4× and folded at 1×), the finish a property of the issued item that the
@@ -68,7 +75,7 @@
 // Pure: no DOM, no three.js.
 import { paint } from './paint.js';
 import { text, textWidth } from './font.js';
-import { tone } from './tone.js';
+import { tone, hash3 } from './tone.js';
 import { drawingOf, MAG_SHOWN_M, MAG_HIDDEN_M, MAG_W_PX, MAG_CURVE_PX } from './rifles.js';
 import { pistolDrawingOf } from './pistols.js';
 
@@ -117,7 +124,9 @@ export function distanceParts(belief = {}, { distance = false, line = null, hold
   return { dial, zeroing: !!zeroing?.from, sight, zero, optic, line: at ? line : null, dope, toGo, onDope: !!toGo && !toGo.elev && !toGo.wind, hold: h };
 }
 
-/** What the card draws, read from the belief alone: { mag, count, approx, load, chamber, port, locked, mode, mark, seen, hand, optic (the lever believed: the R-7's magnifier), far }. */
+/** condWord's bands the card draws dirt for (see the header); any other band, the card clean. */
+export const DIRT_BANDS = Object.freeze(['gritty', 'fouled', 'wants cleaning']);
+/** What the card draws, read from the belief alone: { mag, count, approx, load, chamber, port, locked, mode, mark, seen, dirt (condWord's band when it draws dirt, else null), hand, optic (the lever believed: the R-7's magnifier), far }. */
 export function cardParts(belief = {}, opts = {}) {
   const b = belief ?? {};
   const magIn = b.mag !== 'out';
@@ -128,7 +137,7 @@ export function cardParts(belief = {}, opts = {}) {
   return {
     mag: magIn ? 'in' : 'out', count: known ? Math.max(0, Math.min(MAG_N, b.count)) : null, approx: known && !!b.countApprox,
     chamber: b.chamber ?? '?', port: portOpen ? 'open' : 'shut', locked: !!b.locked, mode: b.mode ?? 'safe',
-    mark: felt ? '!' : b.chamber === '?' ? '?' : null, seen, load: magIn ? b.magLoad ?? null : null,
+    mark: felt ? '!' : b.chamber === '?' ? '?' : null, seen, load: magIn ? b.magLoad ?? null : null, dirt: DIRT_BANDS.includes(b.condWord) ? b.condWord : null,
     hand: b.hand ? { count: Number.isFinite(b.hand.n) ? Math.max(0, Math.min(MAG_N, b.hand.n)) : null, approx: !!b.hand.approx, load: b.hand.load ?? null, feel: b.hand.feel ?? null } : null,
     optic: b.optic === 4 ? 4 : 1, far: distanceParts(b, opts),
   };
@@ -168,13 +177,14 @@ export function paintWeaponCard({ model = 'r7', drawing = null, finish = null, b
   // (the model's design (rifles.js DRAWN_AS; a pistol's, pistols.js PISTOL_DRAWN_AS, from v0.0.18), or a design named outright:
   // the samples', a pistol's among them; in the gun's finish, the caller's)
   const D = pistolDrawingOf(drawing ?? model, finish ?? undefined) || drawingOf(drawing ?? model, finish ?? undefined);
-  let S = null;
+  let S = null, box = null;
   const base = paint(CARD_W, CARD_H, (px, w, h) => {
     // The backdrop: the doll's wall and floor (VIEWS §4.1), the rifle's shadow thrown a little right.
     px(0, 0, w, h, BG);
     px(0, 0, w, Math.round(h * FLOOR_K), WALL);
     px(0, Math.round(h * FLOOR_K), w, 1, tone(WALL, -0.15));
     const layer = paint(w, h, (q) => { S = rifle(q, P, D); });
+    if (P.dirt && D.kind !== 'pistol') box = solidBox(layer);
     // (the shadow: the silhouette, offset, on the floor's colour)
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
       const v = layer.data[y * w + x];
@@ -195,10 +205,46 @@ export function paintWeaponCard({ model = 'r7', drawing = null, finish = null, b
     // (v0.0.18: a second gun carried: the one in use marked, the other in the strip (see the header))
     if (other?.belief) { if (!P.far) glyph(px, HANDS_AT[0], HANDS_AT[1], HANDS_GLYPH, BRASS); otherStrip(px, other, strip); }
   });
+  if (box) dirtOver(base, P.dirt, box);
   // (opaque everywhere, alpha 255: the hud puts it straight into an ImageData)
   const W = CARD_W * k, H = CARD_H * k, data = new Uint32Array(W * H);
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) data[y * W + x] = (base.data[Math.floor(y / k) * CARD_W + Math.floor(x / k)] | 0xff000000) >>> 0;
   return { w: W, h: H, data, px: data };
+}
+
+// ---- v0.0.28: the rifle's dirt (see the header) ----
+
+/** The rows the dirt may touch (above the words' rows) and its colours: the grit's two tans, the carbon's two blacks (samples/armoury-day D-a). */
+export const DIRT_ROWS = Object.freeze([10, 100]), GRIT = Object.freeze([0xc8a878, 0xa88a5a]), CARBON = Object.freeze([0x1a1816, 0x2a2622]);
+// (the rifle's opaque extent on its layer, with its ink (1 px) and its shadow (3 right, 5 down) round it)
+function solidBox(layer) {
+  let x0 = CARD_W, y0 = CARD_H, x1 = -1, y1 = -1;
+  for (let y = 0; y < CARD_H; y++) for (let x = 0; x < CARD_W; x++) if ((layer.data[y * CARD_W + x] >>> 24) >= 128) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+  return x1 < 0 ? null : { x0: x0 - 1, y0: y0 - 1, x1: x1 + 3, y1: y1 + 5 };
+}
+// (the dirt over the painted card, in place: the rifle's pixels are those in its box above DIRT_ROWS' end that are neither the wall nor
+// the floor; t its share of the rifle's length; an edge a pixel with none of the rifle over it; the port its light grey steel between
+// 45 and 68% of the length. Grit on the edges from 25 to 75% and in the port, one pixel in three (one in two heavy); carbon in the port
+// (one in two; every one heavy) and on the muzzle's last 4%)
+function dirtOver(pm, band, box) {
+  const d = pm.data, rgb = (v) => ((v & 0xff) << 16) | (v & 0xff00) | ((v >>> 16) & 0xff), put = (x, y, c) => { d[y * CARD_W + x] = (0xff000000 | abgr(c)) >>> 0; };
+  const isRifle = (x, y) => {
+    if (x < 0 || y < 0 || x >= CARD_W || y >= DIRT_ROWS[1] || x < box.x0 || x > box.x1 || y < box.y0 || y > box.y1) return false;
+    const c = rgb(d[y * CARD_W + x]);
+    return c !== WALL && c !== BG && c > 0x101010;
+  };
+  const cells = [];
+  for (let y = DIRT_ROWS[0]; y < DIRT_ROWS[1]; y++) for (let x = 0; x < CARD_W; x++) if (isRifle(x, y)) cells.push([x, y]);
+  if (!cells.length) return;
+  let xa = CARD_W, xb = -1;
+  for (const [x] of cells) { if (x < xa) xa = x; if (x > xb) xb = x; }
+  const L = xb - xa, heavy = band === 'wants cleaning', grit = band === 'gritty' || heavy, carbon = band === 'fouled' || heavy;
+  const lum = (c) => 0.3 * ((c >> 16) & 255) + 0.59 * ((c >> 8) & 255) + 0.11 * (c & 255), grey = (c) => Math.abs(((c >> 16) & 255) - (c & 255)) < 24;
+  for (const [x, y] of cells) {
+    const t = (x - xa) / L, c = rgb(d[y * CARD_W + x]), edge = !isRifle(x, y - 1), port = t > 0.45 && t < 0.68 && lum(c) > 120 && grey(c);
+    if (grit && ((edge && t > 0.25 && t < 0.75) || port) && hash3(x, y, 7) % (heavy ? 2 : 3) === 0) put(x, y, GRIT[hash3(x, y, 3) % 2 ? 0 : 1]);
+    else if (carbon && ((port && hash3(x, y, 5) % (heavy ? 1 : 2) === 0) || t > 0.96)) put(x, y, CARBON[hash3(x, y, 9) % 2 ? 0 : 1]);
+  }
 }
 
 // ---- 0.0.18: the second gun (see the header) ----
@@ -268,6 +314,27 @@ const X0 = 22, Y0 = 56;
 /** The wall's share of the card's height, its floor's line under it (v0.0.6's 0.62). */
 const FLOOR_K = 0.69;
 const at = (m) => X0 + M(m);
+
+/**
+ * A gun alone, side on, as its card draws it (v0.0.28, the portrait cards' guns: the user's "more efforts on the gun wielding cards"
+ * of 2026-11-20): its design's body and its magazine seated, safe, the port shut, on a clear ground (alpha 0 off the gun), cropped
+ * to the gun: { w, h, data (paint.js words), pxPerM (the card's density: the rifle's CARD_PX_PER_M, a pistol's its own), muzzle
+ * [x, y] (the bore's end), butt [x, y] (the rear's middle), grip [x, y] (where the firing fist closes) }. The art/doll sprites
+ * resample it to a card's density, so a gun on a portrait is the shape the user scored on the weapon card.
+ */
+export function gunLayer(model = 'r7', finish = null) {
+  const D = pistolDrawingOf(model, finish ?? undefined) || drawingOf(model, finish ?? undefined), P = cardParts({ mag: 'in', mode: 'safe', chamber: 'live' });
+  let S = null;
+  const layer = paint(CARD_W, CARD_H, (q) => { if (D.kind === 'pistol') S = D.card({ px: q, P: { ...P, mark: null }, say: () => {} }); else { S = D.card({ px: q, at, M, Y0, optic: 1 }); stateParts(q, { ...P, mark: null }, S, D.mag); } });
+  let x0 = CARD_W, y0 = CARD_H, x1 = -1, y1 = -1;
+  for (let y = 0; y < CARD_H; y++) for (let x = 0; x < CARD_W; x++) if ((layer.data[y * CARD_W + x] >>> 24) >= 128) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const w = x1 - x0 + 1, h = y1 - y0 + 1, data = new Uint32Array(w * h);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const v = layer.data[(y + y0) * CARD_W + x + x0]; data[y * w + x] = (v >>> 24) >= 128 ? v : 0; }
+  // (the bore's row: the rifle's Y0; a pistol's the slide's middle third, read from the drawing: its first column's rows)
+  const pistol = D.kind === 'pistol', boreY = pistol ? Math.round(h * 0.16) : Y0 - y0;
+  const gripAt = pistol ? [Math.round(w * 0.2), Math.round(h * 0.62)] : [at(0.30) - x0, Y0 - y0 + 14];
+  return { w, h, data, pxPerM: pistol ? 432 : CARD_PX_PER_M, muzzle: [w - 1, boreY], butt: [0, pistol ? boreY : Math.round(h * 0.45)], grip: gripAt, kind: pistol ? 'pistol' : 'rifle' };
+}
 
 // The rifle and what the holder believes of it: its design's body (rifles.js: its card() returns its stations), then the
 // state parts at the stations; the turrets on the optic where the card shows the distance. Returns the stations, for marks().

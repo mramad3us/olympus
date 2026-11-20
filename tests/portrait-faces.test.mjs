@@ -100,7 +100,9 @@ export default [
       let diff = 0;
       for (let i = 0; i < b.data.length; i++) if (b.data[i] !== up.data[i]) diff++;
       console.log(`      R-b: ${diff} pixels from the upright card; its words "${rollWords('H1', { roll: 2 }, Rb)}"; R-a's "${rollWords('H1', { roll: 2 })}"`);
-      assert(b.roll === 0 && diff === 0 && rollDrawn(2, Rb) === 0 && rollWords('H1', { roll: 2 }, Rb) === `${ROLL_FACE_WORDS[2]} · H1` && rollWords('H1', { roll: 2 }) === 'H1', JSON.stringify({ diff }));
+      // (v0.0.28, the user's stars of 2026-11-20 on R-a and R-b, joined: the default R-a card is turned and its words name his face
+      // too; upright he is named by nothing; was 'H1' on R-a)
+      assert(b.roll === 0 && diff === 0 && rollDrawn(2, Rb) === 0 && rollWords('H1', { roll: 2 }, Rb) === `${ROLL_FACE_WORDS[2]} · H1` && rollWords('H1', { roll: 2 }) === `${ROLL_FACE_WORDS[2]} · H1` && rollWords('H1', { roll: 1 }) === 'ON HIS SIDE · H1' && rollWords('H1', { roll: 0 }) === 'H1' && rollDrawn(2) === 2, JSON.stringify({ diff }));
     },
   },
 ];

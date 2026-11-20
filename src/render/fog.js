@@ -18,33 +18,81 @@
 // wanted and the texture's bytes), so an eased value stays on its world cell when the window moves
 // (v0.0.3's review: the window moved a cell and the fog's edge lagged the world by a cell for the ease
 // time); cells new to the window start unseen. A move of the whole window or more starts it afresh.
-// The texture's data is small (the game's 192 × 128 cells × 2 bytes = 48 KB) and re-sent only when it changed.
 // v0.0.23 (its build sheet item 7): createKnownTexture(mask) wraps src/render/known.js's known cells (one bit a cell of the
 // area, eight to a byte) in a one-channel texture, read exactly (nearest, no mipmaps, rows unpadded) by the post pass's unknown term.
+//
+// v0.0.28 (its build sheet item 25, F73: no frame sends more than UPLOAD_MID_KB 64 after GO + 1 s): the mask was sent whole
+// (192 × 128 cells × 2 bytes = 48 KB) on every frame a byte of it moved, and while sight eases one always does; with the bang's
+// smoke beside it the breach bench sent 272.7 KB in a frame. Now only what changed goes up from the CPU:
+//   - a move of the window is done on the GPU: the cells the old window and the new share are copied, texture to texture, into a
+//     second texture at their new place (renderer.copyTextureToTexture from a texture three holds: a copyTexSubImage2D, no bytes
+//     from the CPU), which is drawn from then on, the two taking turns; the cells entering the window are sent from the CPU;
+//   - each change is kept as a rectangle of world cells (the ease's box of the bytes that moved, a set's whole window), and upload()
+//     sends each, clipped to the window, by renderer.copyTextureToTexture from a third texture over the CPU's bytes (a texSubImage2D
+//     of those rows and columns: render/batch.js's way; three's own updateRanges assume four bytes a texel).
+// The mask stays RG, 48 KB whole (post.js' felt tint reads green), in the window's order and clamped at its edges, and upload()
+// gives the post pass the window's own box: the post pass reads every spot exactly as before, the window's edges included. With
+// no renderer given (render/far.js's masks) upload() marks the texture for a whole send, as before. createKnownSender does the
+// same for the known cells: the rows that changed since the last send.
 import * as THREE from 'three';
+import { tag } from './stats.js';
 
 export const FOG_CELL_M = 0.25;
 export const FOG_N = Object.freeze([192, 256]);                     // cells: 48 × 64 m
 export const FOG_IN_S = 0.08, FOG_OUT_S = 0.4;
+/** The changed rectangles kept before they are merged into their bounding box (upload() is called each frame: a few at most). */
+export const FOG_RECTS_MAX = 8;
 
-/** A mask of nx × nz cells of cellM metres: { texture, place(x0, z0), set(i, j, seen, felt), fill(fn), ease(dtS), upload(), box }. */
+/**
+ * A mask of nx × nz cells of cellM metres: { texture (the one drawn now), place(x0, z0), set(i, j, seen, felt), fill(fn), setSeen(vis),
+ * ease(dtS), upload(renderer) → [texture, x0, z0, w, h], at(x, z), box, sent }. sent: the last upload's { bytes (from the CPU), rects,
+ * moved (the window moved on the GPU), whole }.
+ */
 export function createFogMask({ nx = FOG_N[0], nz = FOG_N[1], cellM = FOG_CELL_M } = {}) {
   const data = new Uint8Array(nx * nz * 2), val = new Float32Array(nx * nz * 2), aim = new Float32Array(nx * nz * 2);
-  const texture = new THREE.DataTexture(data, nx, nz, THREE.RGFormat, THREE.UnsignedByteType);
-  texture.magFilter = texture.minFilter = THREE.LinearFilter;
-  texture.generateMipmaps = false;
-  texture.needsUpdate = true;
-  let x0 = 0, z0 = 0, dirty = true;
+  const make = (d) => {
+    const t = new THREE.DataTexture(d, nx, nz, THREE.RGFormat, THREE.UnsignedByteType);
+    t.magFilter = t.minFilter = THREE.LinearFilter;
+    t.generateMipmaps = false;
+    t.needsUpdate = true;
+    return t;
+  };
+  // (the two textures the window is drawn from in turn: the first sent whole with the bytes on its first use, the second made empty
+  // on the GPU (its storage made with nothing sent) and filled by the first move; and the CPU's bytes, never drawn: only copied from)
+  const texs = [make(data), make(null)];
+  texs[1].source.dataReady = false;
+  const src = new THREE.DataTexture(data, nx, nz, THREE.RGFormat, THREE.UnsignedByteType);
+  src.flipY = false;
+  tag('fog', data);
+  let cur = 0, texture = texs[0];
+  // (the window's corner in metres and in world cells, and the corner the drawn texture holds; the changes not yet sent, rectangles
+  // of world cells [a0, a1) × [b0, b1); `all`: the whole window; `fresh`: the texture not yet sent, which three sends whole, as it
+  // is then, the first time it is drawn or copied into)
+  let x0 = 0, z0 = 0, I0 = 0, J0 = 0, gI0 = 0, gJ0 = 0, rects = [], all = true, fresh = true;
+  const sent = { bytes: 0, rects: 0, moved: false, whole: false };
+  const mark = (a0, b0, a1, b1) => {
+    if (all || a1 <= a0 || b1 <= b0) return;
+    rects.push([a0, b0, a1, b1]);
+    if (rects.length > FOG_RECTS_MAX) {
+      const u = rects.reduce((m, r) => [Math.min(m[0], r[0]), Math.min(m[1], r[1]), Math.max(m[2], r[2]), Math.max(m[3], r[3])], [Infinity, Infinity, -Infinity, -Infinity]);
+      rects = [u];
+    }
+  };
+  const box = new THREE.Box2(), pos = new THREE.Vector2();
+  const send = (renderer, c0, d0, c1, d1) => {
+    box.min.set(c0, d0); box.max.set(c1, d1);
+    renderer.copyTextureToTexture(src, texture, box, pos.set(c0, d0));
+    sent.bytes += (c1 - c0) * (d1 - d0) * 2; sent.rects++;
+  };
   const mask = {
-    texture, nx, nz, cellM,
+    get texture() { return texture; }, nx, nz, cellM,
     /** The mask's north-west corner, metres (cells snap to the cell grid); the values move with their cells (see the header). */
     place(x, z) {
       const nx0 = Math.floor(x / cellM) * cellM, nz0 = Math.floor(z / cellM) * cellM;
       const di = Math.round((nx0 - x0) / cellM), dj = Math.round((nz0 - z0) / cellM);
-      x0 = nx0; z0 = nz0;
+      x0 = nx0; z0 = nz0; I0 += di; J0 += dj;
       if (!di && !dj) return;
-      dirty = true;
-      if (Math.abs(di) >= nx || Math.abs(dj) >= nz) { val.fill(0); aim.fill(0); data.fill(0); return; }
+      if (Math.abs(di) >= nx || Math.abs(dj) >= nz) { val.fill(0); aim.fill(0); data.fill(0); all = true; rects = []; return; }
       // (row by row in the order that never reads a cell already written: copyWithin within each array)
       const rowOf = (j) => j * nx * 2;
       const shiftRow = (arr, jTo, jFrom) => {
@@ -69,30 +117,98 @@ export function createFogMask({ nx = FOG_N[0], nz = FOG_N[1], cellM = FOG_CELL_M
     },
     /** Every cell's wanted sight from an array of nx × nz values, 0..1 (people's sightMask: perception's one function), felt 0. */
     setSeen(vis) { for (let c = 0; c < nx * nz; c++) { aim[c * 2] = vis[c]; aim[c * 2 + 1] = 0; } },
-    /** Ease the shown values toward the wanted (dtS seconds; Infinity: at once). */
+    /** Ease the shown values toward the wanted (dtS seconds; Infinity: at once); the box of the bytes that moved is kept to send. */
     ease(dtS = Infinity) {
       const kin = 1 - Math.exp(-dtS / FOG_IN_S), kout = 1 - Math.exp(-dtS / FOG_OUT_S);
+      let a0 = nx, a1 = -1, b0 = nz, b1 = -1;
       for (let k = 0; k < val.length; k++) {
         const a = aim[k], v = val[k], n = v + (a - v) * (a > v ? kin : kout);
-        if (n !== v) { val[k] = n; const b = Math.round(n * 255); if (data[k] !== b) { data[k] = b; dirty = true; } }
+        if (n !== v) {
+          val[k] = n; const b = Math.round(n * 255);
+          if (data[k] !== b) { data[k] = b; const c = k >> 1, j = (c / nx) | 0, i = c - j * nx; if (i < a0) a0 = i; if (i > a1) a1 = i; if (j < b0) b0 = j; if (j > b1) b1 = j; }
+        }
       }
+      if (a1 >= 0) mark(I0 + a0, J0 + b0, I0 + a1 + 1, J0 + b1 + 1);
     },
-    /** Mark it for upload if anything changed; returns the stage's setFog() arguments. */
-    upload() { if (dirty) { texture.needsUpdate = true; dirty = false; } return [texture, x0, z0, nx * cellM, nz * cellM]; },
+    /**
+     * Send what changed (see the header): the window's move on the GPU, then each rectangle from the CPU, through the renderer; with no
+     * renderer, the texture marked for a whole send if anything changed. Returns the stage's setFog() arguments.
+     */
+    upload(renderer = null) {
+      sent.bytes = 0; sent.rects = 0; sent.moved = false; sent.whole = false;
+      const di = I0 - gI0, dj = J0 - gJ0;
+      if (!renderer || fresh || all || Math.abs(di) >= nx || Math.abs(dj) >= nz) {
+        if (all || rects.length || di || dj) {
+          if (!renderer || fresh) { texture.needsUpdate = true; fresh = false; }
+          else send(renderer, 0, 0, nx, nz);
+          sent.bytes = nx * nz * 2; sent.rects = 1; sent.whole = true;
+        }
+      } else {
+        if (di || dj) {
+          // (the cells both windows hold, moved texture to texture into the other one, which is drawn from now on)
+          const c0 = Math.max(0, di), c1 = Math.min(nx, nx + di), d0 = Math.max(0, dj), d1 = Math.min(nz, nz + dj), next = texs[1 - cur];
+          box.min.set(c0, d0); box.max.set(c1, d1);
+          renderer.copyTextureToTexture(texture, next, box, pos.set(c0 - di, d0 - dj));
+          cur = 1 - cur; texture = next; sent.moved = true;
+          // (the cells new to the window: the rows across its width, the columns on the other rows, so the corner goes once)
+          const r0 = dj < 0 ? -dj : 0, r1 = dj > 0 ? nz - dj : nz;
+          if (dj > 0) send(renderer, 0, nz - dj, nx, nz); else if (dj < 0) send(renderer, 0, 0, nx, -dj);
+          if (di > 0) send(renderer, nx - di, r0, nx, r1); else if (di < 0) send(renderer, 0, r0, -di, r1);
+        }
+        for (const [a0, b0, a1, b1] of rects) {
+          const c0 = Math.max(a0 - I0, 0), c1 = Math.min(a1 - I0, nx), d0 = Math.max(b0 - J0, 0), d1 = Math.min(b1 - J0, nz);
+          if (c1 > c0 && d1 > d0) send(renderer, c0, d0, c1, d1);
+        }
+      }
+      rects = []; all = false; gI0 = I0; gJ0 = J0;
+      return [texture, x0, z0, nx * cellM, nz * cellM];
+    },
     /** Seen value at a spot (0 outside the mask). */
     at(x, z) { const i = Math.floor((x - x0) / cellM), j = Math.floor((z - z0) / cellM); return i >= 0 && j >= 0 && i < nx && j < nz ? val[(j * nx + i) * 2] : 0; },
     get box() { return [x0, z0, nx * cellM, nz * cellM]; },
-    dispose() { texture.dispose(); },
+    sent,
+    dispose() { for (const t of texs) t.dispose(); src.dispose(); },
   };
   return mask;
 }
 
-/** The known cells' texture (see the header): known.js's mask { data, w, h } as w × h bytes; needsUpdate set by its owner when a cell turns known. */
+/** The known cells' texture (see the header): known.js's mask { data, w, h } as w × h bytes; createKnownSender sends it. */
 export function createKnownTexture(mask) {
   const t = new THREE.DataTexture(mask.data, mask.w, mask.h, THREE.RedFormat, THREE.UnsignedByteType);
   t.magFilter = t.minFilter = THREE.NearestFilter;
   t.generateMipmaps = false;
   t.unpackAlignment = 1;
   t.needsUpdate = true;
+  tag('known', mask.data);
   return t;
+}
+
+/**
+ * The known cells on the GPU (v0.0.28, see the header): { texture, send(renderer) → bytes, dispose() }. The texture goes whole on
+ * its first use; send() then copies the rows of mask.data that differ from what it last sent (a cell turned known sets a bit, so
+ * a row), or, with no renderer, marks the texture for a whole send.
+ */
+export function createKnownSender(mask) {
+  const texture = createKnownTexture(mask), w = mask.w, h = mask.h, shown = new Uint8Array(mask.data);
+  const src = new THREE.DataTexture(mask.data, w, h, THREE.RedFormat, THREE.UnsignedByteType);
+  src.flipY = false;
+  const box = new THREE.Box2(), pos = new THREE.Vector2();
+  return {
+    texture,
+    send(renderer = null) {
+      const d = mask.data;
+      let j0 = -1, j1 = -1;
+      for (let j = 0; j < h; j++) {
+        const r = j * w;
+        for (let i = 0; i < w; i++) if (d[r + i] !== shown[r + i]) { if (j0 < 0) j0 = j; j1 = j; break; }
+      }
+      if (!renderer) { texture.needsUpdate = true; shown.set(d); return w * h; }
+      if (j0 < 0) return 0;
+      box.min.set(0, j0); box.max.set(w, j1 + 1);
+      renderer.copyTextureToTexture(src, texture, box, pos.set(0, j0));
+      shown.set(d.subarray(j0 * w, (j1 + 1) * w), j0 * w);
+      return (j1 + 1 - j0) * w;
+    },
+    dispose() { texture.dispose(); src.dispose(); },
+  };
 }

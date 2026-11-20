@@ -30,16 +30,23 @@
 // closed "Already rated" section under the waiting rows (ratedRow), and "Copy my picks" gives only what changed since the last copy
 // (picksText's `since`: the record's `copied`, written at each copy), then one line counting the earlier ones. The room's mark's
 // default is the game's, the chemlight (range-items.js JAMB_DRAWN_AS).
+// v0.0.28 (the user's picks of 2026-11-20): the stack (S1 and S5 joined), the shot (A5) and the card's gun (G2) folded with their
+// sets; the card's rows offer the redrawn holds, A3, P3 and V3 (the game's) beside the starred A2 and P1 and today's V1.
 import { JAMB_DRAWN_AS } from '../../render/range-items.js';
 import { HELM_IDS, HELMS, STACK_IDS, STACKS } from '../../art/figures/helmets.js';
 import { SHOT_IDS } from '../../data/sounds.js';
 
-/** The target card's picks this page tries (see the header): the row's id, the look's key, the candidates (portrait.js PORTRAIT_PICKS' defaults first). */
+/**
+ * The target card's picks this page tries (see the header): the row's id, the look's key, the candidates (portrait.js PORTRAIT_PICKS'
+ * defaults first), rated: true once its set's group is scored. v0.0.28 (the user's picks of 2026-11-20): the card's gun rated at G2,
+ * its own colours (portrait-gun G, starred); the hands not read offer V3, veiled from the collar down, the game's, beside V1 to compare
+ * (V2, 30/100, retired); aimed at you through the sights, A3 and P3, the game's, beside A2 and P1, the two starred (A1 and P2 retired).
+ */
 export const CARD_PICKS = Object.freeze([
-  Object.freeze({ id: 'card.gun', key: 'gun', title: 'Card gun', ids: Object.freeze(['G1', 'G2', 'G3']) }),
-  Object.freeze({ id: 'card.unread', key: 'unread', title: 'Hands not read', ids: Object.freeze(['V1', 'V2']) }),
-  Object.freeze({ id: 'card.aim', key: 'aim', title: 'Aimed', ids: Object.freeze(['A1', 'A2']) }),
-  Object.freeze({ id: 'card.pistol', key: 'pistol', title: 'Pistol aimed', ids: Object.freeze(['P1', 'P2']) }),
+  Object.freeze({ id: 'card.gun', key: 'gun', title: 'Card gun', ids: Object.freeze(['G2', 'G1', 'G3']), rated: true }),
+  Object.freeze({ id: 'card.unread', key: 'unread', title: 'Hands not read', ids: Object.freeze(['V3', 'V1']) }),
+  Object.freeze({ id: 'card.aim', key: 'aim', title: 'Aimed', ids: Object.freeze(['A3', 'A2']) }),
+  Object.freeze({ id: 'card.pistol', key: 'pistol', title: 'Pistol aimed', ids: Object.freeze(['P3', 'P1']) }),
 ]);
 
 /** This browser's picks (see the header). */
@@ -53,9 +60,13 @@ export const AID_SETTINGS = Object.freeze(['rung', 'always', 'off']);
 /** The walk cycles (VIEWS §3.10.4). */
 export const WALK_IDS = Object.freeze(['A', 'B', 'C']);
 /** v0.0.24: the gallery set each row tries (no voices' row: the user's "no voices" of 2026-11-19), and the sets the user has rated (their picks of 2026-11-19, samples' "scored"; the voices, scored then, are gone with the synthesis in v0.0.24). */
-export const ROW_SETS = Object.freeze({ stack: 'house-stack-figures', helm: 'helmets', walk: 'walk', shot: 'audio', jamb: 'marks', 'card.gun': 'portrait-gun', 'card.unread': 'portrait-gun', 'card.aim': 'portrait-pose', 'card.pistol': 'portrait-pose' });
-export const RATED_SETS = Object.freeze(['helmets', 'walk', 'marks', 'held-devices', 'opfor-look', 'p12-card', 'p12-draw', 'house-light', 'wcard2']);
-/** Whether a row is rated (see above): its set scored, or a row of rated sets drawn as built (`rated`); the corner aid (a setting) never. */
+// (the hands not read are portrait-light's V, not portrait-gun's (a finding of the triage); the sets the user scored on
+// 2026-11-20 whose every group is decided join RATED_SETS, among them the stack's figures (S1 and S5 joined, STACK_DRAWN_AS) and the
+// shot (A5, the R-7 rebuilt: "Better"))
+export const ROW_SETS = Object.freeze({ stack: 'house-stack-figures', helm: 'helmets', walk: 'walk', shot: 'audio', jamb: 'marks', 'card.gun': 'portrait-gun', 'card.unread': 'portrait-light', 'card.aim': 'portrait-pose', 'card.pistol': 'portrait-pose' });
+export const RATED_SETS = Object.freeze(['helmets', 'walk', 'marks', 'held-devices', 'opfor-look', 'p12-card', 'p12-draw', 'house-light', 'wcard2',
+  'breach-poses', 'portrait-faces', 'house-stack-figures', 'doll-gear', 'float-look', 'mag-boots', 'portrait-suit', 'target-view', 'house-unknown', 'truth-cards', 'audio', 'void-look']);
+/** Whether a row is rated (see above): its set scored, or a row rated of its own (`rated`: the sets drawn as built, a card's group scored); the corner aid (a setting) never. */
 export const ratedRow = (row) => row.rated === true || RATED_SETS.includes(ROW_SETS[row.id]);
 /**
  * The gallery's sets the game draws as built, scored as seen: those still waiting (on top, with every waiting set no other row tries)
@@ -64,10 +75,14 @@ export const ratedRow = (row) => row.rated === true || RATED_SETS.includes(ROW_S
  * portrait-faces, made by its stage 0) lead the waiting row, the ones to score first (its build sheet §10). v0.0.26: "Bang, then
  * go"'s set (breach-poses, the role-player dazed and cowering, made by its stage 0) leads it (its build sheet §2 step 7, §10).
  * v0.0.27: "Away the boarding party"'s three sets (hauler-deck, belt-crew, board-poses, made by its stage 0) lead it (its build sheet
- * §0 item 27, §10), each drawn at its default until scored.
+ * §0 item 27, §10), each drawn at its default until scored. v0.0.28 (the user's picks of 2026-11-20): the sets sent back with new
+ * pictures lead, in the gallery's order (samples/to-score.js toScore: their sample.json's rank, the side card first, "I need you to
+ * be serious about this"), then "The window and the canopy"'s set (armoury-day, the window, you at the bench, the mat and the card's
+ * dirt, made by its stage 0; its build sheet §10 put it first, the integration put it after the user's sent-back sets, the gallery's
+ * own order, my call), then v0.0.27's three; the eleven sets scored whole fold under "Already rated" (the user's rule of 2026-11-19).
  */
-export const DRAWN_WAITING = Object.freeze(['hauler-deck', 'belt-crew', 'board-poses', 'breach-poses', 'wreck-faces', 'portrait-faces', 'doll-gear', 'target-view', 'truth-cards', 'portrait-facing', 'portrait-light', 'portrait-suit', 'pistol-stances', 'house-unknown', 'float-look', 'mag-boots', 'void-look']);
-export const DRAWN_RATED = Object.freeze(['wcard2', 'opfor-look']);
+export const DRAWN_WAITING = Object.freeze(['portrait-facing', 'portrait-pose', 'portrait-gun', 'portrait-light', 'pistol-stances', 'corner-aid', 'wreck-faces', 'armoury-day', 'belt-crew', 'board-poses', 'hauler-deck']);
+export const DRAWN_RATED = Object.freeze(['wcard2', 'opfor-look', 'breach-poses', 'portrait-faces', 'doll-gear', 'target-view', 'truth-cards', 'house-unknown', 'float-look', 'mag-boots', 'void-look', 'portrait-suit']);
 /** The rows (see the header): { id, title, ids, multi?, words (an id's words), struck? (an id the stage does not draw: why), scored (false: a setting) }. */
 export const ROWS = Object.freeze([
   Object.freeze({ id: 'stack', title: 'The stack\'s figures', ids: STACK_IDS, multi: true, words: (id) => id, struck: (id) => (STACKS[id]?.page ? 'the gallery' : null) }),
@@ -75,7 +90,7 @@ export const ROWS = Object.freeze([
   Object.freeze({ id: 'walk', title: 'The walk', ids: WALK_IDS, words: (id) => id }),
   Object.freeze({ id: 'shot', title: 'The shot', ids: SHOT_IDS, words: (id) => id }),
   Object.freeze({ id: 'jamb', title: 'The room\'s mark', ids: JAMB_IDS, words: (id) => id }),
-  ...CARD_PICKS.map(c => Object.freeze({ id: c.id, title: c.title, ids: c.ids, words: (id) => id, card: c.key })),
+  ...CARD_PICKS.map(c => Object.freeze({ id: c.id, title: c.title, ids: c.ids, words: (id) => id, card: c.key, ...(c.rated ? { rated: true } : {}) })),
   Object.freeze({ id: 'aid', title: 'Corner aid', ids: AID_SETTINGS, words: (id) => ({ rung: 'by rung', always: 'always', off: 'off' }[id]), scored: false }),
   Object.freeze({ id: 'drawn', title: 'As the game draws them', ids: DRAWN_WAITING, words: (id) => id, seen: true }),
   Object.freeze({ id: 'drawnRated', title: 'As the game draws them', ids: DRAWN_RATED, words: (id) => id, seen: true, rated: true }),

@@ -15,7 +15,7 @@ import { assert } from './helpers.mjs';
 import { faceCard, FACE_CARDS, tumbleFrame } from '../src/art/figures/poses.js';
 import { FACE_QUARTERS, ON_FACES, STAGE_TURNS, rollOf } from '../src/data/faces.js';
 import { TURN as SAMPLE_TURN } from '../samples/wreck-faces/faces.js';
-import { heightLookOf, liftOf, faceTurnFrame, cardTurn, turnPixels, wallHOf, FLOAT_SCALE_K, FLOAT_SCALE_FROM_M, FACE_TURN_SHARES } from '../src/render/faces.js';
+import { heightLookOf, liftOf, faceTurnFrame, cardTurn, turnPixels, wallHOf, FLOAT_SCALE_K, FLOAT_SCALE_FROM_M, FLOAT_LOOK, OVERHEAD_LOOK, FACE_TURN_SHARES } from '../src/render/faces.js';
 import { turnerPixels, boardPixels, popupPixels, overheadPixels, turnerAt } from '../src/render/range-items.js';
 import { FREEFALL } from '../src/data/body/needs.js';
 import { WALL_H_M } from '../src/sim/places/plan.js';
@@ -85,7 +85,7 @@ export default [
     },
   },
   {
-    name: "a board on a face is turnerPixels' own list turned by the face's quarters about its centre (every pixel moved, none added or lost, each on the half-pixel grid); a pop-up rises from flat by its facingK; its footprint dashed under the deckhead only",
+    name: "a board on a face is turnerPixels' own list turned by the face's quarters about its centre (every pixel moved, none added or lost, each on the half-pixel grid); a pop-up rises from flat by its facingK; its footprint dashed under the deckhead only under K-b (v0.0.28: K-a, none)",
     fn() {
       const t = { key: 'h1', face: 'paper', holds: 'rifle', x: 64.6, z: 2.4, y: 1.3, facingK: 1, holes: [{ xCm: 3, yCm: -5, zone: 'A', ring: false, atMs: 100 }] };
       const base = turnerPixels(t, 1000, PPM, G);
@@ -106,16 +106,23 @@ export default [
           assert(list.every((p, i) => { const l = base[i].z - ta.z; return near(p.x, base[i].x, 1e-9) && near(p.y - l, 2 * cy - (base[i].y - l), 1e-9); }), face);
         }
       }
-      // (a pop-up: flat, a row; half up, half the face's rows; up, turnerPixels' own)
-      const rows = (l) => new Set(l.map(p => Math.round(p.y * PPM * 2))).size;
-      const pf = [0, 0.25, 0.5, 1].map(k => popupPixels(t, k, 1000, PPM, G));
-      console.log(`      a pop-up's rows at 0, 0.25, 0.5, 1 up: ${pf.map(rows).join(', ')} (the face ${ta.h} rows)`);
+      // (a pop-up, P-a hinged: flat, a row; half up, half the face's rows; up, turnerPixels' own)
+      const rows = (l) => new Set(l.filter(p => !p.slot).map(p => Math.round(p.y * PPM * 2))).size;
+      const pf = [0, 0.25, 0.5, 1].map(k => popupPixels(t, k, 1000, PPM, G, 'P-a'));
+      console.log(`      a hinged pop-up's (P-a) rows at 0, 0.25, 0.5, 1 up: ${pf.map(rows).join(', ')} (the face ${ta.h} rows)`);
       assert(rows(pf[0]) === 1 && rows(pf[2]) === Math.round(ta.h / 2) && pf[3].length === base.length, JSON.stringify(pf.map(rows)));
-      assert(boardPixels({ ...t, pop: true, facingK: 0.5 }, 1000, PPM, G).length === pf[2].length, 'boardPixels draws a pop-up by its facingK');
       // (its base where it stands: the lowest row the same at any rise)
       assert(near(Math.min(...pf[1].map(p => p.y)), Math.min(...base.filter(p => !p.noLine).map(p => p.y)), 1e-9), 'the pop-up hinged at its base');
+      // (v0.0.28, P-b, the user's star of 2026-11-20, the game's: sliding from its slot, down none of the board but the slot's row, half
+      // up the face's top half at its own size on the base, up turnerPixels' own with no slot)
+      const ps = [0, 0.5, 1].map(k => popupPixels(t, k, 1000, PPM, G));
+      console.log(`      a sliding pop-up's (P-b) board rows at 0, 0.5, 1 up: ${ps.map(rows).join(', ')}, slot pixels ${ps.map(l => l.filter(p => p.slot).length).join(', ')}`);
+      assert(rows(ps[0]) === 0 && ps[0].length && ps[0].every(p => p.slot) && rows(ps[1]) === Math.round(ta.h / 2) && ps[2].length === base.length && !ps[2].some(p => p.slot), JSON.stringify(ps.map(rows)));
+      assert(near(Math.min(...ps[1].filter(p => !p.slot).map(p => p.y)), Math.min(...base.filter(p => !p.noLine).map(p => p.y)), 1e-9), 'the pop-up slides out on its base');
+      assert(boardPixels({ ...t, pop: true, facingK: 0.5 }, 1000, PPM, G).length === ps[1].length, 'boardPixels draws a pop-up by its facingK');
       const oh = overheadPixels({ ...t, onFace: 'deckhead' }, PPM);
-      assert(oh.length > 0 && oh.every(p => p.y < 0.02) && overheadPixels(t, PPM).length === 0 && overheadPixels({ ...t, onFace: 'dorsal' }, PPM).length === 0, `overhead ${oh.length}`);
+      // (v0.0.28: K-a, the user's star of 2026-11-20, the projection alone: no footprint dashed under the deckhead; K-b drew one)
+      assert((OVERHEAD_LOOK === 'K-a' ? oh.length === 0 : oh.length > 0 && oh.every(p => p.y < 0.02)) && overheadPixels(t, PPM).length === 0 && overheadPixels({ ...t, onFace: 'dorsal' }, PPM).length === 0, `overhead ${oh.length} (${OVERHEAD_LOOK})`);
       console.log(`      the deckhead's footprint ${oh.length} dashes on the deck`);
     },
   },
@@ -137,7 +144,7 @@ export default [
     },
   },
   {
-    name: 'heightLookOf is one value for a planted and a floating body at one height, read from the lift over a standing man (floatY − FLOAT_Y_M): a floater at floatY 1.0 at the deck\'s height as today, at 1.6 raised 0.6 m and scaled 1.25; the floor `a.y` never read',
+    name: 'heightLookOf is one value for a planted and a floating body at one height, read from the lift over a standing man (floatY − FLOAT_Y_M): a floater at floatY 1.0 at the deck\'s height as today, at 1.6 raised 0.6 m (v0.0.28, F-a, the user\'s star: no scale step, v0.0.24\'s 1.25 retired); the floor `a.y` never read',
     fn() {
       const F = FREEFALL.FLOAT_Y_M;
       assert(F === 1.0, `FLOAT_Y_M ${F}`);
@@ -146,12 +153,12 @@ export default [
         const a = fy === undefined ? { y: 0.7 } : { floatY: fy, y: 0 }, L = liftOf(a), H = heightLookOf(L);
         rows.push(`floatY ${fy ?? '-'} lift ${L.toFixed(2)} scale ${H.scaleK} blob ${H.blob.k.toFixed(3)}/${H.blob.alpha.toFixed(3)}`);
         assert(L === (fy === undefined ? 0 : Math.max(0, fy - F)), JSON.stringify({ fy, L }));
-        assert(H.scaleK === (L > FLOAT_SCALE_FROM_M ? FLOAT_SCALE_K : 1), JSON.stringify({ L, H }));
+        assert(H.scaleK === (FLOAT_LOOK === 'F-b' && L > FLOAT_SCALE_FROM_M ? FLOAT_SCALE_K : 1), JSON.stringify({ L, H }));
       }
       console.log(`      ${rows.join('; ')}`);
       assert(heightLookOf(liftOf({ floatY: 1.0 })).scaleK === 1 && liftOf({ floatY: 1.0 }) === 0, 'a floater at FLOAT_Y_M: the deck\'s height');
       const up = heightLookOf(liftOf({ floatY: 1.6 }));
-      assert(near(up.blob.liftM, 0.6, 1e-9) && up.scaleK === 1.25, JSON.stringify(up));
+      assert(near(up.blob.liftM, 0.6, 1e-9) && up.scaleK === 1 && FLOAT_LOOK === 'F-a', JSON.stringify(up));
       // (one value at one height, whoever asks: planted or floating is the caller's, the look the height's)
       const P = heightLookOf(liftOf({ floatY: 1.2, onFace: 'deckhead' })), Q = heightLookOf(0.2);
       assert(P.scaleK === Q.scaleK && near(P.blob.k, Q.blob.k, 1e-12) && near(P.blob.alpha, Q.blob.alpha, 1e-12), 'planted and floating alike');

@@ -5,7 +5,8 @@
 // D-a, the doll's own wall, is the default until the user scores the set, and is the very doll v0.0.23 drew (the same Pixmap, so the
 // bay's cards are byte for byte as before); D-b the place's tones, D-c with a rim of the place's light on the suit, each the sample's
 // own picture pixel for pixel, so a score is the one pick (PORTRAIT_PICKS.suit). Without the change no ground but the doll's could
-// be drawn. Prints the pixels each ground changes and the rim's count.
+// be drawn. Prints the pixels each ground changes and the rim's count. v0.0.28 (the user's star of 2026-11-20 on D-b): the place's
+// backdrop is the default, the very picture D-b's sample draws; D-a stays the doll itself, asked by name.
 import { assert } from './helpers.mjs';
 import { dressedDoll } from '../src/art/doll/dress.js';
 import { DOLL_SCALE } from '../src/art/doll/doll.js';
@@ -17,13 +18,16 @@ const hexOf = (v) => ((v & 0xff) << 16) | (v & 0xff00) | ((v >>> 16) & 0xff);
 
 export default [
   {
-    name: 'the I and C cards\' ground by the place as portrait-suit draws it: D-a (the default) the very doll v0.0.23 drew, D-b and D-c the sample\'s pictures pixel for pixel in the shoot house, the bay and the street',
+    name: 'the I and C cards\' ground by the place as portrait-suit draws it: D-b (the default from v0.0.28, the user\'s star) and D-c the sample\'s pictures pixel for pixel in the shoot house, the bay and the street, D-a the very doll v0.0.23 drew',
     fn() {
       const out = [], bad = [];
-      assert(PORTRAIT_PICKS.suit === 'D-a', PORTRAIT_PICKS.suit);
+      // (v0.0.28: D-b the default, the user's star of 2026-11-20; was D-a)
+      assert(PORTRAIT_PICKS.suit === 'D-b', PORTRAIT_PICKS.suit);
       for (const [label, gear] of FIGS) for (const place of Object.keys(SUIT_PLACES)) {
         const pm = dressedDoll(gear, PERSON, DOLL_SCALE);
-        if (cardBackdrop(pm, DOLL_SCALE, place) !== pm) bad.push(`${label} ${place}: D-a is not the doll itself`);
+        if (cardBackdrop(pm, DOLL_SCALE, place, 'D-a') !== pm) bad.push(`${label} ${place}: D-a is not the doll itself`);
+        const def = cardBackdrop(pm, DOLL_SCALE, place), b = cardBackdrop(pm, DOLL_SCALE, place, 'D-b');
+        if (def === pm || def.data.some((v, i) => v !== b.data[i])) bad.push(`${label} ${place}: the default is not D-b`);
         for (const look of ['D-b', 'D-c']) {
           const mine = cardBackdrop(pm, DOLL_SCALE, place, look), { P, rim } = dollIn(gear, place, look);
           let differ = 0, changed = 0;

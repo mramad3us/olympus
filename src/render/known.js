@@ -1,8 +1,8 @@
 // OLYMPUS render: the known cells, what of an unfamiliar place the stage may draw (the build sheet v0.0.23 item 7, §0 items 20 and 35; VIEWS §2.11; the user, 2026-11-17: "we see what is in the rooms before entering them, this should not be the case when we start generating procedurally").
 //
 // The fog of awareness (src/render/fog.js) dims what you cannot see now; it draws everything. In a place you do not know
-// (src/sim/places/known.js familiarOf: the shoot house drawn from the seed, on its own lane area) a cell never in sight is not
-// drawn at all: the post pass paints it UNKNOWN_C (U1, black, `samples/house-unknown`'s default until the user scores it), its
+// (src/sim/places/known.js familiarOf: from v0.0.28 every combat scene, its walls briefed, its rooms' insides not) a cell never in
+// sight is not drawn at all: the post pass paints it the unknown's look (U2, the user's star: hatched; U1 was black), its
 // floor, its walls, its things and its people with it. A cell is known from its first frame in sight (perception's visibility
 // above 0 at its centre, the fog's own wanted mask, given to see() at each recompute) and stays known, drawn as last seen (the
 // fog's dim, as today), so nothing pops while playing; the fog's eased red channel fades the cell in. The cells round a cell in
@@ -19,7 +19,9 @@
 //
 // v0.0.25 (the build sheet item 9, §3.4; PC§4; the user, 2026-11-19: "we shouldn't know what's behind closed doors or walls
 // without looking"): a place briefed by its plan (a scene's familiar 'walls', the Wreck's: sim/places/known.js footprintOf's
-// `walls`, every wall's rect) has every wall cell and its ring (WALL_CELLS) known at the start, and every cell in no room of the
+// `walls`, every wall's rect) has every wall cell known at the start (from v0.0.28 the cells the wall's rect touches, WALL_PAD_M, not
+// its ring of WALL_CELLS, which let a board against a wall show; and the cells its doors' and hatches' leaves touch, `doors`),
+// and every cell in no room of the
 // area (the hull between two decks), the floors not: a blueprint whose compartments fill in as you look into them, a cell deck to
 // deckhead, one bit.
 // On the GPU the cells are one bit each, eight to a byte of a one-channel texture (`mask`: w × h bytes, w = ceil(nx / 8); the
@@ -29,10 +31,21 @@
 // in a room never seen is black and the wall's face toward a known hall is drawn.
 // Pure: no DOM, no three.js (node tests drive it; the view wraps `mask` in its texture).
 
-/** U1 (black), the unknown's colour until `samples/house-unknown` is scored; the ship switch (false: today's dimmed picture everywhere). */
-export const UNKNOWN_C = 0x000000, UNKNOWN_HIDDEN = true;
+/**
+ * The unknown's look (samples/house-unknown U, the user's star of 2026-11-20: U2): its ground at the dark's level, UNKNOWN_C, and a
+ * line of the fog's felt tint (post.js feltTint's cold pale blue, HATCH_C) every HATCH_EVERY pixels along the picture's diagonal, so
+ * a room you have not seen into reads as "known to be there, not seen", apart from the black of the void; U1 was black, flat. The
+ * ship switch UNKNOWN_HIDDEN (false: today's dimmed picture everywhere).
+ */
+export const UNKNOWN_LOOK = 'U2', UNKNOWN_C = 0x0b0c10, HATCH_C = 0x2b3546, HATCH_EVERY = 5, UNKNOWN_HIDDEN = true;
+/** The hatch the post pass draws (post.js setFog's known.hatch): null for U1's flat colour. */
+export const UNKNOWN_HATCH = UNKNOWN_LOOK === 'U2' ? Object.freeze({ colour: HATCH_C, every: HATCH_EVERY }) : null;
+/** Whether a picture's pixel (0xrrggbb) is the unknown's (its ground or its hatch): the tests' read. */
+export const isUnknownPx = (c) => (c & 0xffffff) === UNKNOWN_C || (!!UNKNOWN_HATCH && (c & 0xffffff) === UNKNOWN_HATCH.colour);
 /** The cells round a known room's rect (its walls, astride its lines: WALL_T_M 0.16 m, inside one 0.25 m cell) and the footprint's outer band inside its rect. */
 export const WALL_CELLS = 1;
+/** A briefed wall's cells (footprint.walls): every cell its rect touches, the rect grown by this (m: its faces' pixels read the cell at the face). */
+export const WALL_PAD_M = 0.02;
 /** The ring of cells known with a cell in sight (its walls: a wall's cell is solid on the sight grid, so never in sight itself). */
 export const SEE_RING = 1;
 
@@ -51,6 +64,13 @@ export function createKnown({ cellM = 0.25 } = {}) {
     cells[c] = 1; count++;
     packed[j * Math.ceil(nx / 8) + (i >> 3)] |= 1 << (i & 7);
     return true;
+  }
+  // (every cell the rect touches, grown by `pad` metres: a briefed wall's own cells, its faces' with them, and no cell of floor past
+  // them, so a board 0.3 m off a wall stays unknown (v0.0.28: the ring of WALL_CELLS, a cell's centre within 0.33 m of the wall's
+  // line, let a stand against a wall show through the brief))
+  function markTouch([rx0, rz0, rx1, rz1], pad = WALL_PAD_M) {
+    const i0 = Math.floor((rx0 - pad - x0) / cellM), i1 = Math.floor((rx1 + pad - x0) / cellM), j0 = Math.floor((rz0 - pad - z0) / cellM), j1 = Math.floor((rz1 + pad - z0) / cellM);
+    for (let j = Math.max(0, j0); j <= Math.min(nz - 1, j1); j++) for (let i = Math.max(0, i0); i <= Math.min(nx - 1, i1); i++) mark(i, j);
   }
   // (every cell whose centre lies in the rect, grown by `grow` cells on each side)
   function markRect([rx0, rz0, rx1, rz1], grow = 0) {
@@ -82,7 +102,10 @@ export function createKnown({ cellM = 0.25 } = {}) {
       for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) if (i < fi0 || i > fi1 || j < fj0 || j > fj1) mark(i, j);
       for (const r of footprint.fixed ?? []) markRect(r, WALL_CELLS);
       // (the plan's walls, briefed (see the header); no `walls` on every shipped scene's footprint)
-      for (const r of footprint.walls ?? []) markRect(r, WALL_CELLS);
+      for (const r of footprint.walls ?? []) markTouch(r);
+      // (and the plan's doors and bulkhead hatches with them: the leaf's strip across each (known.js doorRectsOf), so a shut door is
+      // drawn where it stands from the start, not a gap between two known jambs)
+      for (const r of footprint.doors ?? []) markTouch(r);
       // (and under the plan's walls every cell whose centre lies in no room of the area: the hull between the Wreck's decks, 51 m of
       // no compartment inside the footprint's rect, was the unknown's black slab beside the deck in every frame (the review of C and
       // D); only a compartment's floor waits for your eyes)

@@ -6,7 +6,8 @@
 // WALL_CELLS, D's) is emulated here by handing the walls to begin as `fixed` parts, which begin marks with the same WALL_CELLS ring:
 // at the start every wall cell is known and no compartment's floor is; a cell in sight is known from then on; from deck 5's passage
 // nothing of deck 6 is ever in sight (perception's visibility, the fog's own function, is 0 at every cell of the other deck), nor the
-// other way after the trunk; and every shipped scene's familiarity and footprint are what they were (no `walls` key off the Wreck).
+// other way after the trunk; and every shipped scene's familiarity and footprint are as its intel says (v0.0.28: the house's walls
+// briefed, set or drawn, as the Wreck's).
 // The scene is not this role's, so the rule is passed in (sceneFamiliar's shape); the scene-borne rule is checked by C's suites.
 import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
@@ -55,9 +56,10 @@ export default [
       assert(fam.wreck === false && fam.wellA && fam.wheel && fam.none, fmt(fam));
       const b = WRECK.boundsM;
       assert(fp && fmt(fp.rect) === fmt([b.x0, b.z0, b.x1, b.z1]) && fp.fixed.length === 0 && fp.walls.length === runs.length, fmt(fp));
-      // (the world is carried aboard from the house's fill, so its scene's own rule is the house's 'set': the Wreck familiar by it, no footprint off the lane)
+      // (the world is carried aboard from the house's fill, so its scene's own rule is the house's: from v0.0.28 'walls' on the house's
+      // own area (the intel, the user's note of 2026-11-20), the Wreck familiar by it, no footprint off the lane)
       const own = KNOWN.sceneFamiliar(s);
-      assert(KNOWN.footprintOf(s, null) === null && own?.familiar === 'set' && KNOWN.familiarOf(s, WRECK_ID), fmt({ own, fp: KNOWN.footprintOf(s, null) }));
+      assert(KNOWN.footprintOf(s, null) === null && own?.familiar === 'walls' && own.area === 'melas.wheel.s4' && KNOWN.familiarOf(s, WRECK_ID), fmt({ own, fp: KNOWN.footprintOf(s, null) }));
     },
   },
   {
@@ -90,7 +92,7 @@ export default [
     },
   },
   {
-    name: 'every shipped scene\'s knowledge is what it was: the house as set familiar, the house drawn not (its footprint with no walls key), the void range and the barracks familiar with no footprint',
+    name: 'every shipped scene\'s knowledge (v0.0.28, the intel: the user\'s note of 2026-11-20, "the layout would be known most of the time"): the house as set and drawn both unfamiliar with their walls briefed (the footprint\'s walls key), the void range and the barracks familiar with no footprint',
     fn() {
       const rows = [];
       for (const [scenario, opts] of [['test-shoothouse', {}], ['test-shoothouse', { draw: 'drawn' }], ['test-anchors', {}], ['barracks', {}]]) {
@@ -99,7 +101,8 @@ export default [
       }
       for (const r of rows) console.log(`      ${r.scenario}: ${r.area}, rule ${r.rule}, familiar ${r.fam}, footprint ${r.fp}`);
       const [set, drawn, anchors, barracks] = rows;
-      assert(set.fam && set.fp === 'rect+fixed' && !drawn.fam && drawn.fp === 'rect+fixed' && anchors.fam && anchors.fp === null && barracks.fam && barracks.fp === null, fmt(rows));
+      // (the review of the picks: the doors and bulkhead hatches are briefed with the walls, the footprint's `doors`)
+      assert(!set.fam && set.fp === 'rect+fixed+walls+doors' && set.rule === 'walls' && !drawn.fam && drawn.fp === 'rect+fixed+walls+doors' && anchors.fam && anchors.fp === null && barracks.fam && barracks.fp === null, fmt(rows));
     },
   },
 ];

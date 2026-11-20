@@ -31,7 +31,8 @@ const lumOf = (c) => 0.299 * ((c >> 16) & 255) + 0.587 * ((c >> 8) & 255) + 0.11
 
 /** F120 for one record and its doll: { ok, want, got } (pm.pose: the doll's drawn pose, facing and hold). picks: { back, side }. */
 export function facingDrawn(rec, pm, picks = { back: 'F1', side: 'F3' }) {
-  const want = rec.facing === 'back' ? (picks.back === 'F1' ? 'back' : 'front') : rec.facing === 'left' || rec.facing === 'right' ? (picks.side === 'F2' ? 'profile' : rec.facing) : 'front';
+  // (v0.0.28, F4: side on, a true profile facing his side, 'sideL' or 'sideR' (src/art/doll/side.js))
+  const want = rec.facing === 'back' ? (picks.back === 'F1' ? 'back' : 'front') : rec.facing === 'left' || rec.facing === 'right' ? (picks.side === 'F2' ? 'profile' : picks.side === 'F4' ? (rec.facing === 'left' ? 'sideL' : 'sideR') : rec.facing) : 'front';
   const got = pm?.pose?.facing ?? 'front';
   return { ok: got === want, want, got };
 }

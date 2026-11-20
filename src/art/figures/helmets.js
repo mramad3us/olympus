@@ -460,7 +460,8 @@ export function helmOf(h) {
 // outfits.js wear() for the world's figures and by the doll (doll.js, through helmFor) for the I and C cards, the target view
 // and the hit card's man, the faction's trim from the man's own (the Corps' Mars red). STACK_DRAWN_AS likewise holds the stack's
 // marks picked from the sample (samples/house-stack-figures: S1 a lit edge, S2 a visor per man, S3 the Navy's red tape on your
-// #2; S4 and S5 are the stage's, not the figure's, and are drawn by the sample only). The Esc menu's To score page tries any of
+// #2; S4 and S5 are the stage's, not the figure's: S4 is drawn by the sample only, S5's shadow by the stage for every man from
+// v0.0.28). The Esc menu's To score page tries any of
 // them live (state.$look, src/ui/cards/topick.js): lookPicked() is what the stage draws your and your #2's look with.
 /**
  * The helmet the game draws by kind of man (an id of HELMS; null would be the sealed head as built). Not frozen: the pick is this
@@ -475,8 +476,13 @@ export function helmOf(h) {
 export const HELMET_DRAWN_AS = { regular: 'R3', elite: 'E1', opa: 'O2' };
 /** A unit's own regular helmet, R2 or R4, over HELMET_DRAWN_AS.regular (the user's "R2, R3 and R4 are very good for military"): none set yet. */
 export const HELMET_BY_UNIT = Object.freeze({});
-/** The stack's marks the game draws (ids of STACKS), none until the user picks (not frozen, as HELMET_DRAWN_AS). */
-export const STACK_DRAWN_AS = [];
+/**
+ * The stack's marks the game draws (ids of STACKS; not frozen, as HELMET_DRAWN_AS). v0.0.28 (the user's stars of 2026-11-20 on
+ * samples/house-stack-figures, S-b and S-f, joined as the sample offers): S1, a lit edge on each leg, boot and far arm of the black
+ * suit, on you and your #2; S5, a cast shadow under each man in place of the blob, is the stage's (render/figures.js, built by the
+ * round's R4 for every man standing on the floor), so it adds no mark here.
+ */
+export const STACK_DRAWN_AS = ['S1', 'S5'];
 const GOLD = 0xb08a3a, NAVY_RED = 0xc8453c, RIM = 0x80868f;
 /** The stack's mark candidates (samples/house-stack-figures' S1 to S5): each man's look.mark [yours, your #2's]; page: drawn by the sample's page alone (the stage's rules, not the figure's). */
 export const STACKS = Object.freeze({

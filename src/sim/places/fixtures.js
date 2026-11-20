@@ -60,12 +60,16 @@
 // wall pieces, chairs, stools, stairs and lamp posts none). `cost` is the nav cost of the cells it
 // stands on (stairs 15, PLACES §2.1), where it does not block.
 //
+// v0.0.28 ("The window and the canopy", its build sheet §1 C) adds the armoury's: the issue window (its counter straddling the wall line,
+// the customer beside it and the armourer behind it), the clearing barrel, the cleaning table, the solvent tank and the air hose's reel,
+// their spots from src/data/places/armoury.js's offsets; armouryPlaceOf reads any of the scene's places by id from the same index.
 // seatOf, berthOf and postOf read every area's data (src/sim/places/areas.js), built into an index
 // on first use: a rack lists its berths (billets of its room's owner, lower first, null a spare) and
 // each berth's locker and footlocker, so a person's berth is found from data alone (PEOPLE §3.2).
 // Pure.
 
 import { AREA_LIST } from './areas.js';
+import { CUSTOMER_M, STAFF_M, BARREL_SPOT_M, TABLE_SPOTS_M, FRONT, PORCH, ARM_RANK, CANOPY } from '../../data/places/armoury.js';
 
 const S = (n, dx, dz, use, face = 'up') => Object.freeze({ n, dx, dz, use, face });
 const K = (w, d, h, block, wall, uses, spots = [], mount = null, more = {}) => Object.freeze({ w, d, h, block, wall, mount, uses: Object.freeze(uses), spots: Object.freeze(spots), seats: Object.freeze(more.seats ?? []), sightH: more.sightH ?? (mount === 'wall' ? 0 : h), cost: more.cost ?? null });
@@ -140,6 +144,17 @@ export const CATALOGUE = Object.freeze({
   // bulkhead beside the inner hatch (amber while the lock cycles). Drawn by the kit's stand-ins until E's makers (art/kit/belt.js))
   berthBox: K(2.0, 0.9, 2.4, true, true, ['sleep', 'store']),
   lockPanel: K(0.3, 0.05, 0.4, false, true, ['work'], [], 'wall'),
+  // ("The window and the canopy" (its build sheet §1 C, item 19; PLACES §4.2, §4.6): the armoury's two issue windows, the porch's
+  // clearing barrels and the canopy's tables, solvent tanks and air hoses, placed by src/data/places/armoury.js, whose offsets give the
+  // spots: an issue window's counter straddles the wall line, its customer beside it on the apron (#1, facing the wall) and the armourer
+  // behind it in the bay (#2, 'staff', facing out); a barrel's spot on its north side facing south over the drum; a table's four, two a
+  // side, 0.875 m out from its middle. No activity is done at 'issue', 'clear' or 'clean' this round (ROWS names none: the scene's rows
+  // take R, the sheet's §0 item 13). The tanks and hoses hide nobody (sightH 0); the table and the barrel hide below their tops)
+  issueWindow: K(1.2, 0.6, 1.1, true, true, ['issue'], [S(1, CUSTOMER_M[0], CUSTOMER_M[1], 'issue', 'up'), S(2, STAFF_M[0], STAFF_M[1], 'staff', 'down')]),
+  clearingBarrel: K(0.6, 0.6, 1.0, true, false, ['clear'], [S(1, BARREL_SPOT_M[0], BARREL_SPOT_M[1], 'clear', 'down')]),
+  cleanTable: K(2.4, 0.9, 0.9, true, false, ['clean'], TABLE_SPOTS_M.map(([dx, dz, face], i) => S(i + 1, dx, dz, 'clean', face))),
+  solventTank: K(0.6, 0.6, 1.0, true, false, ['solvent'], [], null, { sightH: 0 }),
+  airHose: K(0.3, 0.3, 1.6, true, false, ['air'], [], null, { sightH: 0 }),
 });
 
 /** The catalogue's kinds, in its order. */
@@ -336,3 +351,28 @@ export const berthOf = (unitId, billet) => indexOf().byUnit.get(unitId)?.get(bil
 
 /** A post by its id ('fire-watch:2/4-E-2'): { id, unitId, area, seatId } | null. */
 export const postOf = (postId) => indexOf().posts.get(postId) ?? null;
+
+/**
+ * A place of "The window and the canopy" by its id, in the ground's frame (the build sheet v0.0.28 §3.3): { x, z, face }. A spot
+ * ('f:armoury:window-1#2', 'f:canopy:t3#1': spotsOf on the ground's fixture), a fixture ('f:armoury:barrel-w': its middle and
+ * facing), a rank place ('arm:rank:you', 'arm:rank:1' to '12': src/data/places/armoury.js ARM_RANK) or the rack ('arm:rack'); the one
+ * reader the scene uses for every ring and spot. Throws on an id it does not know (a missing value throws).
+ */
+export function armouryPlaceOf(id) {
+  if (id === 'arm:rack') return { x: FRONT.rack.x, z: FRONT.rack.z, face: 'down' };
+  const r = ARM_RANK.find(p => p.id === id);
+  if (r) return { x: r.x, z: r.z, face: r.face };
+  const m = /^(.*)#([0-9]+)$/.exec(id ?? ''), fxId = m ? m[1] : id;
+  if (/^f:(armoury|canopy):/.test(fxId ?? '')) {
+    const hit = indexOf().fixtures.get(fxId);
+    if (hit && !m) return { x: hit.fx.x, z: hit.fx.z, face: hit.fx.face ?? 'down' };
+    const s = hit ? spotsOf(hit.fx).find(p => p.id === id) : null;
+    if (s) return { x: s.x, z: s.z, face: s.face };
+  }
+  throw new Error(`places: no armoury place '${id}' (a window's, barrel's or table's spot, ${ARM_RANK.length} rank places, 'arm:rack')`);
+}
+/** Every armoury place's id, in order: the windows' spots, the barrels', the rank's, the tables' (the tests walk it). */
+export const ARMOURY_PLACE_IDS = Object.freeze([
+  ...FRONT.windows.flatMap(w => [`${w.id}#1`, `${w.id}#2`]), ...PORCH.barrels.map(b => `${b.id}#1`), ...ARM_RANK.map(p => p.id),
+  ...CANOPY.tables.flatMap(t => [1, 2, 3, 4].map(n => `${t.id}#${n}`)),
+]);

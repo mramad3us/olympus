@@ -30,17 +30,17 @@ const DF_TABLE = Object.freeze([
   ['friend down, then a pair at him missed, H 13', 61, 0.9, true, [55, 25, 20, 0]],
   ['the same, H 19', 55, 0.9, true, [60, 25, 15, 0]],
 ]);
-const SHARES = ['fight', 'cover', 'freeze', 'surrender'];
+const SHARES = ['fight', 'cover', 'freeze', 'give'];
 
 // (the d20 enumerated with the code's constants: the nerve check's DC and modifier, checks.js grade, CHOICE_TABLE, surrender only near)
 function enumerate(felt, resolve, near) {
   const sheet = opforSheet(RP_Q), nerve = Math.round(sheet.os * NERVE_K[sheet.cls]), dc = NERVE_DC0 + Math.round(felt / NERVE_PER), mod = resolve === null ? 0 : Math.round(10 * (resolve - 1));
-  const band = bandN(felt), n = { fight: 0, cover: 0, freeze: 0, surrender: 0 };
+  const band = bandN(felt), n = { fight: 0, cover: 0, freeze: 0, give: 0 };
   for (let r = 1; r <= 20; r++) {
     if (band < 2) { n.fight++; continue; }
     const g = grade(r + nerve + mod - dc, r === 20 ? 20 : r === 1 ? 1 : 0);
     let what = CHOICE_TABLE[Math.min(3, band)][g];
-    if (what === 'surrender' && !near) what = 'freeze';
+    if (what === 'give' && !near) what = 'freeze';
     n[what]++;
   }
   return SHARES.map(k => n[k] * 5);
@@ -52,7 +52,7 @@ export default [
     fn() {
       const g = rpScript({ seed: 48213 }), s = g.s, pid = g.man('1b').live.who, off = [];
       for (const [what, felt, resolve, near, want] of DF_TABLE) {
-        const got = enumerate(felt, resolve, near), n = { fight: 0, cover: 0, freeze: 0, surrender: 0 }, N = 400;
+        const got = enumerate(felt, resolve, near), n = { fight: 0, cover: 0, freeze: 0, give: 0 }, N = 400;
         for (let i = 0; i < N; i++) n[choiceOf(s, pid, { felt, atMs: 1000 + i * TICK_MS, key: 'rp:test', near: () => near, resolve }).what]++;
         const sampled = SHARES.map(k => Math.round(n[k] / N * 100)), d1 = Math.max(...got.map((v, i) => Math.abs(v - want[i]))), d2 = Math.max(...got.map((v, i) => Math.abs(v - sampled[i])));
         console.log(`      ${what} (felt ${felt}, resolve ${resolve}): the code ${got.join('/')}, the lens ${want.join('/')}, choiceOf ${sampled.join('/')} over ${N} (fight/cover/freeze/surrender %)`);
@@ -118,13 +118,13 @@ export default [
               const byBand = n.band !== p.band, byDwell = !byBand && (p.what === 'cover' || p.what === 'freeze') && n.band >= 2 && n.choiceAt - p.choiceAt >= CHOICE_DWELL_MS;
               if (byBand) tally.byBand++; else if (byDwell) tally.byDwell++; else off.push({ c, st, why: 'an unprompted roll', p, n });
               const ch = L.choice;
-              if (ch.band < 2 ? ch.what !== 'fight' || ch.grade : !(CHOICE_TABLE[Math.min(3, ch.band)][ch.grade] === ch.what || (CHOICE_TABLE[Math.min(3, ch.band)][ch.grade] === 'surrender' && ch.what === 'freeze'))) off.push({ c, st, why: 'off the table', ch });
-              if (p.what === 'surrender') off.push({ c, st, why: 'rolled after a surrender' });
+              if (ch.band < 2 ? ch.what !== 'fight' || ch.grade : !(CHOICE_TABLE[Math.min(3, ch.band)][ch.grade] === ch.what || (CHOICE_TABLE[Math.min(3, ch.band)][ch.grade] === 'give' && ch.what === 'freeze'))) off.push({ c, st, why: 'off the table', ch });
+              if (p.what === 'give') off.push({ c, st, why: 'rolled after a give' });
             }
             if (n.st !== p.st) {
               const k = `${p.st}→${n.st}`; tally.moves[k] = (tally.moves[k] ?? 0) + 1;
               const rolledNow = n.choiceAt !== p.choiceAt;
-              const ok = n.st === 'down' || n.st === 'out' || (n.st === 'hands' && (rolledNow && n.what === 'surrender' || L.chalUntilMs !== undefined))
+              const ok = n.st === 'down' || n.st === 'out' || (n.st === 'hands' && (rolledNow && n.what === 'give' || L.chalUntilMs !== undefined))
                 || (n.st === 'freeze' && rolledNow && n.what === 'freeze') || (n.st === 'move' && rolledNow && n.what === 'cover') || (n.st === 'cover' && (p.st === 'move' || rolledNow) && n.what === 'cover')
                 || (['wait', 'turn', 'aim', 'fire'].includes(n.st) && !['freeze', 'cover', 'hands', 'down', 'out'].includes(p.st)) || (n.st === 'aim' && ['freeze', 'cover', 'move'].includes(p.st) && (n.what === 'fight' || p.st === 'move'));
               if (!ok) off.push({ c, st, why: 'a change of state no rule made', k, n });

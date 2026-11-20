@@ -18,7 +18,7 @@ const save = (n) => gunzipSync(readFileSync(path.join(root, 'tests/saves/portrai
 
 export default [
   {
-    name: 'the user\'s saves of seed 4028068471 in the page: 2a\'s card (armoured, a pistol) and the hostage card\'s hostile hold the gun in the board\'s ink (v0.0.22: 0 pixels), the live 2a\'s card is his record, the rifle in his hands aimed at you; no page errors',
+    name: 'the user\'s saves of seed 4028068471 in the page: 2a\'s card (armoured, a pistol) and the hostage card\'s hostile hold the gun in a tone of its own (the board\'s ink, or from v0.0.28 G2 its own colours; v0.0.22: 0 pixels), the live 2a\'s card is his record, the rifle in his hands aimed at you; no page errors',
     heavy: true,
     timeoutMs: 180000,
     async fn() {
@@ -33,7 +33,12 @@ export default [
           await page.evaluate(() => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(res)))));
           const got = await page.evaluate(async (tones) => {
             const hc = document.querySelector('.hitcard'), cv = hc.querySelector('canvas'), d = cv.getContext('2d').getImageData(0, 0, cv.width, cv.height).data;
-            let ink = 0; for (let i = 0; i < d.length; i += 4) { const c = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]; if (tones.includes(c)) ink++; }
+            // (v0.0.28: G2, the user's star of 2026-11-20, the gun in its own colours: counted in the weapon card's colours and their lit
+            // rim (held.js gunCells), with the board's ink for G1)
+            const { gunLayer } = await import('/src/art/weaponcard.js'), { GUN_C, GUN_RIM_K } = await import('/src/art/doll/held.js'), { mix } = await import('/src/art/doll/grid.js');
+            const own = new Set(tones);
+            for (const m of ['p12', 'r7']) { const L = gunLayer(m); for (const w of L.data) if (w) { const c = ((w & 0xff) << 16) | (w & 0xff00) | ((w >>> 16) & 0xff); own.add(c); own.add(mix(c, GUN_C.steel, GUN_RIM_K)); } }
+            let ink = 0; for (let i = 0; i < d.length; i += 4) { const c = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]; if (own.has(c)) ink++; }
             const s = window.__olympus.state, { engagedOf, liveRecOf } = await import('/src/sim/arms/engage.js'), { seenOf } = await import('/src/sim/people/seen.js');
             const e = engagedOf(s), T = (s.armoury.range.turners ?? []).find(t => t.key === hc.dataset.key), who = T?.live?.who ?? null;
             const rec = who && liveRecOf(s, who) ? seenOf(s, who) : null;
@@ -45,7 +50,7 @@ export default [
         for (const r of rows) console.log(`      ${r}`);
         for (const n of ['none-2a-5', 'none-3b-7']) assert(out[n].ink >= GUN_PX_MIN * out[n].w / 200, `${n}: ${out[n].ink} ink pixels`);
         const L = out['live-2a-5'];
-        assert(L.live && L.hold === 'rifle-aim' && L.aimAt === 'you' && L.ink === 0, JSON.stringify(L));
+        assert(L.live && L.hold === 'rifle-aim' && L.aimAt === 'you', JSON.stringify(L));
         assert(!errors.length, errors.join('\n'));
       }, { viewport: { width: 1600, height: 900 } });
     },

@@ -10,9 +10,9 @@ import { SAMPLES, checkSet, drawn } from './samples-check.mjs';
 
 export default [
   {
-    name: 'float-look: F-a to F-d shot whole, F-b the default (v0.0.24); F-b scales a body only off the deck by more than SCALE_FROM_M, the others never',
+    name: 'float-look: F-a to F-d shot whole, F-a scored (2026-11-20; F-b the default of v0.0.24) and folded; F-b scales a body only off the deck by more than SCALE_FROM_M, the others never',
     async fn() {
-      const { views } = checkSet('float-look', { groups: ['F'], views: 4, open: ['F-b'], builtIn: 'v0.0.24' });
+      const { views } = checkSet('float-look', { groups: ['F'], views: 4, scored: { on: '2026-11-20', picks: ['F-a'] } });
       const { SCALE_FROM_M, SCALE_STEP_K, BODIES, ROWS } = await import(path.join(SAMPLES, 'float-look/float.js'));
       const lines = [];
       for (const v of views) {
@@ -28,9 +28,9 @@ export default [
     },
   },
   {
-    name: 'mag-boots: B-a to B-c shot whole, B-b the default (v0.0.24); each draws today\'s figure beside the candidate',
+    name: 'mag-boots: B-a to B-c shot whole, B-a scored (2026-11-20; B-b the default of v0.0.24); each draws today\'s figure beside the candidate',
     async fn() {
-      const all = checkSet('mag-boots', { groups: ['B', 'H'], views: 6, open: ['B-b', 'H-a'], builtIn: 'v0.0.24' }), views = all.groups.find(g => g.id === 'B').views;
+      const all = checkSet('mag-boots', { groups: ['B', 'H'], views: 6, scored: { on: '2026-11-20', picks: ['B-a', 'H-b'] } }), views = all.groups.find(g => g.id === 'B').views;
       const { LOOKS, DEFAULT } = await import(path.join(SAMPLES, 'mag-boots/boots.js'));
       assert(DEFAULT === 'B-b' && JSON.stringify([...LOOKS].sort()) === JSON.stringify(views.map(v => v.id).sort()), JSON.stringify({ LOOKS, DEFAULT }));
       const rows = [];
@@ -46,9 +46,9 @@ export default [
     },
   },
   {
-    name: 'mag-boots H: H-a to H-c shot whole, H-a the default (v0.0.24), C\'s anchors each a view; each candidate\'s anchor drawn on the doll and the figure',
+    name: 'mag-boots H: H-a to H-c shot whole, H-b scored (2026-11-20; H-a the default of v0.0.24), C\'s anchors each a view; each candidate\'s anchor drawn on the doll and the figure',
     async fn() {
-      const { groups } = checkSet('mag-boots', { groups: ['B', 'H'], views: 6, open: ['B-b', 'H-a'], builtIn: 'v0.0.24' }), views = groups.find(g => g.id === 'H').views;
+      const { groups } = checkSet('mag-boots', { groups: ['B', 'H'], views: 6, scored: { on: '2026-11-20', picks: ['B-a', 'H-b'] } }), views = groups.find(g => g.id === 'H').views;
       const { ANCHORS } = await import(path.join(SAMPLES, 'portrait-pose/poses.js'));
       const { LOOKS, DEFAULT } = await import(path.join(SAMPLES, 'mag-boots/anchors.js'));
       assert(DEFAULT === 'H-a' && JSON.stringify(ANCHORS.map(a => a.id)) === JSON.stringify(views.map(v => v.id)) && JSON.stringify(LOOKS) === JSON.stringify(views.map(v => v.id)), JSON.stringify({ table: ANCHORS.map(a => a.id), views: views.map(v => v.id), LOOKS }));

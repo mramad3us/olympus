@@ -56,7 +56,10 @@ const MARGIN_M = { wallLocker: 0.6, rifleRack: 0.1, targetCarrier: 0.9, airlockD
   // (0.0.7: a firing point's plate is drawn bigger than life, as the kit draws small things, so its number reads)
   kdPoint: 0.2,
   // (a clock's dial is drawn bigger than life where it must read: DIAL_PX_MIN px across, 0.56 m at 16 px/m, its 0.30 m footprint's)
-  wallClock: (DIAL_PX_MIN / 16 - 0.30) / 2 + 0.02 };
+  wallClock: (DIAL_PX_MIN / 16 - 0.30) / 2 + 0.02,
+  // (v0.0.28: an issue window's wall over its bay, BAY_M 1.2 m deep behind the wall line its counter straddles: the bay is taken out of
+  // the building (src/sim/places/ground.js), so the window draws the wall and the roof over it, 0.9 m past its counter's footprint)
+  issueWindow: 0.95 };
 /** The kinds 0.0.3 added, which places' catalogue (src/sim/places/fixtures.js) must size as the kit does. */
 const NEW_0_0_3 = ['wallClock', 'stairs', 'stairsWell', 'lampPost'];
 

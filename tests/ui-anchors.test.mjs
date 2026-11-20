@@ -5,7 +5,7 @@ import { SCALE_STEP_K as FLOAT_SCALE_K, SCALE_FROM_M as FLOAT_SCALE_FROM_M } fro
 
 export default [
   {
-    name: 'ui-anchors: Well A in the page: your figure in mag boots; a body floating 0.7 m over a standing man\'s place (floatY 1.7) drawn there one scale step larger (F-b), at 0.3 m (floatY 1.3) at its own size, tumbling by its frame; no page error; the frame times printed',
+    name: 'ui-anchors: Well A in the page: your figure in mag boots; a body floating 0.7 m over a standing man\'s place (floatY 1.7) drawn there at its own size (v0.0.28: F-a, no scale step), at 0.3 m (floatY 1.3) at its own size, tumbling by its frame; no page error; the frame times printed',
     heavy: true,
     timeoutMs: 300_000,
     async fn() {
@@ -28,7 +28,8 @@ export default [
         await page.evaluate(() => window.__olympus.pause?.(true));
         const hi = await floatAt(0.7), lo = await floatAt(0.3), tumbling = await floatAt(1.0, Math.PI / 2);
         console.log(`      floating 0.7 m up: ${JSON.stringify(hi)}; 0.3 m: ${JSON.stringify(lo)}; tumbling 90° at 1.0 m: ${JSON.stringify(tumbling)}`);
-        assert(hi && Math.abs(hi.y - 0.7) < 1e-9 && hi.scaleK === FLOAT_SCALE_K, JSON.stringify(hi));
+        // (v0.0.28: F-a, the user's star of 2026-11-20: the shadow alone, no scale step; F-b's FLOAT_SCALE_K at 0.7 m retired)
+        assert(hi && Math.abs(hi.y - 0.7) < 1e-9 && hi.scaleK === 1 && FLOAT_SCALE_K > 1, JSON.stringify(hi));
         assert(lo && Math.abs(lo.y - 0.3) < 1e-9 && lo.scaleK === 1 && 0.3 <= FLOAT_SCALE_FROM_M, JSON.stringify(lo));
         assert(tumbling && /^tumble\d$/.test(tumbling.frame ?? ''), JSON.stringify(tumbling));
         console.log(`      Well A: frames p50 ${fmt(f0.medianMs, 1)} ms, p95 ${fmt(f0.p95Ms, 1)} ms`);

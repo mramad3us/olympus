@@ -751,20 +751,29 @@ export function turnerPixels(t, ms, ppm, gMs2) {
   return out;
 }
 /**
- * v0.0.25 (the build sheet item 7, §3.4; PC§3.3): a pop-up rising from flat on its face, hinged at its base (P-a, samples/wreck-faces'
- * default until scored): its face foreshortened in height by riseK (0 flat, 1 up: the sim's facingK, which turners.js turns over
- * POPUP_MS for a pop-up), the base row where it stands; up, it is turnerPixels' own, its holes and puffs with it. In the board's frame
- * (as on the deck: boardPixels turns it by its face).
+ * How a pop-up comes up (samples/wreck-faces P): 'P-b', sliding out of a slot in its face (v0.0.28, the user's star of 2026-11-20),
+ * or 'P-a', hinged out from flat on its face (v0.0.25's, kept drawable).
  */
-export function popupPixels(t, riseK, ms, ppm = PX_PER_M, gMs2) {
+export const POPUP_LOOK = 'P-b';
+/**
+ * v0.0.25 (the build sheet item 7, §3.4; PC§3.3): a pop-up coming up on its face over the sim's rise, riseK (0 down, 1 up: the sim's
+ * facingK, which turners.js turns over POPUP_MS for a pop-up, the one number), the base row where it stands; up, it is turnerPixels'
+ * own, its holes and puffs with it. In the board's frame (as on the deck: boardPixels turns it by its face). Under POPUP_LOOK 'P-b'
+ * (v0.0.28) the board slides out of a slot: its face at its own size, the head out first, the rows still in the slot not drawn, and
+ * the slot a dark row under its base while it is not all the way up (flagged `slot`); under 'P-a' (v0.0.25's) it is hinged at its
+ * base, its face foreshortened in height by riseK.
+ */
+export function popupPixels(t, riseK, ms, ppm = PX_PER_M, gMs2, look = POPUP_LOOK) {
   if (!t?.face) return [];
   const k = Math.max(0, Math.min(1, Number(riseK) || 0));
   if (k >= 1) return turnerPixels({ ...t, facingK: 1 }, ms, ppm, gMs2);
   needG(gMs2);
   const ta = turnerAt({ ...t, facingK: 1 }, ppm), pf = turnerFace(t.face, t.holds ?? null, ppm), out = [];
-  const part = TURNER_PART + (t.lane ?? 0), P = 1 / ppm, L = TURNER_LIFT_M, dh = Math.max(1, Math.round(pf.h * k));
+  const part = TURNER_PART + (t.lane ?? 0), P = 1 / ppm, L = TURNER_LIFT_M, slid = look === 'P-b';
+  const dh = slid ? Math.round(pf.h * k) : Math.max(1, Math.round(pf.h * k));
+  if (slid) for (let i = 0; i < pf.w; i++) out.push({ x: ta.x0 + (i + 0.5) * P, y: ta.yBot - 0.5 * P + L, z: ta.z + L, c: DARK, part, noLine: true, slot: true });
   for (let r = 0; r < dh; r++) {
-    const j = Math.min(pf.h - 1, Math.floor((r + 0.5) * pf.h / dh));
+    const j = slid ? r : Math.min(pf.h - 1, Math.floor((r + 0.5) * pf.h / dh));
     for (let i = 0; i < pf.w; i++) {
       const c = pf.cells[j * pf.w + i];
       if (c === null || c === undefined) continue;
@@ -1079,18 +1088,26 @@ export function leafArcPixels(L, ppm = PX_PER_M) {
 // houseLook's aid (shoothouse.js cornerAidLook; the rule, src/sim/combat/corner.js): from the read of the door, your corner as a
 // bracket in it (two strokes of AID_BRACKET_M along its two walls, AID_INSET_M off them) and your point of domination as a
 // small ring, in a chalk teal (AID_MINE: the coach's chalk, apart from the aim's gold brackets, the corners' gold ticks and the
-// doors' rust arcs, the first shots of it in brass read as the aim's bracket); your #2's the same, dotted and grey (AID_TWO,
-// fainter); on entry your sector, a thin wedge from your point, its two edges dotted to the walls and a short
-// arc between them at its arcM (AID_SECTOR). Your bracket two pixels thick, your #2's one, dotted. Drawn flat on the room's floor
-// (AID_Y_M) in an overlay pass of its own (range.js: no depth test, after the walls), so the near corner of a room past its door's
-// wall shows where it is, in the room (the fixer's of 0.0.16: drawn upright a quarter metre over the cut, room 2's bracket and
-// your ring sat on the hall-facing wall face and read as being in the hall); and as light (range.js: the fog of awareness never dims it), since the room is unseen until you are in
-// it and the aid is there to say where to look first. Its strength k (0 to 1) thins the dots, each kept while its hash is under
-// k (a fade in pixels, no blending).
-/** Yours, your #2's, your sector's colour. */
-export const AID_MINE = 0x62e6d0, AID_TWO = 0x9fb2c6, AID_SECTOR = 0x62e6d0;
+// doors' rust arcs, the first shots of it in brass read as the aim's bracket); your #2's the same in a fainter grey (AID_TWO).
+// Your bracket two pixels thick, your #2's one. Drawn flat on the room's floor (AID_Y_M) in an overlay pass of its own (range.js:
+// no depth test, after the walls), so the near corner of a room past its door's wall shows where it is, in the room (the fixer's of
+// 0.0.16: drawn upright a quarter metre over the cut, room 2's bracket and your ring sat on the hall-facing wall face and read as
+// being in the hall); and as light (range.js: the fog of awareness never dims it), since the room is unseen until you are in it and
+// the aid is there to say where to look first. Its strength k (0 to 1) thins the pixels, each kept while its hash is under k (a fade
+// in pixels, no blending; corner.js AID_FADE_MS, 400 ms once your sector is taken).
+// v0.0.28 (the user's note of 2026-11-20 on pistol-stances T: "not a big fan of the angles drawn on the floor, we need a slicker way
+// of doing it"): no angle drawn across the floor. v0.0.17's wedge (two dotted rays from your point to the walls and a dotted arc
+// between them) is gone; your sector is shown where it ends, at the foot of the wall: at each wall its edges meet a short solid mark
+// AID_WALL_M along the wall into your sector (corner.js sectorWedgeOf's `walls`, `along`), two pixels, its far end faded, the two
+// marks framing the stretch of wall you own; your point a ring with no dot; your #2's marks solid, not dotted (the dots read as
+// angles). Found once a rule (the wedge's cache), drawn as dots like the rest, fewer than the wedge drew (about 20 a room against
+// its 57 to 74): no cost.
+/** Yours, your #2's (fainter: v0.0.28), your sector's colour. */
+export const AID_MINE = 0x62e6d0, AID_TWO = 0x7d8b9b, AID_SECTOR = 0x62e6d0;
 /** The bracket's strokes and their inset off the walls, the point's ring (m), the height drawn at (m: over the doors' arcs). */
 export const AID_BRACKET_M = 0.6, AID_INSET_M = 0.1, AID_RING_M = 0.28, AID_Y_M = 0.02;
+/** v0.0.28: your sector's mark at the foot of each wall it ends on, its length along the wall (m), and the share of it kept whole before its far end fades. */
+export const AID_WALL_M = 0.3, AID_WALL_SOLID = 0.5;
 // (a dot's hash for the fade, 0 to 1)
 const aidHash = (i) => (((i + 1) * 2654435761) >>> 0) / 4294967296;
 /** The aid's pixels (see above): [{ x, y, z, c, flat }] from houseLook's aid { marks, sector }, for the overlay pass. */
@@ -1105,26 +1122,36 @@ export function cornerAidPixels(aid, ppm = PX_PER_M) {
     if (aidHash(i++) >= k) return;
     out.push({ x: px / ppm, y: AID_Y_M, z: pz / ppm, c, flat: true });
   };
-  // (a stroke from a to b, a dot every `every` pixels)
-  const line = (a, b, c, k, every) => { const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * ppm / every)); for (let j = 0; j <= n; j++) dot(a[0] + (b[0] - a[0]) * j / n, a[1] + (b[1] - a[1]) * j / n, c, k); };
-  const arc = (x, z, r, a0, a1, c, k, every) => { const n = Math.max(2, Math.ceil(r * Math.abs(a1 - a0) * ppm / every)); for (let j = 0; j <= n; j++) { const t = a0 + (a1 - a0) * j / n; dot(x + r * Math.cos(t), z + r * Math.sin(t), c, k); } };
+  // (a stroke from a to b, a pixel every pixel; kOf(t) its strength along it, t 0 at a to 1 at b)
+  const line = (a, b, c, kOf) => { const n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) * ppm)); for (let j = 0; j <= n; j++) dot(a[0] + (b[0] - a[0]) * j / n, a[1] + (b[1] - a[1]) * j / n, c, kOf(j / n)); };
+  const ring = (x, z, r, c, k) => { const n = Math.max(2, Math.ceil(r * 2 * Math.PI * ppm)); for (let j = 0; j <= n; j++) { const t = 2 * Math.PI * j / n; dot(x + r * Math.cos(t), z + r * Math.sin(t), c, k); } };
   const P = 1 / ppm;
   for (const m of aid.marks ?? []) {
     if (!(m.k > 0) || !m.corner) continue;
-    const c = m.mine ? AID_MINE : AID_TWO, every = m.mine ? 1 : 2, { x, z, along: u, back: v } = m.corner;
+    const c = m.mine ? AID_MINE : AID_TWO, { x, z, along: u, back: v } = m.corner, kOf = () => m.k;
     // (yours two pixels thick: the second stroke a pixel further into the room)
     for (const w of m.mine ? [0, P] : [0]) {
       const o = [x + (AID_INSET_M + w) * (u[0] + v[0]), z + (AID_INSET_M + w) * (u[1] + v[1])];
-      line(o, [o[0] + (AID_BRACKET_M - w) * u[0], o[1] + (AID_BRACKET_M - w) * u[1]], c, m.k, every);
-      line(o, [o[0] + (AID_BRACKET_M - w) * v[0], o[1] + (AID_BRACKET_M - w) * v[1]], c, m.k, every);
+      line(o, [o[0] + (AID_BRACKET_M - w) * u[0], o[1] + (AID_BRACKET_M - w) * u[1]], c, kOf);
+      line(o, [o[0] + (AID_BRACKET_M - w) * v[0], o[1] + (AID_BRACKET_M - w) * v[1]], c, kOf);
     }
-    // (the point: a ring with a dot in its middle, yours whole, your #2's dotted)
-    if (m.point) { arc(m.point[0], m.point[1], AID_RING_M, 0, 2 * Math.PI, c, m.k, every); dot(m.point[0], m.point[1], c, m.k); }
+    // (the point: a ring, no dot)
+    if (m.point) ring(m.point[0], m.point[1], AID_RING_M, c, m.k);
   }
+  // (your sector: where each of its edges meets its wall, a mark AID_WALL_M along the wall into the sector, two pixels, its far end
+  // fading, so the two marks frame the stretch of wall you own and nothing crosses the floor)
   const S = aid.sector;
-  if (S && S.k > 0 && Array.isArray(S.rays)) {
-    for (const e of S.rays) line([S.x, S.z], e, AID_SECTOR, S.k, 2);
-    arc(S.x, S.z, S.arcM ?? 0.6, S.fromRad, S.toRad, AID_SECTOR, S.k, 2);
+  if (S && S.k > 0) {
+    (S.walls ?? []).forEach((e, n) => {
+      const u = S.along?.[n];
+      if (!e || !u) return;
+      const tx = S.x - e[0], tz = S.z - e[1], d = u[0] * tz - u[1] * tx, inward = d >= 0 ? [-u[1], u[0]] : [u[1], -u[0]];
+      const kOf = (t) => S.k * Math.min(1, (1 - t) / (1 - AID_WALL_SOLID));
+      for (const w of [0, P]) {
+        const a = [e[0] + w * inward[0], e[1] + w * inward[1]];
+        line(a, [a[0] + AID_WALL_M * u[0], a[1] + AID_WALL_M * u[1]], AID_SECTOR, kOf);
+      }
+    });
   }
   return out;
 }

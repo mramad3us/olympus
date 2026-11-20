@@ -103,7 +103,7 @@ import { hashPick } from '../../core/hash.js';
 import { nextId, playerActor, playerId } from '../../core/ids.js';
 import { post } from '../../core/queue.js';
 import { SCENES } from '../../data/scenes.js';
-import { COURSES, SEQ, SEQ_KD, SEQ_PAIRS, SEQ_STRESS, SEQ_HOUSE, SEQ_HOUSE_DRAWN, seqHouseNamed, KD_STRINGS, COACH, PAIRS_COACH, HOUSE_NUDGE, MACRO_CMD, MACRO_MARK, NEEDS_ROUNDS } from '../../data/courses.js';
+import { COURSES, SEQ_ARMOURY, SEQ, SEQ_KD, SEQ_PAIRS, SEQ_STRESS, SEQ_HOUSE, SEQ_HOUSE_DRAWN, seqHouseNamed, KD_STRINGS, COACH, PAIRS_COACH, HOUSE_NUDGE, MACRO_CMD, MACRO_MARK, NEEDS_ROUNDS } from '../../data/courses.js';
 import { shipOf } from '../../data/places/ships.js';
 import { KD_RANGE } from '../../data/places/range.js';
 import { logEntry } from '../log.js';
@@ -131,6 +131,7 @@ import { pairsReady, pairsOnCmd, pairsSecond, pairsShot, pairsAfterStep, pairsBo
 import { houseReady, houseOnCmd, houseSecond, houseShot, houseStepStart, houseAfterStep, houseRangeNow, houseNudgeOf, houseMoveOn, houseCmdSay, namedLaneOfDraw } from './shoothouse.js';
 import { hostOf } from '../combat/op.js';
 import { anchorsShot, anchorsRangeNow } from './anchors.js';
+import { armouryReady, armouryOnCmd, armourySecond, armouryMoveOn, armouryRangeNow, armouryStanding } from './armoury-day.js';
 
 /** Where the scene plays. */
 export const HANDLING = Object.freeze({ site: SCENES['test-handling'].host.site, area: KD_RANGE.area, course: 'fam25' });
@@ -155,7 +156,8 @@ export const rangeOf = (state) => state.armoury?.range ?? null;
 /** The tower's sequence of a session's course (0.0.7: SEQ_KD on the kd course; 0.0.8: SEQ_PAIRS on the pairs course; 0.0.10: SEQ_STRESS on it with the stress course's R.stress). */
 // (a drawn house's brief and standby without the lane's letter, courses.js SEQ_HOUSE_DRAWN, command for command SEQ_HOUSE's)
 // (and a lane a casualty ended washes without "clear": the wash's sayEnd.other, shoothouse.js houseCmdSay)
-export const seqOf = (R) => (R?.course === 'kd' ? SEQ_KD : R?.course === 'pairs' ? (R.stress ? SEQ_STRESS : SEQ_PAIRS) : R?.course === 'house' ? houseSeqOf(R.house) : SEQ);
+// (the armoury course's own, courses.js SEQ_ARMOURY; its next command the scene's (armoury-day.js armouryNext))
+export const seqOf = (R) => (R?.course === 'armoury' ? SEQ_ARMOURY : R?.course === 'kd' ? SEQ_KD : R?.course === 'pairs' ? (R.stress ? SEQ_STRESS : SEQ_PAIRS) : R?.course === 'house' ? houseSeqOf(R.house) : SEQ);
 // (a named house, B or C (its draw record's layout, else its code's: shoothouse.js namedLaneOfDraw), briefs and stands by with its
 // letter: courses.js seqHouseNamed; the play review of v0.0.22 heard "A new layout" over lane B)
 // (a ship's own (the Wreck's courses.js SEQ_WRECK, command for command SEQ_HOUSE's), where the house record names a ship: its row's seq (v0.0.27)
@@ -284,6 +286,8 @@ export function lineReady(state, cmdId = rangeOf(state)?.cmd?.id, { relay = true
   const seq = seqOf(R), def = seq[R.cmd.i] ?? seq.find(c => c.id === cmdId);
   const pid = playerId(state), me = playerActor(state), gun = state.items?.[gunOn(state, pid)];
   const still = stillOf(state);
+  // (the armoury course's own readinesses, every one (armoury-day.js armouryReady): at the window no rifle is yours yet)
+  if (R.course === 'armoury') return armouryReady(state, def, { still });
   if (!me || !gun) return false;
   const mag = gun.mag ? state.items[gun.mag] : null, finger = state.people[pid]?.kit?.carry?.finger ?? 'off';
   const safe = gunField(gun, 'mode') === 'safe' && finger !== 'on';
@@ -333,6 +337,8 @@ export function onRangeCmd(state, bus, ev) {
   const said = typeof ev.payload?.text === 'string' ? ev.payload.text : null;
   // (0.0.8: on the pairs course the coach gives the commands himself, beside you)
   R.cmd = { id: cmd, i, atMs: now, ...(said ? { text: said } : {}) }; R.next = null; R.livedMs = 0; R.nudged = false;
+  // (the armoury course's command, said by its speaker with the scene's work (armoury-day.js armouryOnCmd))
+  if (R.course === 'armoury') { armouryOnCmd(state, bus, def, i); return; }
   if (R.course === 'kd') R.onYouMs = 0;
   sayOn(state, bus, { who: R.roId, text: said ?? hashPick(R.course === 'house' ? houseCmdSay(state, def) : def.say, 'range-cmd', state.meta.seed, i), kind: R.course === 'pairs' ? 'speech' : 'pa' });
   if (cmd === 'brief') { R.phase = 'brief'; if (R.course !== 'kd' && R.course !== 'pairs' && R.course !== 'house') coachSays(state, bus, R.mixed ? COACH.briefMixed : COACH.brief, 'brief'); }
@@ -402,6 +408,8 @@ export function rangeSecond(state, input, bus, ctx) {
   if (state.clock.ms % 1000 !== 0) return;
   const R = rangeOf(state);
   if (!R || R.end || !R.cmd) return;
+  // (the armoury course's second, the whole of it (armoury-day.js armourySecond): its next command, nudge and move-on its own)
+  if (R.course === 'armoury') { armourySecond(state, bus, ctx); return; }
   // (0.0.7: the kd course's second: a splash begun, a string's limit, the brass settled)
   if (R.course === 'kd' && kdSecond(state, bus, ctx)) return;
   // (0.0.8: the pairs course's second: the string's end when the shooter is still)
@@ -492,7 +500,9 @@ export function standingCmd(state) {
   if (def.id === 'fire' && !R.hot) return null;
   if (lineReady(state, def.id, { relay: false })) return null;
   const text = R.cmd.text ?? hashPick(R.course === 'house' ? houseCmdSay(state, def) : def.say, 'range-cmd', state.meta.seed, R.cmd.i);
-  return { i: R.cmd.i, id: def.id, who: R.roId, atMs: R.cmd.atMs, text, short: R.cmd.text ?? def.short ?? capital(NUDGE[def.id] ?? text), point: whoOnLine(state) };
+  const c = { i: R.cmd.i, id: def.id, who: R.roId, atMs: R.cmd.atMs, text, short: R.cmd.text ?? def.short ?? capital(NUDGE[def.id] ?? text), point: whoOnLine(state) };
+  // (the armoury course's, its speaker's words and what to press after them (armoury-day.js armouryStanding))
+  return R.course === 'armoury' ? armouryStanding(state, c) : c;
 }
 
 // (0.0.12: the house's readinesses that are the instructor's or the lane's wait, never a command for the shooter to answer)
@@ -515,6 +525,8 @@ export function roundsLeft(state, pid = playerId(state)) {
 /** The line moves on (see the header): a 'slow' fault (none when quiet: a dry shooter's), the next command posted; at UNLOAD, SHOW CLEAR the coach clears the rifle. */
 export function moveOn(state, bus, { quiet = false } = {}) {
   const R = rangeOf(state), i = R.cmd.i, C = COURSES[R.course], SQ = seqOf(R);
+  // (the armoury course's own move-on (armoury-day.js armouryMoveOn))
+  if (R.course === 'armoury') { armouryMoveOn(state, bus); return; }
   if (SQ[i].ready === 'shown') { coachClears(state, bus); return; }
   if (!quiet) fault(state, bus, 'slow', 'warn', hashPick(R.course === 'pairs' || R.course === 'house' ? PAIRS_COACH.slow : COACH.slow, 'coach', state.meta.seed, 'slow', i));
   // (0.0.7: on the kd course the coach does what was left undone (kdMoveOn); a splash still to come is waited for)
@@ -905,6 +917,8 @@ export function rangeNow(state, ms = state.clock.ms) {
   if (R.course === 'pairs') return pairsRangeNow(state, R, ms);
   if (R.course === 'house') return houseRangeNow(state, R, ms);
   if (R.course === 'anchors') return anchorsRangeNow(state, R, ms);
+  // (the armoury course's (armoury-day.js armouryRangeNow))
+  if (R.course === 'armoury') return armouryRangeNow(state, R, ms);
   const mine = R.shots.filter(s => s.lane === R.lane);
   const s = scoreOf(mine.map(h => ({ at: h.hole, score: h.score, v: h.v })));
   const strings = [0, 1, 2].map(k => ({ ...scoreOf(mine.filter(h => h.string === k).map(h => ({ at: h.hole, score: h.score, v: h.v }))), ...(R.sat?.includes(k) ? { sat: true } : {}), ...(R.over?.includes(k) ? { over: true } : {}) }));

@@ -126,6 +126,9 @@ import { testStress } from './scenarios/stress.js';
 import { testShoothouse, testZerocqb, testCollar } from './scenarios/shoothouse.js';
 import { testAnchors } from './scenarios/anchors.js';
 import { testBurn } from './scenarios/burn.js';
+import { testArmoury } from './scenarios/armoury-day.js';
+// ("The window and the canopy"'s acts at hand registered with places/hand.js here, outside the course engine's import cycle)
+import './scenarios/armoury-hand.js';
 import { refusesAct } from './combat/contact.js';
 import { weaponsDomain } from './arms/domain.js';
 import { SCENES, STARTS } from '../data/scenes.js';
@@ -143,7 +146,9 @@ export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testS
   // ("Hold to hold", the house's fill on the Wreck (shoothouse.js testZerocqb): its own scenario, since specOf holds one host a scenario)
   'test-zerocqb': testZerocqb,
   // ("Away the boarding party" (v0.0.27), the house's fill on the Patient Mule (shoothouse.js testCollar): its own scenario, one host a scenario)
-  'test-collar': testCollar });
+  'test-collar': testCollar,
+  // ("The window and the canopy" (src/sim/scenarios/armoury-day.js): the armoury, the ammunition point, the canopy, on the range's course engine)
+  'test-armoury': testArmoury });
 
 // (one host and one environment a scenario: the scenes that share a fill differ only in the hud's fields and their setup)
 const sameStand = (a, b) => JSON.stringify([a.host, a.env]) === JSON.stringify([b.host, b.env]);

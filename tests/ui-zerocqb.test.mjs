@@ -2,7 +2,7 @@
 // F136 and F137's page halves). Heavy, a browser file.
 //
 // In the page at 16 px/m (1280 × 720, the picture 640 × 360) on test-zerocqb 48213, the sergeant:
-//   - at GO (F137): every board in a compartment never in sight drawn the unknown's colour (UNKNOWN_C, U1) where the stage puts it
+//   - at GO (F137): every board in a compartment never in sight drawn the unknown's colours (UNKNOWN_C or, from v0.0.28's U2, its hatch) where the stage puts it
 //     (its turned board's centre, render/range-items.js boardPixels), the passage you stand in drawn; nothing of deck 6 in the picture
 //     (the frame's metres against the decks' boxes: the camera framed a deck at a time, render/view.js cameraBounds);
 //   - played on by the honest sergeant by T (the page's own bot, a tick a frame) through the trunk to the hold's deckhead and its
@@ -16,7 +16,7 @@
 // The frame times printed. Fails without the deck framing, the wipe, the flip or the speakers' bubbles.
 import { assert } from './helpers.mjs';
 import { withGame, frameMs } from './browser.mjs';
-import { UNKNOWN_C } from '../src/render/known.js';
+import { UNKNOWN_C, UNKNOWN_HATCH } from '../src/render/known.js';
 import { UPLOAD_MID_KB } from '../src/data/bench.js';
 import { WRECK_DECKS, WRECK_DECK_M } from '../src/data/places/wreck.js';
 
@@ -41,22 +41,22 @@ export default [
         const go = await page.evaluate(({ decks, unk }) => {
           const O = window.__olympus, s = O.state, me = s.actors.list.find(a => a.who === s.player.id), V = window.__report.view;
           const W = V.res[0] / V.ppm, cam = V.camera, frame = [cam.x - W / 2, cam.x + W / 2];
-          const px = O.pixels(0, 0, 4000, 4000), c = [(unk >> 16) & 255, (unk >> 8) & 255, unk & 255];
+          const px = O.pixels(0, 0, 4000, 4000), cs = [].concat(unk).map(u => [(u >> 16) & 255, (u >> 8) & 255, u & 255]), isU = (q) => cs.some(c => q[0] === c[0] && q[1] === c[1] && q[2] === c[2]);
           const out = [];
           for (const T of s.armoury.range.turners ?? []) {
             if (T.x > frame[1] || T.x < frame[0]) continue;
             const p = O.project(T.x, T.y ?? 1.35, T.z), xi = Math.round(p.x), yi = Math.round(p.y);
             if (xi < 0 || yi < 0 || xi >= px.w || yi >= px.h) continue;
             const q = px.picture[yi][xi];
-            out.push({ stand: T.stand, onFace: T.onFace ?? 'deck', black: q[0] === c[0] && q[1] === c[1] && q[2] === c[2] });
+            out.push({ stand: T.stand, onFace: T.onFace ?? 'deck', black: isU(q) });
           }
           const mine = decks.find(d => me.x >= d.x0 - 1 && me.x <= d.x1 + 1)?.n ?? null;
           // (the hull east of deck 5, in no compartment: 3 m past its starboard bulkhead, on the deck's plane; known from the start, so
           // the background's colour, never the unknown's (the review of C and D: a black slab about 476 × 216 px there on every frame))
           const g = O.project(decks.find(d => d.n === 5).x1 + 3, 0, 3.6), gx = Math.round(g.x), gy = Math.round(g.y), gq = gx >= 0 && gy >= 0 && gx < px.w && gy < px.h ? px.picture[gy][gx] : null;
-          const gap = gq ? { x: gx, y: gy, rgb: [...gq].slice(0, 3), black: gq[0] === c[0] && gq[1] === c[1] && gq[2] === c[2] } : null;
+          const gap = gq ? { x: gx, y: gy, rgb: [...gq].slice(0, 3), black: isU(gq) } : null;
           return { stands: out, frame, mine, other: decks.filter(d => d.n !== mine).some(d => d.x1 > frame[0] && d.x0 < frame[1]), known: V.fog?.known ?? null, gap };
-        }, { decks: DECKS, unk: UNKNOWN_C });
+        }, { decks: DECKS, unk: [UNKNOWN_C, ...(UNKNOWN_HATCH ? [UNKNOWN_HATCH.colour] : [])] });
         rows.push(`at GO: the frame x ${go.frame.map(v => v.toFixed(2)).join(' to ')} m on deck ${go.mine}, the other deck in it: ${go.other}; the boards in the picture ${go.stands.map(t => `${t.stand} (${t.onFace}) ${t.black ? 'black' : 'DRAWN'}`).join(', ')}; the known cells ${fmt(go.known)}`);
         rows.push(`at GO: the hull 3 m east of deck 5 at pixel (${go.gap?.x}, ${go.gap?.y}) rgb ${go.gap?.rgb?.join(',')}: ${go.gap?.black ? 'the unknown\'s black' : 'not the unknown\'s'}`);
         assert(go.mine === 5 && !go.other && go.stands.length >= 2 && go.stands.every(t => t.black) && go.known?.cells > 0, fmt(go));

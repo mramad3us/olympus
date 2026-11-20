@@ -5,15 +5,17 @@
 // known and every cell of the three rooms is not; played to its card by the honest tier one, each cell is known from its first
 // frame in sight (or its ring's) and never unknown after (F88's node half, flawless-known.mjs cellsGauge: the check holds a known
 // cell against perception's visibility, called afresh, so a window put on the wrong cells of the area fails it, as the shifted
-// case shows); a save at room 1's entry loads with room 1 known whole and rooms 2 and 3 not (the rebuild from the legs); the set
-// house, the named layout B and the 25 m bay are familiar: no cell made, every cell known, today's picture. Fails without the
-// fix (no known cells: the module is missing). The page half is ui-unknown's (heavy).
+// case shows); a save at room 1's entry loads with room 1 known whole and rooms 2 and 3 not (the rebuild from the legs); from v0.0.28
+// (the intel) the set house, the named layout B and the live lane are briefed as the drawn house is, their walls known and their rooms'
+// insides not, a scene with 'none' knowing only the outside, and the 25 m bay is familiar: no cell made, today's picture. Fails
+// without the fix (no known cells: the module is missing). The page half is ui-unknown's (heavy).
 import { assert } from './helpers.mjs';
 import { createGame, withHouse } from './game.mjs';
 import { houseHonestBot, houseKeysBot, houseFuzzBot, runHouse } from './bots/house.mjs';
 import { createKnown, UNKNOWN_C, UNKNOWN_HIDDEN, WALL_CELLS } from '../src/render/known.js';
 import * as KNOWN from '../src/sim/places/known.js';
 import { areaOf } from '../src/sim/places/model.js';
+import { planOf } from '../src/sim/places/plan.js';
 import { houseSpecOf } from '../src/sim/scenes/assemble.js';
 import { cellsGauge, f88Line, CELL_M, KNOWN_ENFORCED } from './flawless-known.mjs';
 
@@ -83,16 +85,49 @@ export default [
     },
   },
   {
-    name: 'familiar places draw as before: the set house, the named layout B, the live lane as set and the 25 m bay make no cells (every cell known, nothing sent)',
+    name: 'the intel (v0.0.28, the user\'s note of 2026-11-20: "although we can\'t know what is inside the rooms, the layout would be known most of the time, unless the scenario justifies the lack of intel"): the set house, layout B, the live lane and a drawn house at the fill have every wall cell known and no room\'s floor, nor the cells its boards stand on; a scene with \'none\' knows only the outside; the 25 m bay is familiar (red on v0.0.27: the set house familiar, the drawn one\'s inner walls unknown)',
     fn() {
       const rows = [];
-      for (const [name, o] of [['the set house', { scenario: 'test-shoothouse', seed: 48213 }], ['layout B', { scenario: 'test-shoothouse', seed: 48213, layout: 'B' }], ['the live lane', { scenario: 'test-shoothouse', seed: 48213, opfor: 'live' }], ['the 25 m bay', { scenario: 'test-handling', seed: 1 }]]) {
-        const g = createGame(o), s = g.state, K = createKnown({ cellM: CELL_M }), active = beginOn(K, s);
-        rows.push({ name, area: s.places.live.area, familiar: KNOWN.familiarOf(s, s.places.live.area), active, mask: K.mask, at: K.at(20, 10), host: KNOWN.hostKind(s) });
+      // (a wall cell: its centre inside a wall run's rect, inside the footprint; the plan's walls, sim/places/plan.js wallsOf)
+      const wallCells = (K, fp) => { const m = K.mask, [nx, nz] = K.size, out = { n: 0, known: 0 }; for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) { const x = m.x0 + (i + 0.5) * CELL_M, z = m.z0 + (j + 0.5) * CELL_M; if (x <= fp.rect[0] || x >= fp.rect[2] || z <= fp.rect[1] || z >= fp.rect[3]) continue; if ((fp.walls ?? KNOWN.footprintOf(K.$s, { familiar: 'walls', area: K.$area }).walls).some(r => x >= r[0] && x <= r[2] && z >= r[1] && z <= r[3])) { out.n++; if (K.known(i, j)) out.known++; } } return out; };
+      for (const [name, o, rule] of [['the set house', { scenario: 'test-shoothouse', seed: 48213 }], ['layout B', { scenario: 'test-shoothouse', seed: 48213, layout: 'B' }], ['the live lane', { scenario: 'test-shoothouse', seed: 48213, opfor: 'live' }], ['a drawn house', { scenario: 'test-shoothouse', seed: 48213, draw: 'drawn' }], ['the set house, no intel', { scenario: 'test-shoothouse', seed: 48213 }, 'none']]) {
+        const g = createGame(o), s = g.state, area = areaOf(s.places.live.area), K = createKnown({ cellM: CELL_M });
+        const R = rule ? { familiar: rule, area: 'melas.wheel.s4' } : KNOWN.sceneFamiliar(s), fam = KNOWN.familiarOf(s, area.id, R), fp = KNOWN.footprintOf(s, R);
+        const active = K.begin(s, area, () => ({ familiar: fam, footprint: fp, rooms: KNOWN.knownRoomsOf(s) }));
+        K.$s = s; K.$area = area.id;
+        const floors = laneRooms(s).reduce((a, r) => r.rects.reduce((b, rc) => { const c = cellsIn(K, rc); return { n: b.n + c.n, known: b.known + c.known }; }, a), { n: 0, known: 0 });
+        // (the rooms' boards: the hall's west board stands under the catwalk, a fixed part known since v0.0.23, and in your sight from GO)
+        const boards = s.armoury.range.turners.filter(T => !T.live && !/\.hall$/.test(T.room ?? '')), boardsKnown = boards.filter(T => K.at(T.x, T.z)).length;
+        rows.push({ name, intel: R?.familiar ?? null, fam, active, walls: wallCells(K, fp), floors, boards: boards.length, boardsKnown, fpKeys: Object.keys(fp).join('+') });
       }
-      for (const r of rows) console.log(`      ${r.name} (${r.area}): familiar ${r.familiar}, cells ${r.active ? 'made' : 'none'}, the mask ${r.mask ? 'sent' : 'none'}, (20, 10) known ${r.at}; combat scene ${r.host}`);
-      assert(rows.every(r => r.familiar && !r.active && !r.mask && r.at), fmt(rows));
-      assert(rows[0].host === 'house' && rows[3].host === null, fmt(rows.map(r => r.host)));
+      const bay = (() => { const g = createGame({ scenario: 'test-handling', seed: 1 }), s = g.state, K = createKnown({ cellM: CELL_M }); return { fam: KNOWN.familiarOf(s, s.places.live.area), active: beginOn(K, s), host: KNOWN.hostKind(s) }; })();
+      for (const r of rows) console.log(`      ${r.name} (${r.intel}): familiar ${r.fam}, cells ${r.active ? 'made' : 'none'}, footprint ${r.fpKeys}; wall cells inside ${r.walls.known} of ${r.walls.n} known; the rooms' floors ${r.floors.known} of ${r.floors.n}; the rooms' boards on a known cell ${r.boardsKnown} of ${r.boards}`);
+      console.log(`      the 25 m bay: familiar ${bay.fam}, cells ${bay.active ? 'made' : 'none'}, combat scene ${bay.host}`);
+      const briefed = rows.slice(0, 4), none = rows[4];
+      assert(briefed.every(r => r.intel === 'walls' && !r.fam && r.active && r.walls.n > 100 && r.walls.known === r.walls.n && r.floors.n > 0 && r.floors.known === 0 && r.boards > 0 && r.boardsKnown === 0), fmt(briefed));
+      assert(!none.fam && none.active && none.fpKeys === 'rect+fixed' && none.walls.known < none.walls.n / 2 && none.floors.known === 0, fmt(none));
+      assert(bay.fam && !bay.active && bay.host === null, fmt(bay));
+    },
+  },
+  {
+    name: 'the review of the picks, finding 8: "every wall, door and hatch drawn from GO" holds for the doors too: under \'walls\' at GO every point of every door\'s and bulkhead hatch\'s line (an opening with a leaf: plan.js kind \'door\') is known on the set house, a drawn house, the eight rooms, the Wreck and the hauler, so a shut door never reads as a gap; a doorway\'s threshold, a room\'s floor, and the rooms\' floors still not (red on the review\'s build: the house\'s doors 1 to 4 of 9 points, the Wreck\'s 3 of 8)',
+    fn() {
+      const rows = [], bad = [];
+      for (const [name, o] of [['the set house', { scenario: 'test-shoothouse', seed: 48213 }], ['a drawn house', { scenario: 'test-shoothouse', seed: 48213, draw: 'drawn' }], ['the eight rooms', { scenario: 'test-shoothouse', seed: 48213, rooms: 'all' }], ['the Wreck', { scenario: 'test-zerocqb', seed: 48213 }], ['the hauler', { scenario: 'test-collar', seed: 48213 }]]) {
+        const s = createGame(o).state, area = areaOf(s.places.live.area), K = createKnown({ cellM: CELL_M });
+        const active = beginOn(K, s);
+        let pts = 0, known = 0;
+        const unknown = [];
+        for (const d of planOf(area).openings.filter(o => o.kind === 'door')) for (let t = d.a + 0.05; t < d.b; t += 0.1) {
+          const [x, z] = d.axis === 'x' ? [t, d.at] : [d.at, t];
+          pts++; if (K.at(x, z)) known++; else if (unknown.length < 3) unknown.push(d.id);
+        }
+        const floors = s.armoury?.range?.house?.rooms?.length && !area.decks ? laneRooms(s).reduce((a, r) => r.rects.reduce((b, rc) => { const c = cellsIn(K, rc); return { n: b.n + c.n, known: b.known + c.known }; }, a), { n: 0, known: 0 }) : null;
+        rows.push(`${name}: cells ${active ? 'made' : 'none'}; the doors' points known ${known} of ${pts}${unknown.length ? ` (${unknown.join(', ')})` : ''}${floors ? `; the rooms' floors ${floors.known} of ${floors.n}` : ''}`);
+        if (!active || !pts || known !== pts || (floors && (floors.n === 0 || floors.known > 0))) bad.push(name);
+      }
+      for (const r of rows) console.log(`      ${r}`);
+      assert(!bad.length, fmt({ bad, rows }));
     },
   },
   {

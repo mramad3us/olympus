@@ -142,8 +142,10 @@ export function woundLine(body, ms) {
   if (hard) return { tone: 'urgent', text: `Bleeding hard from ${hard.name.replace(/^an? /, 'the ')}: a tourniquet, now.` };
   const band = bandOf(b, ms);
   if (band === 'collapsed' || band === 'shock') return { tone: 'urgent', text: 'Going into shock: lie flat, keep warm, call the corpsman.' };
-  if (on.some(i => (i.rate ?? 0) >= 0.8)) return { tone: 'warn', text: 'Bleeding: press on it.' };
-  if (bleeding(b, ms) && on.length) return { tone: 'warn', text: 'Still bleeding: keep pressure on.' };
+  // (a bleed under the tourniquet's: nothing to press, so the line says so (pressure is the IFAK's, 0.1.x: aid.js; the fixer of v0.0.28's
+  // play review, finding 5: "Bleeding: press on it." named no key and no row did it, the user's "I don't know what is meant")
+  if (on.some(i => (i.rate ?? 0) >= 0.8)) return { tone: 'warn', text: 'Bleeding, not hard: nothing to tie off. The corpsman will see to it.' };
+  if (bleeding(b, ms) && on.length) return { tone: 'warn', text: 'Still bleeding, slowly: the corpsman will see to it.' };
   const pain = painBand(painOf(b, ms));
   return pain ? { tone: 'note', text: pain.word === 'agony' ? 'The pain is everything.' : 'It hurts. Keep still.' } : null;
 }

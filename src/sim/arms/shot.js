@@ -152,6 +152,7 @@ import { realOf } from '../combat/would.js';
 const REAL_WORDS = Object.freeze({ A: 'in the chest', C: 'in the body', head: 'in the head', miss: 'past him' });
 import { footingOf } from '../body/footing.js';
 import { FOOTING } from '../../data/body/needs.js';
+import { liveOpts } from './upkeep.js';
 
 /** The shot's base DC (tradecraft's SHOT.dc). */
 export const SHOT_DC0 = 6;
@@ -546,7 +547,8 @@ export function catchAhead(state, { pid, gunId, target, part = 'torso', tempo = 
   const gun = state.items?.[gunId];
   if (!gun || !target || tempo === 'rushed') return 0;
   const mag = gun.mag ? state.items[gun.mag] : null, id = shotIdNext(state);
-  const r = shotStream(state, pid, gunId, id), f = pull(r, structuredClone(gun), mag ? structuredClone(mag) : null);
+  // (the pull as resolveShot will make it: upkeep's options too, behind its gate (v0.0.28), on the copies)
+  const r = shotStream(state, pid, gunId, id), f = pull(r, structuredClone(gun), mag ? structuredClone(mag) : null, liveOpts(state, atMs));
   if (!f.fired || d20(r) !== 1) return 0;
   const roller = rollerOf(state, pid, { ms: atMs }), { dc } = dcOf({ model: gun.model ?? 'r7', rangeM: target?.dM ?? 25, part, paper: target?.paper ?? null });
   const mods = modsOf(state, pid, { gunId, target, part, tempo: 'normal', follow, climbK, ms: atMs, held, moving });
@@ -572,7 +574,8 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
   const id = nextId(state, 'sh');
   // (a round whose catch was charged (foreseen: the id catchAhead read): its dice those, its natural 1 caught (shotIdNext))
   const r = shotStream(state, pid, gunId, foreseen ?? id);
-  const f = pull(r, gun, mag);
+  // (a round fired goes into upkeep's books after the pull's draws, behind its gate (upkeep.js liveOpts); else the pull as before)
+  const f = pull(r, gun, mag, liveOpts(state, ms));
   gun.belief = feel(gun.belief, f, { wh });
   const muzzle = muzzleOf(state, pid);
   const me = meOf(state, pid);

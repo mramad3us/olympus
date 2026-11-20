@@ -1,7 +1,8 @@
 // OLYMPUS art: the kit, every piece by kind. place() puts one into an area; KINDS lists them; FOOTPRINTS sizes them.
 //
 // A piece is { kind, x, z, face = 'down', make, look, seed } (tradecraft's furniture() spec, plus make):
-// kind names the maker (quarters.js, mess.js, head.js, training.js, ship.js, signs.js, range.js, from v0.0.25 wreck.js), make a way of
+// kind names the maker (quarters.js, mess.js, head.js, training.js, ship.js, signs.js, range.js, from v0.0.25 wreck.js, v0.0.27 belt.js,
+// v0.0.28 armoury.js), make a way of
 // building it (a steel rack or a modular one), look its state (made or unmade, open or shut, lit or not),
 // seed the cosmetic choices a look leaves open (which blanket, which dents), so a bay of fifteen racks
 // isn't one rack fifteen times ("at least three kinds of everything": the user, tradecraft, carried
@@ -25,6 +26,7 @@ import * as structure from './structure.js';
 import * as range from './range.js';
 import * as wreck from './wreck.js';
 import * as belt from './belt.js';
+import * as armoury from './armoury.js';
 
 /** Footprints by kind: w across, d deep, h tall (metres), and the makes each kind has. */
 export const FOOTPRINTS = Object.freeze({
@@ -113,6 +115,13 @@ export const FOOTPRINTS = Object.freeze({
   // deck to deckhead, and the lock's override panel; drawn by src/art/kit/belt.js (v0.0.27's look))
   berthBox: { w: 2.0, d: 0.9, h: 2.4, makes: ['belt', 'patched', 'bare'] },
   lockPanel: { w: 0.3, d: 0.05, h: 0.4, makes: ['amber', 'green'] },
+  // ("The window and the canopy": the armoury's issue window, the porch's clearing barrel, the canopy's cleaning table, solvent
+  // tank and air hose's reel, src/art/kit/armoury.js; equal to places' catalogue, src/sim/places/fixtures.js)
+  issueWindow: { w: 1.2, d: 0.6, h: 1.1, makes: ['counter', 'grille'] },
+  clearingBarrel: { w: 0.6, d: 0.6, h: 1.0, makes: ['drum', 'squat'] },
+  cleanTable: { w: 2.4, d: 0.9, h: 0.9, makes: ['steel', 'board'] },
+  solventTank: { w: 0.6, d: 0.6, h: 1.0, makes: ['red', 'grey'] },
+  airHose: { w: 0.3, d: 0.3, h: 1.6, makes: ['reel', 'coil'] },
 });
 
 const MAKERS = {
@@ -133,6 +142,8 @@ const MAKERS = {
   scuttle: wreck.scuttle, speaker: wreck.speaker, cargo: wreck.cargo, berthRack: wreck.berthRack, coaming: wreck.coaming,
   // (the Patient Mule's two pieces, src/art/kit/belt.js: a Belter's boxed berth pair and the lock's override panel)
   berthBox: belt.berthBox, lockPanel: belt.lockPanel,
+  // (the armoury's five pieces, src/art/kit/armoury.js)
+  issueWindow: armoury.issueWindow, clearingBarrel: armoury.clearingBarrel, cleanTable: armoury.cleanTable, solventTank: armoury.solventTank, airHose: armoury.airHose,
 };
 /** Every kind the kit builds. */
 export const KINDS = Object.freeze(Object.keys(MAKERS));

@@ -16,7 +16,8 @@ import { walkWords } from '../src/sim/skills/instinct/cqb.js';
 import { instinctNow } from '../src/sim/skills/instinct.js';
 import { houseLook, houseOf, cornerAidLook } from '../src/sim/scenarios/shoothouse.js';
 import { rungOf } from '../src/sim/skills/templates.js';
-import { cornerAidPixels, AID_MINE, AID_TWO, AID_SECTOR, AID_Y_M } from '../src/render/range-items.js';
+import { cornerAidPixels, AID_MINE, AID_TWO, AID_SECTOR, AID_Y_M, AID_WALL_M } from '../src/render/range-items.js';
+import { PX_PER_M } from '../src/render/scale.js';
 import { CUT_H_M } from '../src/render/walls.js';
 import { houseBot, houseTBot, runHouse } from './bots/house.mjs';
 
@@ -203,7 +204,7 @@ export default [
     },
   },
   {
-    name: 'the aid\'s pixels (range-items.js cornerAidPixels): your corner\'s bracket and your point\'s ring in AID_MINE, your #2\'s dotted in AID_TWO (fewer pixels), your sector\'s wedge in AID_SECTOR only with a sector, thinned as k falls and none at 0, all flat on the room\'s floor for the overlay pass',
+    name: 'the aid\'s pixels (range-items.js cornerAidPixels): your corner\'s bracket and your point\'s ring in AID_MINE, your #2\'s in AID_TWO (fewer pixels), your sector\'s marks in AID_SECTOR only with a sector, thinned as k falls and none at 0, all flat on the room\'s floor for the overlay pass',
     fn() {
       const { s } = house('private', 'room:2'), P = lanePlanOf(s).plans['o:w4:r2'], T = cornerTableOf(P);
       const mark = (r, k) => ({ room: 'w4.r2', slot: r.slot, mine: r.slot === 1, k, corner: { x: r.corner.x, z: r.corner.z, along: r.corner.along, back: r.corner.back }, point: r.point });
@@ -220,6 +221,32 @@ export default [
       // (flat on the room's floor, for the overlay pass (range.js: no depth test), never upright over the cut, where room 2's sat on
       // the hall-facing wall face and read as in the hall: the play review of 2026-11-15, the fixer's of 0.0.16)
       assert(atCorner >= 16 && atPoint >= 8 && full.every(p => p.y === AID_Y_M && p.flat) && AID_Y_M < 0.05 && cornerAidPixels(null).length === 0, JSON.stringify({ atCorner, atPoint }));
+    },
+  },
+  {
+    name: 'v0.0.28 (the user\'s note of 2026-11-20, "not a big fan of the angles drawn on the floor, we need a slicker way of doing it"): no angle drawn across the floor: in rooms 1, 2 and 3 your sector\'s pixels all lie at the foot of a wall (within 0.35 m of the room\'s edge), only the two marks AID_WALL_M long where its edges meet their walls (each within AID_WALL_M and a pixel of its meeting point, nothing drawn along the stretch between), none crossing the room, fewer than v0.0.27\'s wedge drew (the triage\'s "fewer pixels than today\'s"); your #2\'s marks solid, your ring with no dot (red on v0.0.27\'s cornerAidPixels: its rays crossed the room; and on the review\'s build, whose line along the whole stretch drew 71, 93 and 82 against the wedge\'s 57, 74 and 60)',
+    fn() {
+      const rows = [], bad = [];
+      const { s } = house('private', 'go'), plans = lanePlanOf(s).plans;
+      for (const [setup, door] of [['room 1', 'o:w4:r1'], ['room 2', 'o:w4:r2'], ['room 3', 'o:w4:r3']]) {
+        const P = plans[door], T = cornerTableOf(P), W = sectorWedgeOf(P, T[0]);
+        const mark = (r) => ({ room: P.room, slot: r.slot, mine: r.slot === 1, k: 1, corner: { x: r.corner.x, z: r.corner.z, along: r.corner.along, back: r.corner.back }, point: r.point });
+        const withS = cornerAidPixels({ marks: T.map(mark), sector: { k: 1, ...W } }), noS = cornerAidPixels({ marks: T.map(mark), sector: null });
+        const key = (p) => `${p.x},${p.z}`, base = new Set(noS.map(key)), sector = withS.filter(p => !base.has(key(p)));
+        // (each sector pixel within a mark's reach of one of the two meeting points: AID_WALL_M along the wall, a pixel in, the pixel's own size)
+        const reach = AID_WALL_M + 3 / PX_PER_M, offEnds = sector.filter(p => !W.walls.some(e => e && Math.hypot(p.x + 0.5 / PX_PER_M - e[0], p.z + 0.5 / PX_PER_M - e[1]) <= reach));
+        // (a pixel's distance to the nearest edge of the plan's rect it stands in: the room's walls)
+        const toWall = (x, z) => Math.min(...(P.rects ?? []).filter(r => x >= r[0] - 0.1 && x <= r[2] + 0.1 && z >= r[1] - 0.1 && z <= r[3] + 0.1).map(r => Math.min(Math.abs(x - r[0]), Math.abs(r[2] - x), Math.abs(z - r[1]), Math.abs(r[3] - z))));
+        const far = sector.filter(p => toWall(p.x + 0.5 / PX_PER_M, p.z + 0.5 / PX_PER_M) > 0.35);
+        // (v0.0.27's wedge, counted as it drew it: each ray dotted every 2 px from your point to its end, and the arc between at arcM)
+        const was = W.rays.reduce((a, e) => a + Math.ceil(Math.hypot(e[0] - W.x, e[1] - W.z) * PX_PER_M / 2) + 1, 0) + Math.ceil(W.arcM * Math.abs(W.toRad - W.fromRad) * PX_PER_M / 2) + 1;
+        // (the #2's marks solid: his bracket's strokes have no gap of a pixel; your ring no dot at its centre)
+        const two = withS.filter(p => p.c === AID_TWO), dotAt = withS.some(p => Math.floor(T[0].point[0] * PX_PER_M) / PX_PER_M === p.x && Math.floor(T[0].point[1] * PX_PER_M) / PX_PER_M === p.z);
+        rows.push(`${setup}: the sector's ${sector.length} px (v0.0.27's wedge about ${was}), ${far.length} more than 0.35 m off a wall, ${offEnds.length} away from the two ends; the edges meet their walls at ${W.walls.map((e, i) => (e ? `(${e.join(', ')}) along (${W.along[i].join(', ')})` : 'none')).join(', ')}; your #2's ${two.length} px; a dot in your ring ${dotAt}`);
+        if (far.length || offEnds.length || !sector.length || sector.length >= was || W.walls.some(e => !e) || dotAt || !two.length) bad.push(`${setup}: ${JSON.stringify({ far: far.slice(0, 3), offEnds: offEnds.slice(0, 3), n: sector.length, was, along: W.along, dotAt })}`);
+      }
+      for (const r of rows) console.log(`      ${r}`);
+      assert(!bad.length && AID_WALL_M <= 0.35 && AID_FADE_MS === 400, bad.join(' | '));
     },
   },
   {

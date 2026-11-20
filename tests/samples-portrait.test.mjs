@@ -24,9 +24,9 @@ import { SAMPLES, checkSet, drawn, onePerGroup } from './samples-check.mjs';
 
 export default [
   {
-    name: 'portrait-gun: G, W and H shot whole, G1, W1 and H1 the defaults (this round), the gun read on the default\'s cards and lost on today\'s (the note of 2026-11-17)',
+    name: 'portrait-gun: G, W and H shot whole, G2 and W1 scored (2026-11-20), H1 redrawn and open (v0.0.28), the gun read on the default\'s cards and lost on today\'s (the note of 2026-11-17)',
     async fn() {
-      const { s, groups } = checkSet('portrait-gun', { groups: ['G', 'W', 'H'], views: 7, open: ['G1', 'W1', 'H1'], builtIn: 'v0.0.23' });
+      const { s, groups } = checkSet('portrait-gun', { groups: ['G', 'W', 'H'], views: 7, open: ['H1'], builtIn: 'v0.0.28' });
       const { GUN_PX_MIN, GUN_IN_CROP_K } = await import(path.join(SAMPLES, 'portrait-lib/card.js'));
       for (const v of onePerGroup(groups, s)) {
         const P = await drawn('portrait-gun/gun.js', v), cards = P.report.cards ?? [];
@@ -39,23 +39,23 @@ export default [
     },
   },
   {
-    name: 'portrait-light: L, J and V shot whole, L1, J1 and V1 the defaults (V this round, L and J drawn in v0.0.24)',
+    name: 'portrait-light: L, J and V shot whole, L1 and J1 scored, V3 the default and open (v0.0.28: the hands veiled from the collar down)',
     async fn() {
-      const { s, groups } = checkSet('portrait-light', { groups: ['L', 'J', 'V'], views: 6, open: ['L1', 'J1', 'V1'], builtIn: 'v0.0.23' });
+      const { s, groups } = checkSet('portrait-light', { groups: ['L', 'J', 'V'], views: 7, open: ['V3'], builtIn: 'v0.0.28' });
       for (const v of onePerGroup(groups, s)) await drawn('portrait-light/light.js', v);
     },
   },
   {
-    name: 'portrait-suit: D-a to D-c shot whole, D-a the default (v0.0.24)',
+    name: 'portrait-suit: D-a to D-c shot whole, D-b scored (2026-11-20; D-a the default of v0.0.24) and folded',
     async fn() {
-      const { s, groups } = checkSet('portrait-suit', { groups: ['D'], views: 3, open: ['D-a'], builtIn: 'v0.0.24' });
+      const { s, groups } = checkSet('portrait-suit', { groups: ['D'], views: 3, scored: { on: '2026-11-20', picks: ['D-b'] } });
       for (const v of onePerGroup(groups, s)) await drawn('portrait-suit/suit.js', v);
     },
   },
   {
-    name: 'truth-cards: T-a to T-c shot whole at their layouts\' sizes, T-a the default (v0.0.24)',
+    name: 'truth-cards: T-a to T-c shot whole at their layouts\' sizes, T-a scored (2026-11-20) and folded',
     async fn() {
-      const { views } = checkSet('truth-cards', { groups: ['T'], views: 3, open: ['T-a'], builtIn: 'v0.0.24' });
+      const { views } = checkSet('truth-cards', { groups: ['T'], views: 3, scored: { on: '2026-11-20', picks: ['T-a'] } });
       const { SIZE } = await import(path.join(SAMPLES, 'truth-cards/truth.js'));
       for (const v of views) assert(JSON.stringify(SIZE[v.id]) === JSON.stringify(nativeOf(v.pixel)), JSON.stringify({ view: v.id, size: SIZE[v.id], pixel: v.pixel }));
       const lane = JSON.parse(readFileSync(path.join(SAMPLES, 'truth-cards/lane.json'), 'utf8'));
@@ -63,13 +63,14 @@ export default [
     },
   },
   {
-    name: 'house-unknown: U1 to U3 shot whole, U1 the default (this round), black (the build sheet\'s UNKNOWN_C), the game\'s two frames beside it; U1 the game\'s own picture pixel for pixel and every look over exactly the pixels the game hides (the review of 2026-11-18: E1\'s own mask drew the catwalk, the booth and the hall\'s north wall black where the game draws them)',
+    name: 'house-unknown: U1 to U3 shot whole, U2 scored (2026-11-20; U1 the default of v0.0.23), black (the build sheet\'s UNKNOWN_C), the game\'s two frames beside it; U1 the game\'s own picture pixel for pixel and every look over exactly the pixels the game hides (the review of 2026-11-18: E1\'s own mask drew the catwalk, the booth and the hall\'s north wall black where the game draws them)',
     async fn() {
-      const { views } = checkSet('house-unknown', { groups: ['U'], views: 3, open: ['U1'], builtIn: 'v0.0.23' });
+      const { views } = checkSet('house-unknown', { groups: ['U'], views: 3, scored: { on: '2026-11-20', picks: ['U2'] } });
       const U = await import(path.join(SAMPLES, 'house-unknown/unknown.js')), { SIZE, UNKNOWN_C, LOOKS } = U;
       const B = await import('../src/render/known.js');
       for (const v of views) assert(JSON.stringify(SIZE) === JSON.stringify(nativeOf(v.pixel)), JSON.stringify({ view: v.id, size: SIZE, pixel: v.pixel }));
-      assert(UNKNOWN_C === 0x000000 && UNKNOWN_C === B.UNKNOWN_C && JSON.stringify(LOOKS) === JSON.stringify(views.map(v => v.id).sort()), JSON.stringify({ UNKNOWN_C, game: B.UNKNOWN_C, LOOKS }));
+      // (v0.0.28: the game draws U2, the user's star of 2026-11-20, in the sample's own colours; the frames' unknown is U1's black, as captured)
+      assert(UNKNOWN_C === 0x000000 && B.UNKNOWN_LOOK === 'U2' && B.UNKNOWN_C === U.HATCH_BASE && B.HATCH_C === U.HATCH_C && B.HATCH_EVERY === U.HATCH_EVERY && JSON.stringify(LOOKS) === JSON.stringify(views.map(v => v.id).sort()), JSON.stringify({ UNKNOWN_C, game: B.UNKNOWN_C, LOOKS }));
       const files = ['go.png', 'go-u1.png', 'room1.png', 'room1-u1.png', 'scene.json'];
       for (const f of files) assert(existsSync(path.join(SAMPLES, 'house-unknown', f)), `house-unknown/${f} missing (node samples/house-unknown/capture.mjs)`);
       // (the game's pictures, decoded; U1's right-hand side is the game's own, and U2 and U3 change exactly the pixels the game hides)
@@ -94,9 +95,9 @@ export default [
     },
   },
   {
-    name: 'pistol-stances: T (today, not scored), PS-a to PS-e (drawn this round) and RH1 to RH3 (RH1 the default) shot whole; each stance on the figure\'s pistol band, each hang worn.js\'s (the note of 2026-11-17)',
+    name: 'pistol-stances: T (today, not scored), PS-a to PS-e (drawn this round; PS-a, PS-d and PS-e scored 2026-11-20, PS-b and PS-c redrawn and open) and RH1 to RH3 (RH1 scored) shot whole; each stance on the figure\'s pistol band, each hang worn.js\'s (the note of 2026-11-17)',
     async fn() {
-      const { s, groups, views } = checkSet('pistol-stances', { groups: ['T', 'PS', 'RH'], views: 9, open: ['PS-a', 'PS-b', 'PS-c', 'PS-d', 'PS-e', 'RH1'], builtIn: 'v0.0.23' });
+      const { s, groups, views } = checkSet('pistol-stances', { groups: ['T', 'PS', 'RH'], views: 9, open: ['PS-b', 'PS-c'], builtIn: 'v0.0.28', scored: { on: '2026-11-20', picks: ['PS-a', 'PS-d', 'PS-e', 'RH1'] } });
       const { SIZE, TODAY_ROWS, WITH, HANG_OF } = await import(path.join(SAMPLES, 'pistol-stances/stances.js'));
       const T = views.find(v => v.id === 'T');
       assert(JSON.stringify(SIZE.today) === JSON.stringify(nativeOf(T.pixel)), JSON.stringify({ size: SIZE.today, pixel: T.pixel }));
@@ -140,9 +141,9 @@ export default [
     },
   },
   {
-    name: 'portrait-pose: A, P, K, D, C and Y shot whole, A1, P1, K1, D1, C1 and Y-p the defaults (this round); C\'s candidates each a view, their records named in src/data/portrait.js',
+    name: 'portrait-pose: A, P, K, D, C and Y shot whole, K1 and C1 scored, A3, P3 and D3 redrawn and open (v0.0.28), Y-p the default; C\'s candidates each a view, their records named in src/data/portrait.js',
     async fn() {
-      const { s, groups, views } = checkSet('portrait-pose', { groups: ['A', 'P', 'K', 'D', 'C', 'Y'], views: 12, open: ['A1', 'P1', 'K1', 'D1', 'C1', 'Y-p'], builtIn: 'v0.0.23' });
+      const { s, groups, views } = checkSet('portrait-pose', { groups: ['A', 'P', 'K', 'D', 'C', 'Y'], views: 15, open: ['A3', 'P3', 'D3', 'Y-p'], builtIn: 'v0.0.28' });
       const { GROUPS } = await import(path.join(SAMPLES, 'portrait-pose/poses.js'));
       const ids = ['A', 'P', 'K', 'D', 'C', 'Y'].flatMap(g => GROUPS[g].map(c => c.id));
       assert(JSON.stringify(ids.slice().sort()) === JSON.stringify(views.map(v => v.id).sort()), JSON.stringify({ table: ids, views: views.map(v => v.id) }));
@@ -156,9 +157,9 @@ export default [
     },
   },
   {
-    name: 'portrait-facing: F and R shot whole, F1, F3 and R1 the defaults (this round); C\'s candidates each a view, their facings src/data/portrait.js\'s or the profile candidate',
+    name: 'portrait-facing: F and R shot whole, R1 scored, F1 and F4 the defaults (v0.0.28: F4 the true profile); C\'s candidates each a view, their facings src/data/portrait.js\'s or the profile candidate',
     async fn() {
-      const { s, groups, views } = checkSet('portrait-facing', { groups: ['F', 'R'], views: 6, open: ['F1', 'F3', 'R1'], builtIn: 'v0.0.23' });
+      const { s, groups, views } = checkSet('portrait-facing', { groups: ['F', 'R'], views: 5, open: ['F1', 'F4'], builtIn: 'v0.0.28' });
       const { GROUPS } = await import(path.join(SAMPLES, 'portrait-facing/views.js'));
       assert(JSON.stringify([...GROUPS.F, ...GROUPS.R].map(c => c.id).sort()) === JSON.stringify(views.map(v => v.id).sort()), JSON.stringify(views.map(v => v.id)));
       for (const c of GROUPS.F) assert(FACINGS.includes(c.rec.facing) || c.rec.facing === 'profile', JSON.stringify(c.rec));

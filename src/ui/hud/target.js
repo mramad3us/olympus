@@ -67,7 +67,7 @@
 // readers (main.js's, read once a tick): pairsOf(s) (pairs.js pairsNow), marksOf(s, key, k, phase) (hitMarks), meAt(s).
 import { cardModel, hitShown, hitTabs, hitRangeM, HIT_LOOK } from './hitcard.js';
 import { hitDollReady, warmHitcard, bandOf, HIT_BANDS } from '../../art/doll/hitcard.js';
-import { paintPortrait, BOARD_PLACES, PORTRAIT_PICKS, ROLL_FACE_WORDS } from '../../art/doll/portrait.js';
+import { paintPortrait, BOARD_PLACES, PORTRAIT_PICKS, ROLL_FACE_WORDS, ROLL_NAMED } from '../../art/doll/portrait.js';
 import { engagedOf, struckLast, seenFace, seenState, liveRecOf } from '../../sim/arms/engage.js';
 import { seenOf, standSeen, seenKey, lightOf, coverAt, paintKey } from '../../sim/people/seen.js';
 import { lookFor, indoorsNow } from '../../sim/people/figure.js';
@@ -176,10 +176,30 @@ export function searchedWords(state, pid) {
   return 'NOT STRUCK';
 }
 
-/** The card's words with R-b's face named before them (v0.0.25: portrait.js ROLL_FACE_WORDS, only for a subject turned to you; R-a turns the card instead). */
+/**
+ * The card's words with his face named before them, for a subject turned to you (v0.0.25: portrait.js ROLL_FACE_WORDS, R-b's; v0.0.28,
+ * the user's stars of 2026-11-20 on both: on R-a too, the card turned and the words naming it, portrait.js ROLL_NAMED).
+ */
 export function rollWords(words, rec, picks = null) {
   const roll = rec?.roll ?? 0, P = { ...PORTRAIT_PICKS, ...(picks ?? {}) };
-  return roll && P.roll === 'R-b' && ROLL_FACE_WORDS[roll] ? [ROLL_FACE_WORDS[roll], words].filter(Boolean).join(' · ') : words;
+  return roll && ROLL_NAMED.includes(P.roll) && ROLL_FACE_WORDS[roll] ? [ROLL_FACE_WORDS[roll], words].filter(Boolean).join(' · ') : words;
+}
+
+/** Whether a record is drawn aimed (a gun pointed: at you or away, by its hold or its aim). */
+export const aimedRec = (rec) => !!rec && (!!rec.aimAt || /aim/.test(rec.hold?.how ?? ''));
+/**
+ * The state a live man's card says (v0.0.28: the words and the drawing from the one record, the judge's pass of 2026-11-20): the
+ * take-in's read (engage.js seenState), but AIMING only over a man the card draws aimed (else the word for what it draws: DOWN,
+ * HANDS UP, COWERING or LOOKING), and a man drawn aimed is AIMING whatever the read left (veiled, V3, he is drawn with no gun; firing
+ * blind keeps its words): the verb never contradicts the figure. Pure.
+ */
+export function captionState(st, rec, veiled = false) {
+  // (read aiming, drawn otherwise: the word for what is drawn: sitting down DOWN, the hands up HANDS UP, cowering COWERING, else LOOKING)
+  if (st === 'aiming' && !aimedRec(rec)) return rec?.pose === 'sit' || rec?.pose === 'sitD1' ? 'down' : rec?.hold?.how === 'up' || rec?.gear?.hands === 'up' ? 'hands' : rec?.pose === 'cower' ? 'cowering' : 'looking';
+  // (the converse, the art director's pass 3: "A3 under 'PAIR · 1 SEEN'": a man the card draws aimed carries AIMING whatever the read
+  // left (none, LOOKING, RUNNING), unless his hands are veiled (V3 draws no gun) or he fires blind (its own words))
+  if (aimedRec(rec) && !veiled && st !== 'aiming' && st !== 'firing-blind') return 'aiming';
+  return st;
 }
 
 /** Whether the view shows: while engaged, with or without marks; after, hitShown's rule. */
@@ -214,7 +234,9 @@ export function targetModel(state, { key, kind = 'turner', who = null, phase = n
       const marks = (hm?.marks ?? []).map(mk => ({ ...mk, paint: 'team' }));
       // (his give under way, the rifle still in his hands as the figure draws it (seen.js frame 'drop', GIVE_DROP_MS): GIVING UP, the words
       // agreeing with the figure, HANDS UP once it is on the floor (the play review of v0.0.26, finding 6: HANDS UP over a two-handed grip))
-      const stWord = st === 'hands' && rec.frame === 'drop' ? GIVING_WORDS : STATE_WORDS[st];
+      // (the judge's pass of 2026-11-20: "AIMING · PAIR · 1 SEEN" over a man drawn at the low ready: the verb and the drawing
+      // from the one record, captionState)
+      const stWord = st === 'hands' && rec.frame === 'drop' ? GIVING_WORDS : STATE_WORDS[captionState(st, rec, sf.holds === 'unseen')];
       const lead = [...(searched ? ['SEARCHED', searchedWords(state, who)] : [stWord ?? (sf.holds === 'unseen' ? UNSEEN_WORDS : null)]), hm?.words ?? String(LT.stand ?? '').toUpperCase()].filter(Boolean).join(' · ');
       return { look: HIT_LOOK, man: null, key: LT.key, k: 0, face: null, holds: null, phase: hm?.phase ?? phase ?? cardPhaseOf(state, LT.key), marks, words: lead, ...(searched ? { headRows: 4 } : {}), line: hm?.line ?? null, tabs, rangeM: frozen ? rec.rangeM : hitRangeM(a ?? LT, me, null),
         subject, live: { key: LT.key, state: st, holds: sf.holds }, ...(picks ? { picks } : {}) };

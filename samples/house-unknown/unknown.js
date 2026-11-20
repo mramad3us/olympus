@@ -16,12 +16,15 @@
 //       the hall's edges on the ground, one pixel in OUTLINE_C where the pixel is unknown), the doors not drawn (where they
 //       are is what you find out).
 // ?u=U1|U2|U3 picks the look; each picture is today's frame and the look's, at GO and after room 1.
+// v0.0.28: the user starred U2 on 2026-11-20 and the game draws it (src/render/known.js UNKNOWN_LOOK, UNKNOWN_C its ground, HATCH_C,
+// HATCH_EVERY: this module's HATCH_BASE, HATCH_C and HATCH_EVERY, held equal by tests/samples-portrait.test.mjs); the frames here were
+// captured while the game drew U1, black, so the game's unknown pixels are read as U1's black (UNKNOWN_C below, this module's own).
 import { glyphOf } from '../../src/art/font.js';
-import { UNKNOWN_C } from '../../src/render/known.js';
 
-/** The looks, and the default (the build sheet §5: UNKNOWN_C black, U1, until scored). */
+/** The looks, and the sample's default when it was built (the build sheet §5: U1, black; the game draws U2 since the user's star). */
 export const LOOKS = Object.freeze(['U1', 'U2', 'U3']), DEFAULT = 'U1';
-export { UNKNOWN_C };
+/** U1's black, the game's unknown when these frames were captured (v0.0.23 to v0.0.27). */
+export const UNKNOWN_C = 0x000000;
 export const HATCH_BASE = 0x0b0c10, HATCH_C = 0x2b3546, HATCH_EVERY = 5, OUTLINE_C = 0x30343f;
 const W0 = 640, H0 = 360, GAP = 4, LABEL_H = 10;
 /** The picture's size (sample.json's pixel): today's and the look's, at GO and after room 1. */

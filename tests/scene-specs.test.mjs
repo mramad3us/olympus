@@ -46,6 +46,8 @@ const V0010 = Object.freeze({
 });
 /** v0.0.24's two void scenes ("Anchor before you fire", "Secure for burn") and v0.0.25's Wreck ("Hold to hold"): off Mars, with no v0.0.10 start. */
 const VOID_SCENES = Object.freeze(['test-anchors', 'test-burn', 'test-zerocqb', 'test-collar']);
+/** v0.0.28's "The window and the canopy": on Melas, but new since, so with no v0.0.10 start either. */
+const NEW_SCENES = Object.freeze(['test-armoury']);
 const startOf = (s) => { const a = playerActor(s); return [s.clock.ms === s.meta.createdMs ? s.clock.ms : `${s.clock.ms}≠${s.meta.createdMs}`, s.places.live.area, a.x, a.z, a.face, digest(toJSON(s))]; };
 const throws = (fn) => { try { fn(); return null; } catch (e) { return e.message; } };
 
@@ -66,7 +68,8 @@ export default [
       // (every scene v0.0.10 had: the shoot house, new in 0.0.12, is the fourth test's)
       // (v0.0.19's "Stack and clear, live" plays the shoot house's scenario: neither had a v0.0.10 start)
       // (v0.0.24's two void scenes, new since, have no v0.0.10 start either)
-      const listed = SCENE_IDS.filter(id => SCENES[id].scenario && SCENES[id].scenario !== 'test-shoothouse' && !VOID_SCENES.includes(id)).length * 2 + 2;
+      // (v0.0.28's armoury, new since, none either)
+      const listed = SCENE_IDS.filter(id => SCENES[id].scenario && SCENES[id].scenario !== 'test-shoothouse' && !VOID_SCENES.includes(id) && !NEW_SCENES.includes(id)).length * 2 + 2;
       assert(Object.keys(V0010).length === listed, `every built scene on two seeds and the two starts: ${Object.keys(V0010).length} of ${listed}`);
       assert(!bad.length, `starts that moved: ${bad.join(', ')}`);
     },
@@ -96,7 +99,11 @@ export default [
       // to hold" (the ships together: its build sheet §14 item 22, question 18); on the Tests menu since v0.0.27's integration met its ship
       // rule (F150, F153, F155 and F165 green))
       assert(SCENES['test-collar'].host.site === 'belt-mule' && SCENES['test-collar'].host.area === 'mule.crew' && SCENES['test-collar'].env.preset === 'site' && SCENES['test-collar'].scenario === 'test-collar' && SCENES['test-collar'].ship === 'hauler' && SCENES['test-collar'].menu !== false, 'the hauler\'s scene');
-      assert(JSON.stringify(SCENE_IDS) === JSON.stringify(built.map(x => x.id)) && SCENE_IDS.at(-1) === 'test-collar' && SCENE_IDS.at(-2) === 'test-zerocqb' && SCENE_IDS.at(-3) === 'test-burn' && SCENE_IDS.at(-4) === 'test-anchors' && SCENE_IDS.at(-5) === 'test-breach' && SCENE_IDS.at(-6) === 'test-shoothouse-live' && SCENE_IDS.at(-7) === 'test-shoothouse', SCENE_IDS.join());
+      // (v0.0.28: "The window and the canopy" appended last, after "Away the boarding party" (its build sheet §0 item 19, §14 item 4): SCENE_IDS
+      // lists the built scenes, menu or not, so it is last there from its merge, by its URL only (menu false) until its ship rule; the
+      // scenes before it in their places, each one along)
+      assert(SCENES['test-armoury'].host.site === 'melas' && SCENES['test-armoury'].scenario === 'test-armoury' && SCENES['test-armoury'].course === 'armoury' && SCENES['test-armoury'].menu === false, JSON.stringify(SCENES['test-armoury']));
+      assert(JSON.stringify(SCENE_IDS) === JSON.stringify(built.map(x => x.id)) && SCENE_IDS.at(-1) === 'test-armoury' && SCENE_IDS.at(-2) === 'test-collar' && SCENE_IDS.at(-3) === 'test-zerocqb' && SCENE_IDS.at(-4) === 'test-burn' && SCENE_IDS.at(-5) === 'test-anchors' && SCENE_IDS.at(-6) === 'test-breach' && SCENE_IDS.at(-7) === 'test-shoothouse-live' && SCENE_IDS.at(-8) === 'test-shoothouse', SCENE_IDS.join());
       assert(Object.values(STARTS).every(x => x.env.preset === 'site') && STARTS.sandbox.host.site === 'test' && STARTS.barracks.host.site === 'melas', JSON.stringify(STARTS));
       console.log(`      the Tests menu: ${SCENE_IDS.join(', ')}; stubs: ${Object.values(SCENES).filter(x => x.built === false).map(x => x.id).join(', ')}`);
     },

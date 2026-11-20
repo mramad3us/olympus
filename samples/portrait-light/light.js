@@ -14,12 +14,17 @@
 //   ?v=V1|V2   V, his hands before your take-in has read them: today's card (the hands emptied, v0.0.22's liveGear), then
 //              the candidate at the near and mid bands: V1 (the default, this release) the hands and the rifle drawn as the
 //              stage shows them, the words "HANDS NOT SEEN · 2A"; V2 the hands and what is in them veiled, hatched in the
-//              card's ground over the hands' box.
+//              card's ground over the hands' box; V3 (v0.0.28, the user's "Hands not seen should not show any hint as to what is
+//              behind ... find a way to either blur or otherwise tastefully hide the bottom" of 2026-11-20) the game's own card
+//              (src/art/doll/hitcard.js UNREAD_ROW): the man drawn whole as one neutral body (unreadRec), and from the collar
+//              down a dithered veil in the card's ground over him, HANDS NOT SEEN on a dark plate across it; today's V1 card first, then V3 at the near, mid and far bands, then a man with his rifle aimed,
+//              his P-12 aimed and empty-handed, each unread, the same from the line down, and a man side on.
 import { pic, manCard, sheetSize, CARD_W, GAP } from '../portrait-lib/card.js';
+import { paintHitcard } from '../../src/art/doll/hitcard.js';
 import { mix } from '../../src/art/doll/grid.js';
 
-export const GROUPS = Object.freeze({ l: Object.freeze(['L1', 'L2']), j: Object.freeze(['J1', 'J2']), v: Object.freeze(['V1', 'V2']) });
-export const DEFAULTS = Object.freeze({ l: 'L1', j: 'J1', v: 'V1' });
+export const GROUPS = Object.freeze({ l: Object.freeze(['L1', 'L2']), j: Object.freeze(['J1', 'J2']), v: Object.freeze(['V1', 'V2', 'V3']) });
+export const DEFAULTS = Object.freeze({ l: 'L1', j: 'J1', v: 'V3' });
 /** The light's numbers (the build sheet §5, reserved for v0.0.24): the floor, the lit room's level; the lamp's pool across (card px). */
 export const LIGHT_FLOOR_K = 0.3, LIGHT_REF = 0.75, LAMP_R_PX = 120;
 /** The places' light for L (places' lightLevel's numbers in the house: the rooms and hall 0.75, room 3 0.40; a dark room). */
@@ -27,12 +32,17 @@ export const PLACES = Object.freeze([['LIT ROOM', 0.75], ['ROOM 3 DIM', 0.40], [
 /** The jamb's shares, its colours (the house's wall: face, lit edge, ink) and J2's fade toward the ground. */
 export const JAMB_SHARES = Object.freeze([0.25, 0.5, 0.75]), JAMB_C = Object.freeze({ face: 0x4b4540, lit: 0x6e665c, ink: 0x14151c }), JAMB_FADE_K = 0.8;
 const LABEL_H = 10;
-export const SIZE = Object.freeze({ l: sheetSize(4, 1, LABEL_H), j: sheetSize(3, 1, LABEL_H), v: sheetSize(3, 1, LABEL_H) });
+export const SIZE = Object.freeze({ l: sheetSize(4, 1, LABEL_H), j: sheetSize(3, 1, LABEL_H), v: sheetSize(3, 1, LABEL_H), v3: sheetSize(4, 2, LABEL_H) });
 
 /** Role-player 2a as the stage draws him (src/sim/arms/gear.js's form: the live lane's issue, opfor.js setPost's utilities). */
 export const RP_GEAR = Object.freeze({ outfit: 'utilities', suit: null, carrier: { model: 'pc-m3', pouches: [{ key: 'p1', holds: 2, mags: 2 }, { key: 'p2', holds: 2, mags: 2 }, { key: 'dump', holds: 4, mags: 0 }] }, ears: null, rifle: { model: 'r7', finish: null, place: 'ready', mag: true }, pistol: null, thigh: null, held: null, devices: [], painted: false, mask: 'fof', hands: null, device: null });
 export const RP_PERSON = Object.freeze({ look: { skin: 'brown', hair: { style: 'highTight', color: 'black' }, head: null }, sex: 'm' });
 const emptied = () => ({ ...RP_GEAR, rifle: null });
+// (V3's men, written here as ../portrait-lib/posed.js has them (that module imports this one): 2a with his P-12 holstered, or out)
+const RP_LIVE = Object.freeze({ ...RP_GEAR, pistol: Object.freeze({ model: 'p12', place: 'holster', mag: true }) });
+const RP_PISTOL = Object.freeze({ ...RP_GEAR, rifle: Object.freeze({ ...RP_GEAR.rifle, place: 'front' }), pistol: Object.freeze({ model: 'p12', place: 'ready', mag: true }) });
+const recOf = (gear, over = {}) => ({ kind: 'man', gear, pose: 'stand', facing: 'front', hold: null, aimAt: null, ...over });
+const cardOf = ({ rec, person, rangeM, words, picks, live }) => paintHitcard({ subject: { kind: 'man', rec, person }, rangeM, words, picks, live });
 
 const darken = (c, k) => mix(0x000000, c, k);
 /** L: the figure lit by k at each pixel (a number, or a function of the pixel). */
@@ -62,8 +72,8 @@ function veil(C) {
 /** The picture for a query (see the header): a Pic with .report. */
 export function picture(q = new URLSearchParams()) {
   const set = q.get('j') ? 'j' : q.get('v') ? 'v' : 'l', cand = GROUPS[set].includes(q.get(set)) ? q.get(set) : DEFAULTS[set];
-  const [W, H] = SIZE[set], P = pic(W, H), cards = [];
-  const head = { L1: 'L1 · LIT BY HIS PLACE, NEVER BELOW 30%', L2: 'L2 · UNLIT (TODAY)', J1: 'J1 · THE JAMB DRAWN OVER HIM', J2: 'J2 · THE HIDDEN SHARE FADED', V1: 'V1 · AS THE STAGE SHOWS HIM, IN WORDS · CARD 1 TODAY', V2: 'V2 · THE HANDS VEILED · CARD 1 TODAY' }[cand];
+  const [W, H] = SIZE[set === 'v' && cand === 'V3' ? 'v3' : set], P = pic(W, H), cards = [];
+  const head = { V3: 'V3 · VEILED FROM THE COLLAR DOWN, ONE NEUTRAL BODY · CARD 1 TODAY (V1)', L1: 'L1 · LIT BY HIS PLACE, NEVER BELOW 30%', L2: 'L2 · UNLIT (TODAY)', J1: 'J1 · THE JAMB DRAWN OVER HIM', J2: 'J2 · THE HIDDEN SHARE FADED', V1: 'V1 · AS THE STAGE SHOWS HIM, IN WORDS · CARD 1 TODAY', V2: 'V2 · THE HANDS VEILED · CARD 1 TODAY' }[cand];
   P.write(GAP + 1, GAP + 1, head, 0x9aa0ab);
   const at = (i) => [GAP + i * (CARD_W + GAP), GAP + LABEL_H];
   const man = (o) => manCard({ gear: RP_GEAR, person: RP_PERSON, ...o });
@@ -80,7 +90,22 @@ export function picture(q = new URLSearchParams()) {
     P.blit(C, ...at(i));
     cards.push({ share: sh });
   });
-  else {
+  else if (cand === 'V3') {
+    // (the game's card, his hands unread (live.holds 'unseen'): V1 today's, then V3 at the bands, then three holds and a side)
+    const unseen = { holds: 'unseen' }, low = recOf(RP_LIVE, { hold: { how: 'rifle-low' } });
+    const row1 = [{ rec: low, picks: { unread: 'V1' }, words: 'TODAY · HANDS NOT SEEN · 2A' }, ...[4, 14, 30].map(r => ({ rec: low, rangeM: r, words: `V3 · 2A · ${r} M` }))];
+    const row2 = [
+      { rec: recOf(RP_LIVE, { hold: { how: 'rifle-aim' }, aimAt: 'you' }), words: 'V3 · RIFLE AIMED' },
+      { gear: RP_PISTOL, rec: recOf(RP_PISTOL, { hold: { how: 'pistol-aim' }, aimAt: 'you' }), words: 'V3 · P-12 AIMED' },
+      { rec: recOf({ ...RP_LIVE, rifle: null }, { hold: { how: 'empty' } }), words: 'V3 · EMPTY HANDS' },
+      { rec: recOf(RP_LIVE, { facing: 'right', hold: { how: 'rifle-low' } }), rangeM: 14, words: 'V3 · SIDE ON · 14 M' },
+    ];
+    [row1, row2].forEach((row, j) => row.forEach((c, i) => {
+      const k = cardOf({ gear: c.rec.gear, person: RP_PERSON, rec: c.rec, rangeM: c.rangeM ?? 4, words: c.words, picks: c.picks ?? { unread: 'V3' }, live: unseen });
+      P.blit(k, GAP + i * (CARD_W + GAP), GAP + LABEL_H + j * (CARD_W + GAP));
+      cards.push({ words: c.words, hidden: k.hidden ?? null });
+    }));
+  } else {
     const today = manCard({ gear: emptied(), person: RP_PERSON, words: 'TODAY · HANDS NOT SEEN · 2A' });
     P.blit(today, ...at(0));
     [4, 14].forEach((r, i) => {

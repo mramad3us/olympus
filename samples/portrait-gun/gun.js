@@ -17,7 +17,8 @@
 // scored; the candidate at the near, mid and far bands: 4, 14 and 30 m). H: today's card and the candidate's three.
 // The picture's report: each card's gun pixels in the gun's tone and the share of the gun inside the card's rows.
 import { pic, boardFigure, hostageFigure, boardCard, sheetSize, CARD_W, GAP, W2_ROWS } from '../portrait-lib/card.js';
-import { figGeom, bandOf, FIG_ROWS } from '../../src/art/doll/hitcard.js';
+import { figGeom, bandOf, FIG_ROWS, paintHitcard } from '../../src/art/doll/hitcard.js';
+import { PAPERS } from '../../src/sim/arms/paper.js';
 
 /** The candidates, and the defaults (the build sheet §3.3's PORTRAIT_PICKS: G1, W1, H1). */
 export const GROUPS = Object.freeze({ g: Object.freeze(['G1', 'G2', 'G3']), w: Object.freeze(['W1', 'W2']), h: Object.freeze(['H1', 'H2']) });
@@ -42,7 +43,7 @@ export function card({ face, holds, where = 'ready', tone = 'G1', hostage = 'H1'
 export function picture(q = new URLSearchParams()) {
   const set = q.get('h') ? 'h' : q.get('w') ? 'w' : 'g', cand = GROUPS[set].includes(q.get(set)) ? q.get(set) : DEFAULTS[set];
   const [W, H] = SIZE[set], P = pic(W, H), cards = [];
-  const head = { G1: 'G1 · THE BOARD\'S DARK INK, AT THE READY', G2: 'G2 · ITS OWN COLOURS, AT THE READY', G3: 'G3 · INK WITH A KHAKI RIM, AT THE READY', W1: 'W1 · AT THE READY AS THE STAGE PAINTS IT (G1)', W2: 'W2 · HANGING, THE CROP TO THE KNEE (G1)', H1: 'H1 · HIS PISTOL AT HER HEAD', H2: 'H2 · HIS RIFLE UP BESIDE HER' }[cand];
+  const head = { G1: 'G1 · THE BOARD\'S DARK INK, AT THE READY', G2: 'G2 · ITS OWN COLOURS, AT THE READY', G3: 'G3 · INK WITH A KHAKI RIM, AT THE READY', W1: 'W1 · AT THE READY AS THE STAGE PAINTS IT (G1)', W2: 'W2 · HANGING, THE CROP TO THE KNEE (G1)', H1: 'H1 · HIS PISTOL AT HER HEAD', H2: 'H2 · HIS GUN DOWN AT THE READY BESIDE HER' }[cand];
   P.write(GAP + 1, GAP + 1, `${head} · ROW 1 TODAY`, 0x9aa0ab);
   const at = (col, row) => [GAP + col * (CARD_W + GAP), GAP + LABEL_H + row * (CARD_W + GAP)];
   if (set === 'h') {
@@ -53,15 +54,30 @@ export function picture(q = new URLSearchParams()) {
       { face: 'hostage', holds: 'pistol', hostage: cand, words: `${cand} · TO THE HEAD · HEAD`, marks: hole, phase: 'truth', line: 'One in the head. He went down.' },
       { face: 'hostage', holds: 'pistol', hostage: cand, rangeM: 14, words: `${cand} · 14 M` },
     ];
-    list.forEach((c, i) => { const k = card(c), [x, y] = at(i, 0); P.blit(k, x, y); cards.push({ i, words: c.words, gunPx: k.gunPx, inK: +k.inK.toFixed(3), band: k.band }); });
+    // (v0.0.28, H1 rebuilt (the user's "Those are terrible, more efforts on the gun wielding cards" of 2026-11-20): the game's own
+    // card, paintHitcard, today's (v0.0.27's, H0) first, then the new H1 in belief, in truth and at the mid band)
+    // (v0.0.28, the art director's pass 3: H2 too is the game's own card, in G2's colours, his arm across her, his outline under hers)
+    if (cand === 'H1' || cand === 'H2') {
+      const game = [
+        { picks: { hostage: 'H0' }, words: 'TODAY · V0.0.27 · TO THE HEAD', marks: [{ n: 1, called: [1.0, -28.0], seen: true }] },
+        { picks: { hostage: cand }, words: `${cand} · TO THE HEAD · 1 SEEN`, marks: [{ n: 1, called: [1.0, -28.0], seen: true }] },
+        { picks: { hostage: cand }, words: `${cand} · TO THE HEAD · HEAD`, phase: 'truth', marks: [{ n: 1, called: [1.0, -28.0], hole: [2.2, -29.1], zone: 'head' }], line: 'One in the head. He went down.' },
+        { picks: { hostage: cand }, words: `${cand} · 14 M`, rangeM: 14, marks: [] },
+      ];
+      game.forEach((c, i) => { const k = paintHitcard({ subject: { kind: 'board', face: 'hostage', holds: 'pistol' }, man: PAPERS.man, rangeM: c.rangeM ?? 4, phase: c.phase ?? 'belief', marks: c.marks, words: c.words, line: c.line ?? null, picks: c.picks }), [x, y] = at(i, 0); P.blit(k, x, y); cards.push({ i, words: c.words, gun: k.gun, band: k.band }); });
+    } else list.forEach((c, i) => { const k = card(c), [x, y] = at(i, 0); P.blit(k, x, y); cards.push({ i, words: c.words, gunPx: k.gunPx, inK: +k.inK.toFixed(3), band: k.band }); });
   } else {
     STANDS.forEach(([face, holds, name], col) => {
       [null, ...RANGES_M].forEach((rangeM, row) => {
         const today = rangeM === null, r = today ? 4 : rangeM;
         const where = today || (set === 'w' && cand === 'W2') ? 'hand' : 'ready', tone = today ? 'today' : set === 'g' ? cand : 'G1';
-        const k = card({ face, holds, where, tone, hostage: DEFAULTS.h, rangeM: r, words: today ? `TODAY · ${name}` : `${cand} · ${name} · ${r} M` }), [x, y] = at(col, row);
+        // (v0.0.28, the art director's pass 3: "the starred set still shows the binocular hostage": 3B is the game's own hostage card,
+        // paintHitcard's, in this candidate's tone, never the sample library's drawing of v0.0.27)
+        const words = today ? `TODAY · ${name}` : `${cand} · ${name} · ${r} M`, game = face === 'hostage' && !today;
+        const k = game ? paintHitcard({ subject: { kind: 'board', face, holds }, man: PAPERS.man, rangeM: r, words, picks: { gun: tone, hostage: DEFAULTS.h } }) : card({ face, holds, where, tone, hostage: DEFAULTS.h, rangeM: r, words }), [x, y] = at(col, row);
         P.blit(k, x, y);
-        cards.push({ stand: name, rangeM: r, today, gunPx: k.gunPx, gunN: k.gunN, inK: +k.inK.toFixed(3), band: k.band });
+        const gunPx = game ? k.gun.all : k.gunPx, inK = game ? (k.gun.all ? k.gun.inCrop / k.gun.all : 0) : k.inK;
+        cards.push({ stand: name, rangeM: r, today, gunPx, gunN: game ? null : k.gunN, inK: +inK.toFixed(3), band: k.band });
       });
     });
   }

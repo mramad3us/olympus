@@ -18,7 +18,8 @@
 // LATER; a renamed test or a gauge taken out of its ENFORCED fails it, so the list never claims a check that is gone, and never
 // counts as met a gauge that is red (the review of 2026-11-16: "MET 194" counted F70, F71 and F73, red in their heavy suites). The
 // release announcement quotes the USER and the OPEN rows. Group C, the gauges, is generated: one row a
-// gauge, F1 to GAUGE_LAST (F137 at v0.0.25; F149 at v0.0.26's last merge; F169 at v0.0.27's, E's). Pure data and two resolvers.
+// gauge, F1 to GAUGE_LAST (F137 at v0.0.25; F149 at v0.0.26's last merge; F169 at v0.0.27's, E's; F188 at v0.0.28's, B's). Pure data
+// and two resolvers.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -152,6 +153,27 @@ export const GAUGE_HOMES = Object.freeze([
     [167, null, 'the lead (D builds)', 'collar-balance.test.mjs', 'collar-balance › F167 (heavy)'],
     [168, 16, 'A, E', 'collar-look.test.mjs, ui-collar.test.mjs', 'collar-look › F168 (sim)'],
     [169, 17, 'D', 'hauler-plans.test.mjs, collar-flow.test.mjs, zerocqb-quick.test.mjs', 'hauler-plans › the hauler\'s derived plans'],
+    // (v0.0.28, "The window and the canopy", its build sheet §8: F170 to F188 homed at B's merge, the round's last (by the integration,
+    // as stage 0's lead.md asked); tests/armoury-done.mjs ARMOURY_GAUGES is these rows filtered from here on)
+    [170, 26, 'stage 0, every role', 'env-noregress.test.mjs, syntax.test.mjs, seams-v028.test.mjs', 'env-noregress › env-noregress (F100, F124, F170)'],
+    [171, 1, 'B', 'armoury-nodead.test.mjs, armoury-flow.test.mjs', 'armoury-flow › F171, F174 (quick)', 'the Tests menu\'s ship rule (F170, F171, F179 and F181 green)'],
+    [172, 2, 'B, A', 'arm-window.test.mjs, armoury-nodead.test.mjs', 'arm-window › F172: Sign is struck before the show clear'],
+    [173, 6, 'A, B', 'arm-issue.test.mjs, armoury-nodead.test.mjs', 'arm-issue › F173: the issue fills the session'],
+    [174, 8, 'B', 'armoury-flow.test.mjs, armoury-nodead.test.mjs', 'armoury-flow › F171, F174 (quick)'],
+    [175, 7, 'B, A', 'arm-relay.test.mjs', 'arm-relay › F175: the relay\'s outcome on the three airs'],
+    [176, 10, 'B, A', 'arm-canopy.test.mjs', 'arm-canopy › F176: the three rows'],
+    [177, 13, 'A, B', 'upkeep-inspect.test.mjs, arm-inspect.test.mjs', 'upkeep-inspect › F177: WEAPONS §10.3'],
+    [178, null, 'the lead (B builds)', 'armoury-balance.test.mjs', 'armoury-balance › F178 (heavy)'],
+    [179, null, 'B, A', 'arm-save.test.mjs, upkeep-save.test.mjs', 'arm-save › F179 (quick)'],
+    [180, 5, 'B', 'arm-words.test.mjs, ui-armoury.test.mjs', 'arm-words › F180: every line a bubble'],
+    [181, null, 'B', 'armoury-tick.test.mjs', 'armoury-tick › F181 (heavy)'],
+    [182, 14, 'A, B', 'arm-lost.test.mjs', 'arm-lost › F182: a magazine left on the line'],
+    [183, 17, 'A', 'upkeep-gate.test.mjs', 'upkeep-gate › F183: with the gate absent'],
+    [184, 17, 'A', 'upkeep.test.mjs', 'upkeep › F184: the dust is WEAPONS'],
+    [185, 11, 'A', 'upkeep-clean.test.mjs', 'upkeep-clean › F185: the row\'s spotless chance'],
+    [186, 18, 'A', 'upkeep-rates.test.mjs', 'upkeep-rates › F186: the stoppages read the dirt'],
+    [187, 19, 'C', 'places-armoury.test.mjs', 'places-armoury › F187: the armoury'],
+    [188, 20, 'C', 'vig-clean.test.mjs, art-clean.test.mjs, ui-armoury.test.mjs', 'vig-clean › F188 (node half)'],
   ].map(([n, v, owner, files, by, when = 'at once']) => ({ from: n, to: n, file: files.split(', ')[0], role: owner, v, owner, files, when, ...(by ? { by } : {}) })),
 ]);
 /** The gauges' names, a short line each (COMBAT §25.19.8 and the sheets' §8; group C's rows). */
@@ -242,6 +264,25 @@ export const GAUGE_WHAT = Object.freeze({
   F167: 'balance (stated before any build; red is a question for the user, never a constant tuned): from the corporal up by T, 20 seeds a sheet, the deck secured on 17 or more and your body down for good on 1 or fewer; the recruit\'s and the private\'s printed',
   F168: 'seen, never told: FIRING BLIND, RUNNING AWAY, DAZED, COWERING, HANDS UP, DOWN at 0 G: the stage\'s frame, the card\'s pose and the plaque\'s word agree at every drawn tick',
   F169: 'Four through every hatch on his cue: his stack point within 0.9 m of yours; past the threshold within F25\'s 3 s on the boarding; F17 and F25 met on the Wreck\'s 18 lanes (out of WRECK_OPEN)',
+  F170: 'nothing moves: every shipped scene\'s 1,000-tick digest, every pin (but D\'s three, house-pin-drawn, zerocqb-pin and collar-pin, and any keys cell its keys bot\'s memory moves, re-recorded with causes at its merge), golden and save, moment 2\'s walk, byte for byte',
+  F171: 'the card on every lane: 5 sheets × the keys, T and the fuzz × 10 seeds, 0 stuck, the longest printed',
+  F172: 'the window: the record out and in (loc, out, the log); Sign struck before the show clear; the slip caught by a read with a pass, else at the check, never carried past it; its rate 0.25 within 3 points over 4,000 seeds',
+  F173: 'the count: at every declaration issued = fired + back + held + losses; the short count caught by a count or found at the declaration, its fault only uncounted or miscounted',
+  F174: 'the brass: on honest lanes brass policed equals fired, the far cases by walking; else the working party and the fault',
+  F175: 'the relay: the gun\'s rounds, foul and dust equal A\'s functions for the drawn air within 1e-9; "gritty" at gusty; the gun at CEASE FIRE as the sheet\'s item 7 says',
+  F176: 'the canopy: the rows\' minutes and spotless percentages equal cleanMs and cleanOdds exactly; struck on a believed \'?\'; the DI\'s tempo by the sheet\'s §0 item 4; \'late\' after ten-thirty',
+  F177: 'the inspection: WEAPONS §10.3\'s rule exactly; the turn-backs end by the third; first-time rates by sheet × tempo within 3 points of the sheet\'s §0 item 2 over 4,000 draws',
+  F178: 'balance, printed (the user\'s; red is a question, never a constant tuned): by sheet, first-time passes and \'late\' at each tempo on the honest bots over 40 seeds; the DI\'s tempo; the real minutes (the private by the keys 2.5 to 6, the recruit at most 8)',
+  F179: 'the records and saves: ten save points (the window, after the signature, the check, the ammunition point, the lane, mid-police, the declaration, the table, the barrel, a turn-back) carried on byte for byte to the same card; ids-check clean, the two rifles at the rack included',
+  F180: 'the words: every line a say at its speaker, none voiced, none overlapping at 1024 × 768; every standing command\'s press words name a row\'s label and a key\'s label read from core/keys.js',
+  F181: 'the tick: the scene\'s busiest tick (the ground with 17 people, none walking but you) at most 2 ms × k, least of three',
+  F182: 'the lost flow: a magazine left found at the turn-in, recorded with its place, faulted, on the card; the rifle\'s rule on scripted states',
+  F183: 'the gate: with state.armoury.upkeep absent no upkeep field is written and pull is today\'s to the bit',
+  F184: 'upkeep\'s numbers: the three dust cases within 1e-9, linear in minutes; the heat rows within 7%',
+  F185: 'the bench: cleanOdds equal to the closed form; check()\'s Monte Carlo within 2 points; a clean lived and the same clean skipped give the same roll and gun',
+  F186: 'the stoppages over the scene\'s states beside WEAPONS §4.3\'s closed form, within 3 SE',
+  F187: 'the ground: every spot reachable on the 0.25 m grid, the footprints equal in the catalogue and the kit, the door\'s path free, the rank clear of the customer spots by 1.2 m and the barrels\' by 1.5 m',
+  F188: 'the look: the mat\'s frame by the clean\'s part, at most two cards; the card\'s dirt by band, "fine" unchanged; nothing uploaded after the brief\'s cut',
 });
 // (v0.0.23's integration, the stage-0 lead's plan: F97 to F99, the P-12's gauges of the user's fourth note of 2026-11-17, homed
 // from A's and C's merges, counted at the last step; the instructor's sterile walk takes no F number, house-sterile-walk stands as a
@@ -250,7 +291,8 @@ export const GAUGE_WHAT = Object.freeze({
 // (v0.0.25 D: F124 to F137 homed, the round's last merge; its sheet's §7, §8)
 // (v0.0.26 C: F138 to F149 homed, the round's last merge; its sheet's §7, §8)
 // (v0.0.27: F150 to F169 homed at E's merge, the round's last, by the integration (stage 0's lead.md); its sheet's §7, §8)
-export const GAUGE_LAST = 169;
+// (v0.0.28: F170 to F188 homed at B's merge, the round's last, by the integration (stage 0's lead.md); its sheet's §7, §8)
+export const GAUGE_LAST = 188;
 /** The gauge's home (GAUGE_HOMES' row), or null. */
 export const homeOf = (id) => { const n = Number(String(id).replace(/^F/, '')); return GAUGE_HOMES.find(h => n >= h.from && n <= h.to) ?? null; };
 
@@ -441,7 +483,7 @@ export const DONE = Object.freeze([
   { id: 'NB2', group: 'N', what: 'a load keeps the men seen before it (your sightings, the rooms you entered), and no other', check: test('house-unseen › a load keeps'), by: 'v0.0.23 B' },
   { id: 'NB3', group: 'N', what: 'a drawn house drawn only as you see into it: no cell known before in sight, none unknown again (F88, node half)', check: test('view-unknown › F88 (node half)'), by: 'v0.0.23 B' },
   { id: 'NB4', group: 'N', what: 'the rebuild at a load from the legs: a room entered known whole, the hall as walked', check: test('view-unknown › the rebuild at a load'), by: 'v0.0.23 B' },
-  { id: 'NB5', group: 'N', what: 'familiar places as before: the set house, the named layouts, the live lane as set, the bay', check: test('view-unknown › familiar places'), by: 'v0.0.23 B' },
+  { id: 'NB5', group: 'N', what: 'the places by their intel (v0.0.28: the set house, the named layouts and the live lane briefed, walls known and rooms not; the bay familiar)', check: test('view-unknown › the intel'), by: 'v0.0.23 B; v0.0.28 the picks\' RULES' },
   { id: 'NB6', group: 'N', what: 'in the page: the drawn lane\'s rooms black (U1) until seen, the known cells\' sends under UPLOAD_MID_KB; the set house v0.0.22\'s picture to the byte; neither man drawn at GO (F87, F88)', check: test('ui-unknown'), by: 'v0.0.23 B' },
   // (C: the portraits, F89 to F91; the P-12's stances and the slung R-7's hang, F98 and F99)
   { id: 'NC1', group: 'N', what: 'the gun in his hands on the card in the board\'s ink, where the stage paints it: 2a armoured with a pistol, the hostage\'s hostile, 1a, at the three bands (F89)', words: W('2026-11-17', 'the portrait of the NPC holding a gun does not display the gun they are holding'), check: test('portrait-gun › F89 the gun reads on the house'), by: 'v0.0.23 C' },
@@ -637,6 +679,64 @@ export const DONE = Object.freeze([
   { id: 'RE2', group: 'R', what: 'seen, never told aboard: FIRING BLIND, RUNNING AWAY, DAZED, COWERING, HANDS UP and DOWN at 0 G one map from the stage\'s frame to the card\'s pose and the plaque\'s word; a man down at 0 G hangs from his boots, never seated or lying; the P-12 alone drawn with no R-7; the crew showing their empty hands (F168\'s sim half)', check: test('collar-look › F168 (sim)'), by: 'v0.0.27 E' },
   { id: 'RE3', group: 'R', what: 'the game draws the boarding\'s scored sets\' defaults pixel for pixel, blind fire and the 0 G down on the stage and the card, each from its one home; the coveralls\' makes and the deck\'s colours the sets\', held by the Belter palette', check: test('samples-board › the game draws the set\'s defaults pixel for pixel'), by: 'v0.0.27 E' },
   { id: 'RE4', group: 'R', what: 'in the page from GO to the card: every man drawn as the map says, no band sent after GO + 1 s, no rifle sheet evicted (F165, F168\'s page halves); every bubble over its man at 1024 × 768 and 1600 × 900 (F166\'s page half)', check: test('ui-collar › ui-collar: "Away the boarding party" in the page'), by: 'v0.0.27 E' },
+  // ---- S. v0.0.28, "The window and the canopy" and the hardening (its build sheet §1, §8): each role's rows directly below its own anchor
+  // (stage 0 the pins, F129 and F15, the runner's honest lines, the shared seams, the saves and the sample; A the rifle's books, B the
+  // scene, C the ground and the look, D the house's last reds, E the uploads; the lead raises GAUGE_LAST to 188 at B's merge); the
+  // round's gauges F170 to F188 are tests/armoury-done.mjs's until then ----
+  // (v0.0.28 stage 0)
+  { id: 'SS1', group: 'S', what: 'the quick CPU judged by the worker\'s own factor, timed before each file, against the ceilings themselves, and the wall by the load at the start and the end; on a quiet machine the judgement before, to the millisecond; house-fixes\' and team-task\'s whole lanes in heavy twins, out of QUICK_SLOW (HD§3)', check: test('run-guards › a quick file 10% slow in a busy worker'), by: 'v0.0.28 stage 0' },
+  { id: 'SS2', group: 'S', what: 'the two shared seams that move nothing: a scene\'s rows at hand (registerHandScene\'s rows: R held lists them, its pick acts an unstruck row) and the brass on the tiles by the course\'s row (COURSES.kd.brassTiles); test-burn\'s R and the KD course as before (F170\'s seam half)', check: test('seams-v028 › a scene with rows'), by: 'v0.0.28 stage 0' },
+  { id: 'SS3', group: 'S', what: 'two saves made by v0.0.27\'s own code (the KD course with brass on the ground; the boarding\'s hold before the send) load, gain no key, write no upkeep field and carry on byte for byte to their cards (F170\'s saves)', check: test('game-upgrade › v0.0.28'), by: 'v0.0.28 stage 0' },
+  { id: 'SS4', group: 'S', what: 'the Wreck\'s F15 read against its own sheet\'s target, the steel copy\'s 107.55 s (v0.0.25 §8), the house\'s 46 s printed beside it; out of WRECK_OPEN and enforced; F129 out of OPEN_GAUGES on zerocqb-two whole (HD§2.1, §2.5)', check: test('zerocqb-quick › F15 against the Wreck\'s own 107.55 s'), by: 'v0.0.28 stage 0' },
+  { id: 'SS5', group: 'S', what: 'the samples to score: armoury-day (W the window, F the figure at the bench, M the mat, D the card\'s dirt: W-a, F-a, M-a and D-a drawn until scored), waiting on top of the gallery', check: { kind: 'sample', ref: 'armoury-day' } },
+  // (v0.0.28 A)
+  // (A: the rifle's books, upkeep live behind its gate and the records (src/sim/arms/upkeep.js, armoury.js); F172's record half, F173,
+  // F177's sim half, F179's gun half, F182 to F186)
+  { id: 'SA1', group: 'S', what: 'upkeep\'s numbers: WEAPONS §9.2\'s three dust cases through the one formula (0.048, 0.144, 0.12; wet 0.18) and linear in minutes; the dirt\'s factor; the barrel a lazy number fitted to §9.5 (τ 186 s on Melas\'s air, 230 s in a hull); a round\'s carbon and the lube\'s 300 rounds; a relay behind its splash the same gun as its rounds pulled (F184)', check: test('upkeep › F184: the dust is WEAPONS'), by: 'v0.0.28 A' },
+  { id: 'SA2', group: 'S', what: 'the gate: with state.armoury.upkeep absent a pull is the pull it was to the bit (10,000 pulls against the base tree\'s digest) and no shipped lane writes an upkeep field (test-handling to its first string\'s fifth round quick; it, test-range and the house to their cards heavy, at their pins) (F183)', check: test('upkeep-gate › F183: with the gate absent'), by: 'v0.0.28 A' },
+  { id: 'SA3', group: 'S', what: 'the bench: rushed, normal and careful (TEMPO\'s three), each row\'s spotless chance the closed form of its own roll, equal to the sheet\'s §0 item 2 on six sheets and to check() face by face; struck while the rifle is not believed clear, in its words; a round left in falls out at the strip; the hands after (F185)', check: test('upkeep-clean › F185: the row\'s spotless chance'), by: 'v0.0.28 A' },
+  { id: 'SA4', group: 'S', what: 'a clean lived tick by tick and the same clean skipped give the same roll, gun and hands (WEAPONS §16\'s parity), and a clean saved behind its splash carries on to the same save (F185, F179\'s gun half)', check: test('upkeep-clean › F185: a clean lived tick by tick'), by: 'v0.0.28 A' },
+  { id: 'SA5', group: 'S', what: 'the armourer\'s inspection: WEAPONS §10.3\'s rule (margin 5 found 70% at Awareness 17, margin 8 half, 10 nothing); his verdicts and words, the lost pin always found, his number "Condition 0.93."; first-time rates by sheet and tempo within 3 points of the sheet\'s table (F177\'s sim half)', check: test('upkeep-inspect › F177: the first time through the window'), by: 'v0.0.28 A' },
+  { id: 'SA6', group: 'S', what: 'the stoppages read the dirt: misfireP and jamP over fresh, the breezy and gusty relays and a clean\'s residual equal WEAPONS §4.3\'s closed form; a lost pin fires nothing and ready() says no (F186; 200,000 pulls a state heavy)', check: test('upkeep-rates › F186: the stoppages read the dirt'), by: 'v0.0.28 A' },
+  { id: 'SA7', group: 'S', what: 'the records and the rounds: the serial by hash and read back in threes, the record signed out and in, the sensitive-item check\'s mismatch; the issue on the session\'s own line and reconcile balanced on six cases (F172\'s record half, F173)', check: test('arm-issue › F173: the issue fills'), by: 'v0.0.28 A' },
+  { id: 'SA8', group: 'S', what: 'the lost flow: a magazine left counted short at the turn-in and reported with its place and its rounds; the rifle\'s rule on scripted states (held, 9 m, 11 m in sight, 11 m out of sight: lost only the last) (F182)', check: test('arm-lost › F182: the rifle\'s rule'), by: 'v0.0.28 A' },
+  { id: 'SA9', group: 'S', what: 'upkeep and the books in a save: a fouled, dusty, warm rifle with its pin lost, its record out and a loss reported save and load byte for byte with ids-check clean; v0.0.27\'s KD save loads with nothing written (F179\'s gun half)', check: test('upkeep-save › F179 (the gun\'s half): a fouled'), by: 'v0.0.28 A' },
+  // (the review of v0.0.28 E, D and A: A's four fixes, each failing without its fix; F184's hull peaks red, the lead's question)
+  { id: 'SA10', group: 'S', what: '"Clean it again" never adds carbon: the re-clean leaves the lesser of its residual and what the rifle had, on six sheets at each tempo, its row\'s odds reading the same; the clean\'s end lines never say what the armourer will find (F185)', check: test('upkeep-clean › F185: "Clean it again" never adds carbon'), by: 'v0.0.28 A' },
+  { id: 'SA11', group: 'S', what: 'a live rifle fires on in an air with no barrel cooling (the URL\'s &env= on the belt\'s station or in vacuum): the carbon counted, no barrel kept, never a break; every preset heavy (F183)', check: test('upkeep-gate › F183: a live rifle fires on in an air with no barrel cooling'), by: 'v0.0.28 A' },
+  { id: 'SA12', group: 'S', what: 'the relay leaves the barrel at the air\'s: firedOutcome read at the relay\'s end, five minutes or more after its last round, keeps no barrelC or heatMs (F184, F175\'s gun half)', check: test('upkeep › F184: the relay leaves the barrel at the air\'s'), by: 'v0.0.28 A' },
+  { id: 'SA13', group: 'S', what: 'the 66 kPa hull\'s two R-7 peaks within 7% of WEAPONS §9.5, enforced: 308.6 against 288 °C (+7.2%) and 580.4 against 527 °C (+10.1%) at τ 230 s, Newton\'s cooling alone (the radiation cut by the sheet\'s §0 item 9); red, the lead\'s question (F184)', check: test('upkeep › F184 (OPEN, the lead\'s question)'), by: 'v0.0.28 A' },
+  // (v0.0.28 B)
+  { id: 'SB1', group: 'S', what: '"The window and the canopy" on the range\'s course engine as the course \'armoury\' (armoury-day.js), by its URL until its ship rule (menu false), last in SCENE_IDS after "Away the boarding party"; its branch at each of the engine\'s doors and nowhere else', check: test('scene-specs › the specs'), by: 'v0.0.28 B' },
+  { id: 'SB2', group: 'S', what: 'the private by the keys on 48213 to the card: the slip met, no fault, the brass policed equal to fired, the rifle signed out and in (F171\'s and F174\'s quick half)', check: test('armoury-flow › F171, F174 (quick)'), by: 'v0.0.28 B' },
+  { id: 'SB3', group: 'S', what: 'the window: Sign struck before the show clear ("Show me clear first."), the show clear by R (the macro played whole with the armourer looking) and the record out at the signature (F172)', check: test('arm-window › F172: Sign is struck'), by: 'v0.0.28 B' },
+  { id: 'SB4', group: 'S', what: 'the show clear by the panel (G, then UNLOAD, SHOW CLEAR in stop motion): the readiness reads the gun, never the key (F172)', check: test('arm-window › F172: the show clear by the panel'), by: 'v0.0.28 B' },
+  { id: 'SB5', group: 'S', what: 'the slip: caught by a read with a pass, missed by a natural 1 and found at the rank\'s check, never carried past it, the fault \'serial\' only unread (F172)', check: test('arm-window › F172: the slip caught'), by: 'v0.0.28 B' },
+  { id: 'SB6', group: 'S', what: 'the slip and the short count on a quarter of the seeds each, independent: 4,000 seeds within 3 points (F172)', check: test('arm-window › F172: the slip and the short count'), by: 'v0.0.28 B' },
+  { id: 'SB7', group: 'S', what: 'the relay\'s outcome on the three airs equal to A\'s firedOutcome and dustOver within 1e-9, "gritty" only at gusty, the gun as at CEASE FIRE, the brass yours on the tiles and the far cases out of reach (F175)', check: test('arm-relay › F175'), by: 'v0.0.28 B' },
+  { id: 'SB8', group: 'S', what: 'the canopy\'s three rows (TEMPO\'s rushed, normal, careful) each with its minutes and its spotless chance equal to cleanMs and cleanOdds; the DI\'s tempo by ten-thirty (F176)', check: test('arm-canopy › F176: the three rows'), by: 'v0.0.28 B' },
+  { id: 'SB9', group: 'S', what: 'the rows struck with cleanOff\'s words on a chamber believed \'?\'; the DI\'s rushed with twenty minutes left; signed in after ten-thirty the fault \'late\', never a stop (F176)', check: test('arm-canopy › F176: every row struck'), by: 'v0.0.28 B' },
+  { id: 'SB10', group: 'S', what: 'the inspection\'s turn-backs end by the third, taken with the fault \'dirty\', each back to the table for Clean it again (F177\'s turn-in half)', check: test('arm-inspect › F177: the turn-backs'), by: 'v0.0.28 B' },
+  { id: 'SB11', group: 'S', what: 'the lost pin\'s chit and the fault \'part\'; a magazine left on the line counted short at the turn-in, reported lost with its place, the fault \'lost\' (F177, F182)', check: test('arm-inspect › F177, F182'), by: 'v0.0.28 B' },
+  { id: 'SB12', group: 'S', what: 'every line a text bubble at its speaker there, none on the PA, none voiced; every standing command\'s line carries what to press, a row\'s label and a key\'s label on AZERTY and QWERTY (F180)', words: W('2026-11-19', 'forget voice synthesis, no voices.'), check: test('arm-words › F180'), by: 'v0.0.28 B' },
+  { id: 'SB13', group: 'S', what: 'saved at the window and at the table, loaded and carried on byte for byte to the same card, the ids clean (F179\'s quick half)', check: test('arm-save › F179 (quick)'), by: 'v0.0.28 B' },
+  { id: 'SB14', group: 'S', what: 'eight more save points to the same card: the signature, the check, the ammunition point, the lane, mid-police, the declaration, the barrel, a turn-back (F179)', check: test('arm-save › F179 (heavy)'), by: 'v0.0.28 B' },
+  { id: 'SB15', group: 'S', what: 'never a dead end: 5 sheets × the keys, T and the fuzz × 10 seeds to the card, the slip never past the check, the issue\'s identity, the honest brass (F171 to F174)', words: W('2026-11-07', 'a scene never dead-ends'), check: test('armoury-nodead › F171 to F174 (heavy)'), by: 'v0.0.28 B' },
+  { id: 'SB16', group: 'S', what: 'the balance printed by sheet and tempo over 40 seeds, first-time passes, turn-backs, late and the real minutes: the user\'s to judge, never a constant tuned (F178)', check: test('armoury-balance › F178 (heavy)'), by: 'v0.0.28 B' },
+  { id: 'SB17', group: 'S', what: 'the scene\'s busiest lived tick at most 2 ms × k (F181)', check: test('armoury-tick › F181 (heavy)'), by: 'v0.0.28 B' },
+  { id: 'SB18', group: 'S', what: 'the armoury\'s pin: four lanes from the fill to the card held to the tick, the card and the save', check: test('armoury-pin › the armoury\'s pin'), by: 'v0.0.28 B' },
+  { id: 'SB19', group: 'S', what: 'the scene in the page: R at the window, the press words on the radio box\'s standing line, R held\'s rows, the ring, the clean\'s splash, the end card (F180, F188\'s page half)', check: test('ui-armoury › ui-armoury: the window'), by: 'v0.0.28 B' },
+  // (v0.0.28 C)
+  // (C: the ground and the look; F187, F188's node and art halves (its page half is ui-armoury's, B's))
+  { id: 'SC1', group: 'S', what: 'the armoury\'s ground: the two issue windows in their bays in the south face, the barrels and the stencil on the porch, the rank\'s thirteen places, the canopy\'s eight tables with their 32 spots, the tanks, the hoses and the lamps; every place reached from the door\'s waypoint on C0 and C1, the armourers\' spots closed from the apron, the door\'s path free, the rank clear; the ground else v0.0.27\'s to the digest (F187)', check: test('places-armoury › F187: the armoury\'s ground'), by: 'v0.0.28 C' },
+  { id: 'SC2', group: 'S', what: 'the clean\'s vignette at the table: the mat on its top before you, its picture by the clean\'s part, your hands at its corners, the hose\'s puff in the clean\'s first fifth only, at most two cards (F188\'s node half)', check: test('vig-clean › F188 (node half)'), by: 'v0.0.28 C' },
+  { id: 'SC3', group: 'S', what: 'the game draws armoury-day\'s defaults: the mat and the puff M-a\'s pixel for pixel, the weapon card\'s dirt D-a\'s at every band, fine as before byte for byte, the band in the card\'s repaint key; the window W-a\'s open counter (F188\'s art half)', check: test('art-clean › the weapon card\'s dirt'), by: 'v0.0.28 C' },
+  // (v0.0.28 D)
+  { id: 'SD1', group: 'S', what: 'your #2 never held inside a doorway: the body gap\'s hold judged on the step it allows, so a step that would take him into a live doorway where it would hold him holds him at its edge instead (bundle.js gapAhead; F4\'s #2 clause: 0.60 s on 8 of 40 drawn lanes before, 0 after; every set pin and digest as it was) (HD§2.2)', check: test('house-swings › your #2 never held inside a doorway'), by: 'v0.0.28 D' },
+  { id: 'SD2', group: 'S', what: 'the Wreck as the house: F24 met and enforced (the feet-aft pause names a live row: in stop motion the panel\'s own Feet aft, the hold\'s Wait, Take the hold where nothing else is); F7, F17 and F25 left open with their causes (WRECK_OPEN), the house\'s leave aboard (the sheet\'s item 22) held out by its risk 6 (HD§2.5)', check: test('zerocqb-quick › F132 (quick)'), by: 'v0.0.28 D' },
+  // (v0.0.28 E)
+  { id: 'SE1', group: 'S', what: 'no frame sends more than it changed (F73\'s node half): the fog mask kept on a torus sends the cells whose bytes moved and the strips a move brings in, never the whole 48 KB a frame, and the GPU reads every cell as before; the known cells their rows; a pixel layer what changed, 32 bytes a pixel where it was 92 (the bang\'s smoke step 16); render-bench\'s three benches at 60 Hz the lead\'s quiet run (HD§2.3)', check: test('render-band › (F73) the fog mask sends only the cells that changed'), by: 'v0.0.28 E' },
+  { id: 'SE2', group: 'S', what: 'every upload named by its sender (render/stats.js tag: fog, known, decals:<layer>, else its call and size), the frame\'s senders largest first on the bench card\'s largest upload and its verdict', check: test('render-band › (F73) the GL counters name each upload by its sender'), by: 'v0.0.28 E' },
 ]);
 
 /** Group C: one row a gauge, F1 to GAUGE_LAST. */
@@ -658,6 +758,9 @@ export const GAUGE_ROUNDS = Object.freeze([
   // (v0.0.27's stage 0: "Away the boarding party"'s F150 to F169, frozen in tests/collar-done.mjs, homed by the lead at E's merge
   // (GAUGE_LAST 169); named here before they are homed, as v0.0.26's were)
   { from: 150, to: 169, v: 'v0.0.27' },
+  // (v0.0.28's stage 0: "The window and the canopy"'s F170 to F188, frozen in tests/armoury-done.mjs, homed by the lead at B's merge
+  // (GAUGE_LAST 188); named here before they are homed, as v0.0.27's were)
+  { from: 170, to: 188, v: 'v0.0.28' },
 ]);
 /** A gauge's round (GAUGE_ROUNDS), or null. */
 export const roundOf = (id) => { const n = Number(String(id).replace(/^F/, '')); return GAUGE_ROUNDS.find(r => n >= r.from && n <= r.to)?.v ?? null; };
@@ -736,18 +839,35 @@ export const OPEN_GAUGES = Object.freeze({
   F71: { run: "moment-house's node part, v0.0.21 C's run of 2026-11-16", value: 'the private by the keys from the brief 7.50 real minutes', target: '5 to 7 real minutes; dead air under 20%' },
   // (v0.0.25 D, C6: the late band gone (the prepared looks lacked the mask and the boots, so each was another look's; your look's rifle
   // band at the high ready drawn from a sibling carry's sheet, the same pixels); the frame's bytes left are the fog's and the range layer's)
-  F73: { run: "render-bench's house benches, v0.0.25 D's runs of 2026-11-19 (this Mac, 60 Hz, :8233; the bench card's own reading)", value: 'house-kit 117.9 KB at 6.9 s and house-live 117.9 KB at 6.8 s, no band sent (v0.0.24: 230.5 and 237.9 KB, your look\'s rifle band at the high ready 144 KB of it): the fog\'s eased mask (48 KB a frame while it eases) and the range layer\'s pixel buffers (about 70 KB while its pixels change)', target: `no upload over 64 KB after GO + 1 s` },
+  // (F73 emptied by v0.0.28's integration: render-bench whole on the merged tree (E's banded fog mask, known cells and pixel layers),
+  // 2026-11-20, JOBS=4 in the runner's quiet lanes (2 at once), this Mac at 60 Hz, load 3 to 6 on 15 cores: 9 of 9 green, the three
+  // benches TECH §16.1 PASS on every bound: house-kit 14.45 KB (decals:range 9.1, fog 4.8), house-live 16.27 KB (decals:range 9.1,
+  // fog 6.3), breach 41.58 KB (decals:smoke 34.8, fog 5.9), house-stop 0.54 KB; was 117.9, 117.9 and 272.7 KB; Windows is the user's
+  // to judge; F73 never left render-bench's enforcement)
   // (v0.0.25's gauges red on their owners' runs (c.md, 2026-11-19): homed at D's merge, open until the lead's quiet heavy run says otherwise)
-  // (v0.0.26's stage 0, its build sheet §0 item 16: F129's words were C's first handoff's, "no lane braced"; v0.0.25's fix of the
-  // review of C and D braces the lanes (your #2 stacks up again at a deck hatch, BRACE_HOLD_MAX_MS 5,000), and the integrator's full
-  // run of 2026-11-19 (load 2 to 6, not quiet) had zerocqb-two green. Open until the lead's quiet heavy run; never loosened)
-  F129: { run: "zerocqb-two, the v0.0.25 integration's full run of 2026-11-19 (JOBS=4, load 2 to 6: not a quiet run); C's handoff before the fix of the review of C and D", value: 'the lanes braced since that fix (the sergeant 3 ticks, the corporal 48, the tier one 21, each with "Got you." and "Through."), zerocqb-two green in the full run; before it no lane braced (your #2\'s stack:point at the trunk halted by your body before his brace beat)', target: 'the brace held from your transit to your plant or 0.2 s after your first round, never absent' },
-  F132: { run: "zerocqb-flawless, v0.0.25 C's run of 2026-11-19 (6 sheets × 48213, 1037, 1074)", value: 'F1, F2, F6, F9, F10, F14, F26 met; F7 18 corner faults, F13 15 stops on the tier one against 14, F15 74.6 s against 46, F17 54 of 54 stacks over 1.5 m, F24 10 of 210 stops naming no row, F25 51 of 54 cues late', target: 'as on the house' },
+  // (F129 emptied by v0.0.28's stage 0 (its build sheet §2 step 2; HD§2.1): zerocqb-two whole on v0.0.27's integrated snapshot (c805e72f),
+  // 2026-11-20, JOBS=2, k 1.00, load 2 to 3 (a sim suite: no time line in it), 7 of 7 cases green: braced [50, 2200] ms with "Got you.",
+  // "Through." 250 ms after your first round, his crossing 800 ms after the cue, his boots locked through your transit; F129 never left
+  // its file's enforcement)
+  // (v0.0.28's stage 0, HD§2.5: F15 read against its own sheet's target, the steel copy's 107.55 s (zerocqb-quick WRECK_LANE_S), out of
+  // WRECK_OPEN and enforced there: met at 67.3 s on 48213's quick lane; F13 met since v0.0.25's review; F7, F17, F24 and F25 open, D's)
+  // (v0.0.28's integration, from the E, D and A fixer's run (eda-lead-edits.md §2): F15 and F24 met and enforced, F13 met; F7, F17 and
+  // F25 open: D's item 22, the ship rule, held out by the sheet's risk 6 (it cost a hauler lane and F13 without an edit outside D's files,
+  // and closed neither F169 nor F25), its trial kept as .run/v028/d-ship-trial.patch)
+  F132: { run: "zerocqb-flawless, the E, D and A fixer's run of 2026-11-20 (stage 0, E and D, JOBS=2, load 8 to 9)", value: 'F1, F2, F6, F9, F10, F13, F14, F15, F24, F26 met; F7 2 corner faults (cell 5 on the raider by T), F17 54 of 54 stacks over 1.5 m (mean 1.79, worst 1.86 m), F25 47 of 54 cues late (p50 4.10, p95 6.80, max 7.20 s): item 22 held out by risk 6', target: 'as on the house (F15 against the Wreck\'s own 107.55 s from v0.0.28\'s stage 0)' },
   // (v0.0.27's integration, homing F150 to F169 at E's merge: D's heavy runs on its final tree (d.md, the fix of D and E's review, JOBS 1,
   // load 3 to 6), read again in the integration's full run)
-  F157: { run: "collar-nodead's F157 case, D's heavy run on its final tree, 2026-11-19 (80 honest lanes, pirates and smugglers, the private and the sergeant)", value: 'freeze met on every lane (the crew), fight on 2; cover and give never; blind and flee 0 (the men are down before they choose)', target: 'fight, cover, freeze and give each met on at least one lane over 40 honest seeds' },
-  F167: { run: "collar-balance, D's heavy run on its final tree, 2026-11-19 (20 seeds a sheet, by T)", value: 'secured / fell back / down: corporal 10/1/9, sergeant 9/0/11, raider 10/0/10, tier one 13/0/7 (the recruit 8/1/11, the private 10/1/9): your body down for good on 7 to 11 lanes of 20 from the corporal up', target: 'from the corporal up the deck secured on 17 or more and your body down for good on 1 or fewer (red is a question for the user, never a constant tuned)' },
-  F169: { run: "collar-flow's COLLAR_OPEN, D's runs, 2026-11-19 (K3's data rule dropped: it moved nothing)", value: 'Four over a hatch\'s threshold 3.95 to 5.65 s after your cue by the keys (cabin 1 4.85 to 5.3 s on every sheet); 1.95 to 2.25 s from the sergeant up at the bunk room and cabin 2; the Wreck\'s F17 and F25 still in WRECK_OPEN (the cause bundle.js leadGone\'s ship rule and the boots\' pace)', target: 'past the threshold within F25\'s 3 s on the boarding; F17 and F25 met on the Wreck\'s 18 lanes' },
+  // (F157 emptied by v0.0.28's carried stage, the lead's call of 2026-11-20 ("Fix the KEY, not the threshold"): the security table's
+  // 'surrender' named 'give' (opfor.js CHOICE_TABLE), and collarLane reading a holdout's hands up as his give, once a man, the crew's
+  // hands up apart ('crew hands'); collar-nodead's F157 case, JOBS=1, load 2 to 5, MET over 80 honest lanes: fight 32, cover 9,
+  // freeze 80, give 15 (pirates private 4, sgt 5, smugglers private 4, sgt 2), blind 10, flee 3, the crew's hands 49; before, give
+  // never (D's run of 2026-11-19 above it read cover never too: v0.0.27's carried stage's G-11s brought cover). The irregulars'
+  // table has no give by design: a holdout's give comes through the challenge. F157 never left collar-nodead's enforcement)
+  // (F167 emptied by v0.0.28's integration: collar-balance on the merged tree (v0.0.27's carried stage in: the holders' fight on their
+  // walk, the G-11s aboard), 2026-11-20, JOBS=4, load 3 to 6 on 15 cores, MET: from the corporal up by T, 20 seeds a sheet, secured
+  // 19, 19, 20, 20 and down for good 1, 1, 0, 0 (the corporal, the sergeant, the raider, the tier one); the recruit by the keys 8
+  // secured, 12 down, the private 13 and 6 (printed); F167 never left collar-balance's enforcement)
+  F169: { run: "collar-flow's F153 case, the E, D and A fixer's run of 2026-11-20", value: 'Four over a hatch\'s threshold 8.70 s (cabin 1) and 5.70 s (the bunk room) after his cue by the keys on 1074; unchanged: item 22 held out (with it 7.40 and 3.80 s, at a hauler lane\'s cost)', target: 'past the threshold within F25\'s 3 s on the boarding; F17 and F25 met on the Wreck\'s 18 lanes' },
   // (F134 emptied by v0.0.25's docs check: zerocqb-pars' heavy case on the integrated tree, 2026-11-19 (JOBS=3, k 1.00), MET: 12 of 12
   // T lanes GO on 48213, 1037 and 1074, 3 of 3 a sheet (the corporal on 48213 and 1037 and the sergeant on 1037 each one stand missed
   // on his hands, GO); the sim's lanes, so the machine's load does not move it; F134 never left its file's ENFORCED)
@@ -756,7 +876,17 @@ export const OPEN_GAUGES = Object.freeze({
   // fixer: your cue ends his stack-up at his stack point (bundle.js), house-flawless-kit2 green on the full run of 2026-11-18
   // (JOBS=4) and fixer-v022's F25 case 2.25 s, 0.7 s, 1 s on 1222; F25 never left its file's ENFORCED)
   F76: { run: "house-drawn8's sweep, A's run at the A and D review, 2026-11-16 (printed until the lead's quiet run)", value: 'the small room 76% (68% as room 1 of layout C: roomBookOf books #1 alone), the centre 73%, the narrow 85%, the long 89%', target: 'each room within its par on 90%, every lane at most 60 s, the mean at most 1.10 × the summed par' },
-  F80: { run: "house-flawless-live's drawn case, the v0.0.22 integration's full run of 2026-11-16 (42 lanes)", value: 'F38 to F43 met, 84 posts valid; F44\'s band: the tier one painted on 3 of 7 drawn lanes, the recruit 6 of 7', target: 'F44\'s bands on the drawn slice (the tier one 5%)' },
+  F80: { run: "house-flawless-live's drawn case, the v0.0.22 integration's full run of 2026-11-16 (42 lanes)", value: 'F38 to F43 met, 84 posts valid; F44\'s band: the tier one painted on 3 of 7 drawn lanes, the recruit 6 of 7; D\'s race trial (v0.0.28, .run/v028/d-f80-trial.patch): first rounds by the role-players 3 of 14 → 0 of 13 on the 7 seeds, the tier one painted 3 → 2 of 7; not landed (two-men clauses)', target: 'F44\'s bands on the drawn slice (the tier one 5%)' },
+  // (v0.0.28's integration (eda-lead-edits.md §2): upkeep's heat clause on the 66 kPa hull's two peaks, red on purpose in its own case
+  // until the lead decides: the radiation that carries the hull's hot end (UK's K_RAD) is cut by the build sheet's §0 item 9)
+  F184: { run: "upkeep's own case, the E, D and A fixer's run of 2026-11-20", value: 'the 66 kPa hull\'s two R-7 peaks hot by Newton\'s cooling alone at τ 230 s: 308.6 against 288 °C (+7.2%) at 30 a minute for 30 min, 580.4 against 527 °C (+10.1%) at 90 a minute for 4 min; Melas\'s four rows and the hull\'s two cooling rows within 7%; no τ meets all six hull rows (215 s scrapes 7.00%)', target: 'each of WEAPONS §9.5\'s heat rows within 7% (the sheet\'s §6 A)' },
+  // (F178 emptied by v0.0.28's docs check: armoury-balance on the final tree, the fixer's full run of 2026-11-20 (JOBS=4) and the docs
+  // check's own run (JOBS=2, load 3.5 on 15 cores), MET both: the private by the keys at the DI's tempo median 2.52 real min (2.39 to
+  // 4.11) against 2.5 to 6, the recruit's max 5.51 (at most 8); by sheet over 40 seeds, first time rushed / normal / careful / the DI's:
+  // recruit 35 / 53 / 68 / 50%, late 0 / 18 / 70 / 5%; private 70 / 75 / 90 / 75%, late 0 / 0 / 10 / 0%; the sergeant up 100%, never
+  // late. Red at the integration (2.47) until the fixer's rank check (one call at a time, 3 s longer) moved it; the sim's lanes (real
+  // minutes are ticks / 1200), so the machine's load does not move it; the balance stays the user's question 25; F178 never left
+  // armoury-balance's enforcement)
 });
 
 /** A row resolved: { row, status: 'WIRED' | 'OPEN' | 'USER' | 'ANSWERED' | 'LATER' | 'GAP', why } (see the header). */

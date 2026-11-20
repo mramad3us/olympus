@@ -255,10 +255,12 @@ const centreOf = (r) => [(r[0] + r[2]) / 2, (r[1] + r[3]) / 2];
 // hot spot of the room covered, or its "Clear!"), whichever comes first. aidK(startMs, endMs, ms) is its strength, 0 to 1.
 /** The aid's hold by the room's rung (templates.js RUNG_OF_TIER: the boot recruit 0, the private 1, the corporal 2, the sergeant 3, the Raider and the tier one 4), lived ms. */
 export const AID_HOLD_MS = Object.freeze([Infinity, 20000, 10000, 5000, 2500]);
-/** The aid's fade at the end of its hold or at domination, lived ms. */
-export const AID_FADE_MS = 800;
+/** The aid's fade at the end of its hold or at domination, lived ms (v0.0.28: 400 from 800, the floor clean as you work: the user's note of 2026-11-20 on the angles drawn on the floor, "we need a slicker way of doing it"). */
+export const AID_FADE_MS = 400;
 /** The sector's wedge: its edges run to the room's walls, at most this far, and its arc is drawn this far out, metres. */
 export const SECTOR_RAY_M = 4.0, SECTOR_ARC_M = 1.0;
+/** v0.0.28: how far an edge is followed to the wall it meets, for the aid's marks at the foot of the wall (m: past any room of the house). */
+export const WALL_RAY_M = 15;
 /** The aid's strength at ms (0 to 1): 1 from startMs to endMs, then down over AID_FADE_MS; 0 before startMs or with none. */
 export function aidK(startMs, endMs, ms) {
   if (!Number.isFinite(startMs) || ms < startMs) return 0;
@@ -318,7 +320,8 @@ export const CORNER_POINT = 'authored';
 export const pointOfRule = (rule, mode = CORNER_POINT) => (mode === 'derived' && rule?.derived ? [...rule.derived] : rule?.point ? [...rule.point] : null);
 /**
  * The sector's wedge for a rule in its plan: { x, z (its point), fromRad, toRad, rays: [[x, z], [x, z]] (each edge's end:
- * where it meets the room's walls, at most SECTOR_RAY_M), arcM }. A ray runs while it stays inside the plan's rects. Cached by the rule.
+ * where it meets the room's walls, at most SECTOR_RAY_M), walls: [[x, z] | null, …] and along: [[ux, uz] | null, …] (v0.0.28: where
+ * each edge meets its wall, followed to WALL_RAY_M, and the unit step along that wall into the sector; null where none is met), arcM }. A ray runs while it stays inside the plan's rects. Cached by the rule.
  */
 const WEDGES = new WeakMap();
 export function sectorWedgeOf(plan, rule) {
@@ -336,5 +339,19 @@ function wedge(plan, rule) {
     for (let k = 1; k <= SECTOR_RAY_M / 0.05; k++) { const u = k * 0.05; if (!(plan.rects ?? []).some(r => inRect(r, px + c * u, pz + s * u))) break; t = u; }
     return [r4(px + c * t), r4(pz + s * t)];
   };
-  return { x: px, z: pz, fromRad: S.fromRad, toRad: S.toRad, rays: [ray(S.fromRad), ray(S.toRad)], arcM: SECTOR_ARC_M };
+  // (where each edge meets the room's wall, marched past SECTOR_RAY_M to WALL_RAY_M, and the wall there as the unit step along
+  // it into the sector: the step in x alone leaving the plan's rects is a wall along z, else along x; the side the one whose turn about
+  // the point goes from this edge toward the other; null for an edge that meets no wall in reach)
+  const sense = Math.sign(S.toRad - S.fromRad) || 1;
+  const meet = (a, toward) => {
+    const c = Math.cos(a), s = Math.sin(a);
+    let t = 0;
+    for (let k = 1; k <= WALL_RAY_M / 0.05; k++) { const u = k * 0.05; if (!(plan.rects ?? []).some(r => inRect(r, px + c * u, pz + s * u))) break; t = u; }
+    if (t >= WALL_RAY_M - 1e-3) return { at: null, along: null };
+    const outX = !(plan.rects ?? []).some(r => inRect(r, px + c * (t + 0.05), pz + s * t)), u = outX ? [0, 1] : [1, 0];
+    const turn = c * u[1] - s * u[0];
+    return { at: [r4(px + c * t), r4(pz + s * t)], along: (Math.sign(turn) || 1) === toward ? u : [-u[0], -u[1]] };
+  };
+  const rays = [ray(S.fromRad), ray(S.toRad)], m0 = meet(S.fromRad, sense), m1 = meet(S.toRad, -sense);
+  return { x: px, z: pz, fromRad: S.fromRad, toRad: S.toRad, rays, walls: [m0.at, m1.at], along: [m0.along, m1.along], arcM: SECTOR_ARC_M };
 }

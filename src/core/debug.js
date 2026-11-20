@@ -122,7 +122,10 @@ export const SETUPS = Object.freeze(['hot', 'bench', 'mixed', 'confirm', 's200',
   'trunk', 'hold', 'tug',
   // (test-collar's, "Away the boarding party" (scenarios/shoothouse.js COLLAR_SETUPS, with 'go': the lock cycled): stacked on
   // cabin 2's hatch with the passage held and cabin 1 and the bunk room cleared, the fall back called)
-  'cabin2', 'fallback']);
+  'cabin2', 'fallback',
+  // (test-armoury's, "The window and the canopy" (scenarios/armoury-day.js ARMOURY_SETUPS; the window the default): at the ammunition point
+  // drawn and signed, on the lane after the relay, at the canopy after the declaration, at the barrel cleaned)
+  'issue', 'lane', 'canopy', 'turnin']);
 /**
  * "Away the boarding party"'s holdouts by the URL (&holdouts=: v0.0.27): a type, pirates or smugglers (the seed's draw of it), or a whole
  * code, the armed stands then the crew's in the draw's order ('pirates:1a,3a,3b,4b/2c,2d': opfor.js parseBoarding reads and checks it);

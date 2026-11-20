@@ -105,6 +105,9 @@
 // my call) and the lock's override
 // panel's lamp (amber while the inner hatch is dogged, combat/bundle.js lockedOf; red while the panel has locked the override out,
 // the collar's record; green once the dogs are off): the stage draws it live over the panel the batch drew once.
+// v0.0.28 (its build sheet item 11, §14 item 7): while the player cleans the rifle (src/sim/arms/upkeep.js benchOf: the activity
+// clean-rifle or clean-again under way) gunLook gives no rifle on the figure, the same as a person with no kit: the gun lies stripped
+// on the mat, which the cleaning table's vignette draws; the kit's truth keeps it in the hands, nothing new saved.
 import { hash01 } from '../../core/hash.js';
 import { q } from '../../core/num.js';
 import { ACTIONS, gunField, finishOf } from './firearms.js';
@@ -121,6 +124,7 @@ import { tilesLook } from './brass.js';
 import { pitView } from '../scenarios/range.js';
 import { pairsLook } from '../scenarios/pairs.js';
 import { anchorsLook } from '../scenarios/anchors.js';
+import { armouryLook } from '../scenarios/armoury-day.js';
 import { gearAnchorOf, anchorHoldOf } from '../body/footing.js';
 import { stressLook } from '../scenarios/stress.js';
 import { houseLook, handsOf, houseOf } from '../scenarios/shoothouse.js';
@@ -136,6 +140,7 @@ import { lockedOf } from '../combat/bundle.js';
 import { FREE_G_MS2 } from './throw.js';
 import { G0_MS2 } from '../../core/phys.js';
 import { GAIT_G } from '../../data/body/needs.js';
+import { benchOf } from './upkeep.js';
 
 /** The resolution a case's and a mote's gravity is read at (m/s²; see the header). */
 export const CASE_G_STEP_MS2 = 0.001;
@@ -294,6 +299,8 @@ export function boardLook(state, ms = state?.clock?.ms ?? 0) {
 
 /** The rifle on a figure (see the header), or null when the person carries none. */
 export function gunLook(state, actor, ms = state?.clock?.ms ?? 0) {
+  // (the player at the bench, the rifle lying stripped on the mat (its vignette draws it), none on the figure; upkeep.js benchOf)
+  if (benchOf(state, actor?.who)) return null;
   const pid = actor?.who, c = pid ? carryOf(state, pid, actor) : null;
   if (!c) return null;
   const gun = state.items?.[c.gunId];
@@ -478,7 +485,8 @@ export function rangeLook(state, ms = state?.clock?.ms ?? 0) {
     brass: (s.brass ?? []).map(rec => ({ ...caseAt(rec, ms, gMs2), kind: rec.kind, stance: STANCE_OF_PORT[rec.y0] ?? 'stand', atMs: rec.atMs })),
     lying, pick: pick && pid ? placeOf(state, pid, pick) : null, aimed: !!state.stop?.aim, fire, own: s.course === 'anchors' ? null : bayOwn(s),
     kd: s.course === 'kd' ? kdLook(state, s, ms, gMs2) : null,
-    pairs: s.course === 'pairs' ? pairsLook(state, ms) : s.course === 'anchors' ? anchorsLook(state, ms) : null,
+    // ("The window and the canopy"'s yellow ring at the station the standing command wants you on (armoury-day.js armouryLook))
+    pairs: s.course === 'pairs' ? pairsLook(state, ms) : s.course === 'anchors' ? anchorsLook(state, ms) : s.course === 'armoury' ? armouryLook(state, ms) : null,
     stress: s.stress ? stressLook(state, ms) : null,
     house: s.course === 'house' ? shipLook(withDevices(houseLook(state, ms), state, ms), state) : null,
   };

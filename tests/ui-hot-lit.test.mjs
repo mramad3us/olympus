@@ -18,7 +18,8 @@
 // in", "check": steps.js HOT_PURPOSE). And the lit spot was never seen for the rows the user named: at room 1's stack the set house is
 // known (sim/places/known.js familiarOf), so "Watch: behind the door" now lights r1:nl over the remembered floor (render/range.js's
 // over layer, as light) and no other tick changes; inside room 1 "Look: behind the door" lights r1:nl over your corner's aid (the
-// over layer, CORNER_LIT_Y_M). On a drawn house (unfamiliar) the room behind its shut door stays as it was: no tick of it changes.
+// over layer, CORNER_LIT_Y_M). On a drawn house (unfamiliar) the room behind its shut door stays as it was: no tick of it changes;
+// from v0.0.28 (the intel, 'walls') its corner is the brief's and lit as the set house's, the rest of the room unchanged.
 // Fails without the hunks (hotLit null, the ticks unchanged).
 import { assert } from './helpers.mjs';
 import { withGame } from './browser.mjs';
@@ -123,8 +124,9 @@ export default [
             }
           }
         }
-        // (3) a drawn house (unfamiliar), C at 1600 × 900: at room 1's stack the room behind its shut door is not known, so its spot is
-        // lit in the view (hotLit) but nothing of the room changes on the stage
+        // (3) a drawn house, C at 1600 × 900: from v0.0.28 its plan is briefed as the set house's (the intel, 'walls': the user's note of
+        // 2026-11-20), so at room 1's stack its corner is known from the brief and lit behind the shut door, the room's inside still
+        // unknown (before, a drawn house hid the spot: nothing changed on the stage)
         await page.setViewportSize({ width: 1600, height: 900 });
         await game.open('play=test-shoothouse&setup=go&tier=private&seed=48213&draw=drawn&nostore=1&panel=c');
         await page.waitForFunction(() => window.__ready && !!window.__olympus.panel()?.where, null, { timeout: 60000 });
@@ -133,9 +135,10 @@ export default [
         const bD = await shots(WD), rD = await reach(`watch:${hot.id}`), onD = await shots(WD), litD = await page.evaluate(() => window.__olympus.view?.hotLit ?? null);
         await leave(rD.held);
         const movedD = D.map(c => diff(bD[c.id], onD[c.id]).n).reduce((a, b) => a + b, 0);
-        rows.push(`drawn house, C, at room 1's stack: "${rD.tile?.label ?? 'NOT SHOWN'}": lit ${litD ?? 'none'}; the unknown room's ${D.length} ticks, ${movedD} pixels changed`);
+        const otherD = D.filter(c => c.id !== hot.id).map(c => diff(bD[c.id], onD[c.id]).n).reduce((a, b) => a + b, 0);
+        rows.push(`drawn house, C, at room 1's stack: "${rD.tile?.label ?? 'NOT SHOWN'}": lit ${litD ?? 'none'}; the unseen room's ${D.length} ticks, ${movedD} pixels changed (${otherD} off the lit one)`);
         if (!rD.tile || litD !== hot.id) bad.push(`drawn stack: ${JSON.stringify({ tile: rD.tile, litD, hot: hot.id })}`);
-        if (movedD) bad.push(`drawn stack: ${movedD} pixels of the unknown room changed`);
+        if (!movedD || otherD) bad.push(`drawn stack: ${movedD} pixels changed, ${otherD} off the lit corner`);
       }, { port });
       for (const r of rows) console.log(`      ${r}`);
       assert(!bad.length, bad.join(' | '));

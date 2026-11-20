@@ -24,38 +24,41 @@ const STAGE0_WALK = Object.freeze({ digest: 'e6576db8', frames: 2240 });
 
 export default [
   {
-    name: 'with no flag every figure frame is the game\'s: 2,240 frames of the figure code hash as recorded (v0.0.24: the picks of 2026-11-19 drawn as), every look passes lookPicked untouched, no stack mark drawn as',
+    name: 'with no flag every figure frame is the game\'s: 2,240 frames of the figure code hash as recorded (v0.0.24: the picks of 2026-11-19 drawn as), every look passes lookPicked untouched but the combat EVA suit\'s, which takes S1\'s lit edge (v0.0.28: STACK_DRAWN_AS S1 and S5, the user\'s stars of 2026-11-20)',
     fn() {
       let h = 2166136261 >>> 0, n = 0;
       const mix = (v) => { for (let k = 0; k < 4; k++) { h ^= (v >>> (8 * k)) & 255; h = Math.imul(h, 16777619) >>> 0; } };
       const carries = [{}, { weapon: 'rifle', carry: 'low', model: 'r7', carrier: true }, { weapon: 'rifle', carry: 'front', model: 'r7', ears: true }];
-      let untouched = 0, looks = 0;
+      let untouched = 0, looks = 0, suited = 0, marked = 0;
       for (const outfit of [...OUTFITS, ...DUTY_DRESS, ...WORN_KIT]) for (const c of carries) {
         const look = { outfit, seed: 7, skin: 'tan', hair: { style: 'low', color: 'dark' }, ...c };
-        for (const slot of [0, 1]) { looks++; if (lookPicked(look, slot, null) === look && lookPicked(look, slot, { stack: [], helm: null, jamb: null }) === look) untouched++; }
+        // (v0.0.28: the stack's S1, the user's star of 2026-11-20, is drawn as by default on the combat EVA suit's two slots; every other look passes untouched)
+        for (const slot of [0, 1]) { looks++; if (outfit === 'combatSuit') { suited++; if (lookPicked(look, slot, null)?.mark?.rim) marked++; } else if (lookPicked(look, slot, null) === look && lookPicked(look, slot, { stack: [], helm: null, jamb: null }) === look) untouched++; }
         for (const dir of DIRS) for (const frame of [...BANDS.gait, ...(c.weapon ? BANDS.rifle.slice(0, 4) : [])]) {
           const d = paintFrame(look, dir, frame, { ppm: 16 }).pm.data;
           for (let i = 0; i < d.length; i++) mix(d[i] >>> 0);
           n++;
         }
       }
-      console.log(`      ${n} frames, digest ${h.toString(16)} (the stage-0 tree's ${STAGE0_WALK.digest} over ${STAGE0_WALK.frames}); looks untouched by lookPicked with no pick ${untouched} of ${looks}; HELMET_DRAWN_AS ${JSON.stringify(HELMET_DRAWN_AS)}, STACK_DRAWN_AS ${JSON.stringify(STACK_DRAWN_AS)}`);
-      assert(h.toString(16) === STAGE0_WALK.digest && n === STAGE0_WALK.frames && untouched === looks, JSON.stringify({ h: h.toString(16), n, untouched }));
-      // (v0.0.24: the helmets the user picked on 2026-11-19 drawn as, the stack's marks still none: house-stack-figures waits)
-      assert(JSON.stringify(HELMET_DRAWN_AS) === '{"regular":"R3","elite":"E1","opa":"O2"}' && !STACK_DRAWN_AS.length, 'R3, E1 and O2 drawn as, no stack mark');
+      console.log(`      ${n} frames, digest ${h.toString(16)} (the stage-0 tree's ${STAGE0_WALK.digest} over ${STAGE0_WALK.frames}); looks untouched by lookPicked with no pick ${untouched} of ${looks}, the suit's ${marked} of ${suited} with S1's edge; HELMET_DRAWN_AS ${JSON.stringify(HELMET_DRAWN_AS)}, STACK_DRAWN_AS ${JSON.stringify(STACK_DRAWN_AS)}`);
+      assert(h.toString(16) === STAGE0_WALK.digest && n === STAGE0_WALK.frames && untouched === looks - suited && suited > 0 && marked === suited, JSON.stringify({ h: h.toString(16), n, untouched, suited, marked }));
+      // (v0.0.24: the helmets the user picked on 2026-11-19 drawn as; v0.0.28: the stack's S1 and S5, joined (house-stack-figures, scored
+      // 2026-11-20); was none)
+      assert(JSON.stringify(HELMET_DRAWN_AS) === '{"regular":"R3","elite":"E1","opa":"O2"}' && JSON.stringify(STACK_DRAWN_AS) === '["S1","S5"]', 'R3, E1 and O2 drawn as, the stack\'s S1 and S5');
     },
   },
   {
-    name: 'with stack:1 at GO only your and your #2\'s looks change (the lit edge on both); helm:r1 on both in the Mars trim, helm:o1 on your #2 alone; an unknown flag dropped and named; the flags read and written back the same',
+    name: 'with stack:3 at GO only your and your #2\'s looks change (the Navy\'s tape on your #2, the lit edge off both: v0.0.28 draws S1 by default, so stack:1 changes none); helm:r1 on both in the Mars trim, helm:o1 on your #2 alone; an unknown flag dropped and named; the flags read and written back the same',
     fn() {
       const g = createGame({ scenario: 'test-shoothouse', seed: 48213, setup: 'go' }); g.step(1);
       const s = g.state, H = s.armoury.range.house, me = s.player.id, slotOf = (who) => (who === me ? 0 : who === H.twoPid ? 1 : -1);
-      const changed = (picks) => s.actors.list.filter(a => { const L = s.people[a.who]?.look; return L && lookPicked({ ...L, outfit: a.outfit ?? L.outfit }, slotOf(a.who), picks) !== null && JSON.stringify(lookPicked({ ...L, outfit: a.outfit ?? L.outfit }, slotOf(a.who), picks)) !== JSON.stringify({ ...L, outfit: a.outfit ?? L.outfit }); }).map(a => a.who);
-      const p1 = parseLook('stack:1'), pr = parseLook('helm:r1'), po = parseLook('helm:o1'), bad = parseLook('stack:9,helm:x9,colour:red,jamb:m2');
+      // (against the game's own look with no pick: from v0.0.28 STACK_DRAWN_AS draws S1 on you and your #2 by default)
+      const changed = (picks) => s.actors.list.filter(a => { const L = s.people[a.who]?.look; return L && lookPicked({ ...L, outfit: a.outfit ?? L.outfit }, slotOf(a.who), picks) !== null && JSON.stringify(lookPicked({ ...L, outfit: a.outfit ?? L.outfit }, slotOf(a.who), picks)) !== JSON.stringify(lookPicked({ ...L, outfit: a.outfit ?? L.outfit }, slotOf(a.who), null)); }).map(a => a.who);
+      const p1 = parseLook('stack:3'), pr = parseLook('helm:r1'), po = parseLook('helm:o1'), bad = parseLook('stack:9,helm:x9,colour:red,jamb:m2');
       const c1 = changed(p1.look), cr = changed(pr.look), co = changed(po.look);
       const q = readParams('?play=test-shoothouse&look=stack:1+3,helm:r1,jamb:m2&shot=a3&voice=old');
       const round = lookText(parseLook(q.look).look);
-      console.log(`      at GO ${s.actors.list.length} actors: stack:1 changes ${JSON.stringify(c1)}, helm:r1 ${JSON.stringify(cr)}, helm:o1 ${JSON.stringify(co)} (you ${me}, your #2 ${H.twoPid}); 'stack:9,helm:x9,colour:red,jamb:m2' keeps ${JSON.stringify(bad.look)} and drops ${JSON.stringify(bad.unknown)}; the URL ${JSON.stringify({ look: q.look, shot: q.shot, voice: q.voice })} → ${round}`);
+      console.log(`      at GO ${s.actors.list.length} actors: stack:3 changes ${JSON.stringify(c1)}, helm:r1 ${JSON.stringify(cr)}, helm:o1 ${JSON.stringify(co)} (you ${me}, your #2 ${H.twoPid}); 'stack:9,helm:x9,colour:red,jamb:m2' keeps ${JSON.stringify(bad.look)} and drops ${JSON.stringify(bad.unknown)}; the URL ${JSON.stringify({ look: q.look, shot: q.shot, voice: q.voice })} → ${round}`);
       assert(c1.length === 2 && c1.includes(me) && c1.includes(H.twoPid) && cr.length === 2 && co.length === 1 && co[0] === H.twoPid, JSON.stringify({ c1, cr, co }));
       assert(bad.unknown.length === 3 && bad.look.jamb === 'm2' && q.shot === 'A3' && !('voice' in q) && round === 'stack:1+3,helm:r1,jamb:m2', JSON.stringify({ bad, q, round }));
     },

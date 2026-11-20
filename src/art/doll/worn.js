@@ -41,6 +41,8 @@
 // raised, palms out and empty, by the look scored (HANDS_LOOKS; HANDS_LOOK): H1 (the default) at the shoulders, H2 at the face;
 // the arms are the doll's own bent arms (gearBends), the open palms drawn over the fists. Both are drawn after the seams (kit.late)
 // with their own rims, so nothing of v0.0.18's doll moves without them.
+// v0.0.28: the places 'aimSights' (A3, P3) and the P-12's 'high' and 'hostage' are drawn whole by ./held.js (doll.js); v0.0.27's
+// drawings of the last two stay as 'highOld' and 'hostageOld' (PISTOL_LINES, PLACE_BENDS) for the samples' today.
 import { cloth, flesh, mix, INK } from './grid.js';
 import { shapeAt, turned } from '../figures/templates.js';
 import { drawingOf } from '../rifles.js';
@@ -124,9 +126,9 @@ export function rifleStamp(model, finish, S, place, B, MID, mag = true) {
 }
 
 /** The rifle's places on the doll that are in the hands (the rest hang on the sling or lie across the back or the knees). */
-export const RIFLE_IN_HANDS = Object.freeze(['hand', 'ready', 'high', 'aimYou', 'aimAway', 'aimAwayL']);
+export const RIFLE_IN_HANDS = Object.freeze(['hand', 'ready', 'high', 'aimYou', 'aimAway', 'aimAwayL', 'aimSights']);
 /** The pistol's places on the doll that are in the hands ('holster' and 'draw', the hand on it holstered, are not). */
-export const PISTOL_IN_HANDS = Object.freeze(['hand', 'ready', 'high', 'aim', 'cupped', 'aimAway', 'check', 'hostage']);
+export const PISTOL_IN_HANDS = Object.freeze(['hand', 'ready', 'high', 'aim', 'cupped', 'aimAway', 'check', 'hostage', 'aimSights', 'highOld', 'hostageOld']);
 // (a part of what the hands hold: the card tones exactly these pixels (the build sheet v0.0.23 item 1: g.held, as g.quiet marks the seams))
 const holds = (g, id) => { g.held?.add(id); return id; };
 
@@ -291,12 +293,12 @@ export const PLACE_BENDS = Object.freeze({
   'rifle:aimYou': Object.freeze({ bendR: Object.freeze([8, 44]), bendL: Object.freeze([-1, 43]) }),
   'rifle:aimAway': Object.freeze({ bendR: Object.freeze([1, 37]), bendL: Object.freeze([12, 38]) }),
   'rifle:aimAwayL': Object.freeze({ bendR: Object.freeze([-11, 38]), bendL: Object.freeze([0, 37]) }),
-  'pistol:high': Object.freeze({ bendR: Object.freeze([1, 50]), bendL: Object.freeze([1, 50]) }),
+  'pistol:highOld': Object.freeze({ bendR: Object.freeze([1, 50]), bendL: Object.freeze([1, 50]) }),
   'pistol:aim': Object.freeze({ bendR: Object.freeze([3, 43]), bendL: Object.freeze([0, 43]) }),
   'pistol:cupped': Object.freeze({ bendR: Object.freeze([3, 49]), bendL: Object.freeze([0, 49]) }),
   'pistol:check': Object.freeze({ bendR: Object.freeze([3, 52]), bendL: Object.freeze([-1, 44]) }),
   'pistol:aimAway': Object.freeze({ bendR: Object.freeze([1, 41]), bendL: Object.freeze([4, 41]) }),
-  'pistol:hostage': Object.freeze({ bendR: Object.freeze([14, 30]) }),
+  'pistol:hostageOld': Object.freeze({ bendR: Object.freeze([14, 30]) }),
   'pistol:draw': Object.freeze({ bendR: Object.freeze([16, 60]) }),
 });
 
@@ -324,11 +326,11 @@ export function holdGear(gear, hold, { facing = 'front', hang = PISTOL_HANG } = 
   switch (act ?? how) {
     case 'rifle-low': rifleTo('ready'); break;
     case 'rifle-high': rifleTo('high'); break;
-    case 'rifle-aim': rifleTo(hold.aimAt === 'away' ? away : 'aimYou'); break;
+    case 'rifle-aim': rifleTo(hold.aimAt === 'away' ? away : hold.aimAt === 'sights' ? 'aimSights' : 'aimYou'); break;
     case 'rifle-slung': rifleTo('front'); break;
     case 'pistol-ready': pistolTo('ready'); break;
     case 'pistol-high': pistolTo('high'); break;
-    case 'pistol-aim': pistolTo(hold.aimAt === 'away' ? 'aimAway' : hold.aimAt === 'cupped' ? 'cupped' : 'aim'); break;
+    case 'pistol-aim': pistolTo(hold.aimAt === 'away' ? 'aimAway' : hold.aimAt === 'cupped' ? 'cupped' : hold.aimAt === 'sights' ? 'aimSights' : 'aim'); break;
     case 'pistol-check': case 'pistol-reload': case 'pistol-clear': pistolTo('check'); break;
     case 'pistol-draw': case 'pistol-holster': if (g.pistol) { g.pistol = { ...g.pistol, place: 'draw' }; if (g.rifle && g.rifle.place !== 'back') rifleTo(slungAs); } break;
     case 'up': g.hands = 'up'; if (g.rifle && RIFLE_IN_HANDS.includes(g.rifle.place)) g.rifle = null; if (g.pistol && PISTOL_IN_HANDS.includes(g.pistol.place)) g.pistol = null; g.held = null; g.device = null; break;
@@ -424,9 +426,9 @@ export function earCups(g, kit) {
  * toward his facing, 'hostage' raised beside the hostile's head toward the hostage (portrait-gun's H1); 'hand' the board's, hanging.
  */
 const PISTOL_LINES = Object.freeze({
-  ready: Object.freeze({ at: [32, 57], th: Math.PI / 2, k: 0.7 }), high: Object.freeze({ at: [32, 48], th: -Math.PI / 2, k: 0.7 }),
+  ready: Object.freeze({ at: [32, 57], th: Math.PI / 2, k: 0.7 }), highOld: Object.freeze({ at: [32, 48], th: -Math.PI / 2, k: 0.7 }),
   check: Object.freeze({ at: [29, 50], th: -Math.PI / 3, k: 0.7 }), aimAway: Object.freeze({ at: [30, 39], th: 0.06, k: 0.8 }),
-  hostage: Object.freeze({ at: [17, 27], th: -0.35, k: 0.8 }),
+  hostageOld: Object.freeze({ at: [17, 27], th: -0.35, k: 0.8 }),
 });
 /** The P-12 held up at a stance on the doll (the high ready, the admin, aimed away): a step lighter than the frame's colours, its steel lit (see pistolAt). */
 const PISTOL_DOLL_C = Object.freeze({ n: cloth(0x4a4e5a), u: cloth(0x30333c), v: cloth(0xa0a8b4) });
@@ -513,7 +515,7 @@ export function heldItem(g, B, kit) {
   const MID = g.MID, y = B.armIn[0][1] + 1;
   // (v0.0.19: the mask and the open hands, after the seams with their own rims (see the header))
   // (the man's own of M2 and M3 by his seed, as the figure wears it: helmets.js fofMaskFor, the user's "M2 and M3 are decent masks")
-  if (kit.gear?.mask) kit.late.push(() => fofMask(g, kit, kit.gear.maskLook ?? fofMaskFor(kit.seed)));
+  if (kit.gear?.mask && !kit.maskNow) kit.late.push(() => fofMask(g, kit, kit.gear.maskLook ?? fofMaskFor(kit.seed)));
   if (kit.gear?.hands === 'up') kit.late.push(() => openPalms(g, kit));
   if (kit.gear?.device) handDevice(g, B, kit, 'over');
   if (kit.gear?.held === 'phone') {

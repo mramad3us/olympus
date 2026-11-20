@@ -18,32 +18,35 @@ import { PORTRAIT_PICKS } from '../src/art/doll/portrait.js';
 
 const SAMPLES = path.join(root, 'samples');
 const SETS = Object.freeze({
-  'wreck-faces': { groups: ['K', 'T', 'P', 'H', 'B', 'X'], views: 14, open: ['K-b', 'T-a', 'P-a', 'H-a', 'B-a', 'X-a'], mod: 'wreck-faces/faces.js' },
-  'portrait-faces': { groups: ['R'], views: 2, open: ['R-a'], mod: 'portrait-faces/faces.js' },
+  // (v0.0.28, the user's picks of 2026-11-20: wreck-faces scored but X, which waits re-explained and redrawn, open since then and
+  // built in v0.0.28; portrait-faces scored whole, R-a and R-b joined, and folded)
+  'wreck-faces': { groups: ['K', 'T', 'P', 'H', 'B', 'X'], views: 14, open: ['X-a'], since: '2026-11-20', builtIn: 'v0.0.28', scored: ['K-a', 'T-a', 'P-b', 'H-b', 'B-a'], mod: 'wreck-faces/faces.js' },
+  'portrait-faces': { groups: ['R'], views: 2, open: null, scored: ['R-a', 'R-b'], mod: 'portrait-faces/faces.js' },
 });
 
 export default [
   {
-    name: 'wreck-faces and portrait-faces shot whole: their groups and views each at its own whole-pixel size, open with the sheet\'s defaults since 2026-11-19, built in v0.0.25, indexed as sample.json says with every shot on disk',
+    name: 'wreck-faces and portrait-faces shot whole: their groups and views each at its own whole-pixel size, scored on 2026-11-20 (wreck-faces open for X alone, re-explained in v0.0.28; portrait-faces folded), indexed as sample.json says with every shot on disk',
     fn() {
       const index = JSON.parse(readFileSync(path.join(SAMPLES, 'index.json'), 'utf8'));
       for (const [id, want] of Object.entries(SETS)) {
         const s = JSON.parse(readFileSync(path.join(SAMPLES, id, 'sample.json'), 'utf8')), groups = expand(id, s), views = groups.flatMap(g => g.views);
         assert(JSON.stringify(groups.map(g => g.id)) === JSON.stringify(want.groups) && views.length === want.views && new Set(views.map(v => v.id)).size === views.length, JSON.stringify({ id, groups: groups.map(g => g.id), views: views.length }));
-        assert(JSON.stringify(s.open?.default) === JSON.stringify(want.open) && s.open.since === '2026-11-19' && s.open.builtIn === 'v0.0.25' && typeof s.open.decides === 'string' && s.open.decides.length > 10, JSON.stringify({ id, open: s.open }));
+        assert(want.open ? JSON.stringify(s.open?.default) === JSON.stringify(want.open) && s.open.since === want.since && s.open.builtIn === want.builtIn && typeof s.open.decides === 'string' && s.open.decides.length > 10 : !s.open, JSON.stringify({ id, open: s.open }));
+        assert(s.scored?.on === '2026-11-20' && JSON.stringify(s.scored.picks) === JSON.stringify(want.scored), JSON.stringify({ id, scored: s.scored }));
         const entry = index.samples.find(e => e.id === id);
-        assert(entry && JSON.stringify(entry.open) === JSON.stringify(s.open), `${id}: the index's entry`);
+        assert(entry && JSON.stringify(entry.open ?? null) === JSON.stringify(s.open ?? null) && JSON.stringify(entry.scored) === JSON.stringify(s.scored), `${id}: the index's entry`);
         const shot = new Map(entry.groups.flatMap(g => g.views).map(v => [v.id, v]));
         for (const v of views) {
           const n = nativeOf(v.pixel, v.query), e = shot.get(v.id);
           assert(n && Number.isInteger(n[0]) && Number.isInteger(n[1]) && e?.shot && JSON.stringify(e.native) === JSON.stringify(n) && existsSync(path.join(SAMPLES, e.shot)), JSON.stringify({ id, view: v.id, n, e }));
         }
-        console.log(`      ${id}: ${groups.map(g => `${g.id} ${g.views.length}`).join(', ')}; ${views.length} views shot whole; default ${s.open.default.join(', ')} (since ${s.open.since}, ${s.open.builtIn})`);
+        console.log(`      ${id}: ${groups.map(g => `${g.id} ${g.views.length}`).join(', ')}; ${views.length} views shot whole; scored ${s.scored.picks.join(', ')}; ${s.open ? `open ${s.open.default.join(', ')} (since ${s.open.since}, ${s.open.builtIn})` : 'folded'}`);
       }
     },
   },
   {
-    name: 'every view drawn in node at its sample.json size, and the game draws each default from its one home: K-b (OVERHEAD_LOOK), R-a (PORTRAIT_PICKS.roll)',
+    name: 'every view drawn in node at its sample.json size, and the game draws each pick from its one home: K-a (OVERHEAD_LOOK, the user\'s star of 2026-11-20; K-b before), R-a (PORTRAIT_PICKS.roll)',
     async fn() {
       const sizes = [];
       for (const [id, want] of Object.entries(SETS)) {
@@ -52,7 +55,7 @@ export default [
       }
       console.log(`      ${sizes.join(', ')}`);
       console.log(`      the game: the overhead ${OVERHEAD_LOOK}, the portrait's roll ${PORTRAIT_PICKS.roll}`);
-      assert(OVERHEAD_LOOK === SETS['wreck-faces'].open[0] && PORTRAIT_PICKS.roll === SETS['portrait-faces'].open[0], JSON.stringify({ OVERHEAD_LOOK, roll: PORTRAIT_PICKS.roll }));
+      assert(OVERHEAD_LOOK === 'K-a' && PORTRAIT_PICKS.roll === 'R-a', JSON.stringify({ OVERHEAD_LOOK, roll: PORTRAIT_PICKS.roll }));
     },
   },
 ];

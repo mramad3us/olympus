@@ -26,7 +26,9 @@
 //     floor and the anchor still lands on the spot (on screen a card's row is where the ground at z − y
 //     is). A seat, a bound's height or a float lifts it (y); the blob stays on the floor and shrinks
 //     with the height (VIEWS.md 3.5: 1 / (1 + 0.6 h), opacity 0.4 down to 0.15). A body lying side on
-//     has a long blob, one lying end on a deep one.
+//     has a long blob, one lying end on a deep one. v0.0.28 (the user's stars of 2026-11-20, S5 and F-a): a man standing on the
+//     floor casts his shadow in its place, his legs laid flat away from the light, hard-edged (render/faces.js castShadowPixels,
+//     SHADOW_*), in the blobs' own draw from his atlas cell; two men 0.65 m apart in the stack no longer share one blob.
 //   - FLASHES: a third instanced draw of cards from the flash strip (atlas.js flashStrip()), at the
 //     muzzle, unlit, nudged along the camera's line (in front, or behind the head from behind), for
 //     FLASH_MS; the caller lights whoever is within FLASH_LIT_M (poses.js gunPose() decides when).
@@ -82,7 +84,7 @@ const CARRY_FREE = new Set(CARRY_FREE_BANDS);
 import { wear } from '../art/figures/outfits.js';
 import { paintSleeper, sleeperKey, BERTH_M } from '../art/figures/bedding.js';
 import { paint } from '../art/paint.js';
-import { cardTurn } from './faces.js';
+import { cardTurn, SHADOW_UP_M, SHADOW_K, SHADOW_A } from './faces.js';
 
 export const ATLAS_PX = 4096;
 export const SHEETS_PER_FRAME = 2;
@@ -265,26 +267,53 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
   cards.frustumCulled = false; cards.count = 0;
   cards.userData.part = PEOPLE_PART;
 
-  // ---------- the blobs (an ink ellipse a person, opacity by height, long for a body lying down) ----------
-  const bgeo = new THREE.CircleGeometry(0.42, 18).rotateX(-Math.PI / 2).scale(1, 1, 0.6);
+  // ---------- the blobs (an ink ellipse a person, opacity by height, long for a body lying down) and, from v0.0.28, the cast shadow
+  // of a man standing on the floor (render/faces.js SHADOW_*: his card's lower rows laid flat away from the light, sampled from his
+  // own atlas cell in this draw's shader: one draw, no CPU a body more than the blob's) ----------
+  // (a unit quad on the floor: the ellipse cut from it in the shader (v0.0.27's was a circle of 18 segments, 0.42 m by 0.252), or
+  // the shadow's box of pixels from the card's left and its sole's row)
+  const bgeo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
   const aAlpha = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople), 1);
-  // (1 draws the blob as the overhead's dashed ring (K-b), BLOB_RING_IN of its radius in, BLOB_DASHES dashes round; 0 as before)
+  // (1 draws the blob as the overhead's dashed ring (K-b, retired), BLOB_RING_IN of its radius in, BLOB_DASHES dashes round; 0 as before)
   const aRing = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople), 1);
-  bgeo.setAttribute('aAlpha', aAlpha); bgeo.setAttribute('aRing', aRing);
+  // (the cast shadow: the card's left (x, m), its sole's row (z, m), its anchor's row in the cell (px) and 1, or 0 for the ellipse;
+  // the cell itself is the cards' own aRect, shared)
+  const aCast = new THREE.InstancedBufferAttribute(new Float32Array(maxPeople * 4), 4);
+  bgeo.setAttribute('aAlpha', aAlpha); bgeo.setAttribute('aRing', aRing); bgeo.setAttribute('aCast', aCast); bgeo.setAttribute('aRect', aRect);
+  const UP_PX = SHADOW_UP_M * ppm, CAST_K = Math.ceil(UP_PX) + 1, CAST_W_PX = Math.ceil(UP_PX * SHADOW_K[0]) + 2, CAST_D_PX = Math.ceil(UP_PX * SHADOW_K[1]) + 3;
   const bmat = new THREE.ShaderMaterial({
-    uniforms: { ink: { value: new THREE.Color(INK) } },
+    uniforms: { ink: { value: new THREE.Color(INK) }, atlas: { value: atlas }, size: { value: atlasPx } },
     transparent: true, depthWrite: false,
     vertexShader: /* glsl */`
-      attribute float aAlpha; attribute float aRing; varying float vA; varying float vRing; varying vec2 vLocal; varying vec3 vOlyWorld; flat varying float vOlyPart;
-      void main() { vA = aAlpha; vRing = aRing; vLocal = position.xz; vOlyPart = 0.0; vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0); vOlyWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+      attribute float aAlpha; attribute float aRing; attribute vec4 aCast; attribute vec4 aRect;
+      varying float vA; varying float vRing; varying vec2 vLocal; flat varying vec4 vCast; flat varying vec4 vRect; varying vec3 vOlyWorld; flat varying float vOlyPart;
+      void main() { vA = aAlpha; vRing = aRing; vCast = aCast; vRect = aRect; vLocal = position.xz; vOlyPart = 0.0; vec4 w = modelMatrix * instanceMatrix * vec4(position, 1.0); vOlyWorld = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
     fragmentShader: /* glsl */`
       ${FRAG_DECL}
-      uniform vec3 ink; varying float vA; varying float vRing; varying vec2 vLocal;
+      uniform vec3 ink; uniform sampler2D atlas; uniform float size; varying float vA; varying float vRing; varying vec2 vLocal; flat varying vec4 vCast; flat varying vec4 vRect;
       void main() {
-        if (vRing > 0.5) {
-          vec2 e = vLocal / vec2(0.42, 0.252);
-          if (length(e) < ${BLOB_RING_IN.toFixed(2)} || fract((atan(e.y, e.x) / 6.2831853 + 0.5) * ${BLOB_DASHES.toFixed(1)}) > 0.5) discard;
+        if (vCast.w > 0.5) {
+          // (the floor pixel from the card's left column and its sole's row; each card row up to SHADOW_UP_M, h px up, laid at
+          // (round(h ${SHADOW_K[0]}), round(h ${SHADOW_K[1]} - 0.5)), JS's Math.round: this pixel is shadow where one lands an opaque pixel)
+          vec2 q = (vOlyWorld.xz - vCast.xy) * ${ppm.toFixed(4)};
+          float ix = floor(q.x), iy = floor(q.y);
+          bool on = false;
+          for (int k = -1; k < ${CAST_K}; k++) {
+            float h = float(k) + 0.5;
+            if (h > ${UP_PX.toFixed(4)}) break;
+            float hh = max(0.0, h);
+            if (floor(hh * ${SHADOW_K[1].toFixed(4)}) != iy) continue;
+            float px = ix - floor(hh * ${SHADOW_K[0].toFixed(4)} + 0.5), py = vCast.z - 1.0 - float(k);
+            if (px < 0.0 || px >= vRect.z || py < 0.0 || py >= vRect.w) continue;
+            if (texture2D(atlas, (vRect.xy + vec2(px, py) + 0.5) / size).a * 255.0 >= 127.5) { on = true; break; }
+          }
+          if (!on) discard;
+          gl_FragColor = vec4(ink, vA); pc_fragId = vec4(0.0);
+          return;
         }
+        vec2 e = vLocal * 2.0;
+        if (length(e) > 1.0) discard;
+        if (vRing > 0.5 && (length(e) < ${BLOB_RING_IN.toFixed(2)} || fract((atan(e.y, e.x) / 6.2831853 + 0.5) * ${BLOB_DASHES.toFixed(1)}) > 0.5)) discard;
         gl_FragColor = vec4(ink, vA); pc_fragId = vec4(0.0);
       }`,
   });
@@ -471,9 +500,18 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
       if (c.kind === 'long') { bx = left + c.w / 2 / ppm; sx = 2.3; sz = 0.9; }
       else if (c.kind === 'tall') { bz = snap(p.z) - c.ay / 2 / ppm; sx = 0.95; sz = 3.2; }
       const k = 1 / (1 + 0.6 * lift);
-      m4.makeScale(sx * k, 1, sz * k).setPosition(bx, floorY + 0.012, bz);
+      // (a man standing on the floor, his card upright and whole, casts his shadow (faces.js SHADOW_*); else the ellipse)
+      const cast = !p.noBlob && !TT && sk === 1 && lift === 0 && !p.float && !p.ring && (p.seat ?? 0) === (p.floorY ?? 0) && c.kind !== 'long' && c.kind !== 'tall' && c.kind !== 'float';
+      if (cast) {
+        const sz0 = snap(p.z), qw = (c.w + CAST_W_PX) / ppm, qd = CAST_D_PX / ppm;
+        m4.makeScale(qw, 1, qd).setPosition(left - 1 / ppm + qw / 2, floorY + 0.012, sz0 - 1 / ppm + qd / 2);
+        aCast.setXYZW(i, left, sz0, c.ay, 1);
+      } else {
+        m4.makeScale(0.84 * sx * k, 1, 0.504 * sz * k).setPosition(bx, floorY + 0.012, bz);
+        aCast.setXYZW(i, 0, 0, 0, 0);
+      }
       blobs.setMatrixAt(i, m4);
-      aAlpha.setX(i, p.noBlob ? 0 : Math.max(0.15, 0.4 - 0.083 * lift));
+      aAlpha.setX(i, p.noBlob ? 0 : cast ? SHADOW_A : Math.max(0.15, 0.4 - 0.083 * lift));
       aRing.setX(i, p.ring ? 1 : 0);
       // (the device in the hands, its card by the frame drawn; none where the body hides it whole)
       if (p.held) {
@@ -514,7 +552,7 @@ export function createFigures({ renderer, ppm = PX_PER_M, atlasPx = ATLAS_PX, bu
     }
     cards.count = blobs.count = i; flashes.count = nf; berths.count = nBerth; helds.count = nh;
     // (only the instances drawn are sent: a frame's few hundred bytes, not MAX_PEOPLE's 16 KB a matrix buffer)
-    for (const [a, n] of [[cards.instanceMatrix, i], [blobs.instanceMatrix, i], [flashes.instanceMatrix, nf], [aRect, i], [aTint, i], [aPartK, i], [aAlpha, i], [aRing, i], [aSlot, nf], [berths.instanceMatrix, nBerth], [bRect, nBerth], [bTint, nBerth], [bSee, nBerth], [helds.instanceMatrix, nh], [hRect, nh], [hTint, nh], [hPartK, nh]]) {
+    for (const [a, n] of [[cards.instanceMatrix, i], [blobs.instanceMatrix, i], [flashes.instanceMatrix, nf], [aRect, i], [aTint, i], [aPartK, i], [aAlpha, i], [aRing, i], [aCast, i], [aSlot, nf], [berths.instanceMatrix, nBerth], [bRect, nBerth], [bTint, nBerth], [bSee, nBerth], [helds.instanceMatrix, nh], [hRect, nh], [hTint, nh], [hPartK, nh]]) {
       if (!n) continue;
       a.clearUpdateRanges(); a.addUpdateRange(0, n * a.itemSize); a.needsUpdate = true;
     }

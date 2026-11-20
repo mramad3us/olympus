@@ -1,7 +1,7 @@
 {
  "title": "The P-12's stances, and the R-7 hanging while it is up: low ready, high ready, aimed, at the holster, the admin; across the chest, at the hip, on the back",
  "about": "Your note of 2026-11-17: \"Holding the sidearm with the rifle dangling should be redrawn, sidearm should have the same stances (low ready, high ready, aimed, etc) as the rifle\". The game already keeps one posture for whichever gun is in your hands (the P-12 at the low ready, the high ready or aimed, as the R-7 is), but the stage has only two pistol frames (the draw and the pistol aimed), painted only in a stance sheet that a hanging rifle's carry never has: so with the P-12 out the stage draws you with the rifle slung in front and empty hands, and no pistol. T (today, for reference, not scored) shows that: the stage's own picture of the sergeant after Transition (the save v0.0.17-house-pistol, made by capture.mjs) three times larger, the I and C cards' doll in the same kit, the frame the stage draws, the two pistol frames it asks for and never draws (in which the rifle is not drawn at all), and the rifle's own low ready, high ready and aimed, in four facings. PS, the stances, each drawn in this release (the defaults, until you score them): PS-a the low ready, PS-b the high ready, PS-c aimed (with the shot's kick), PS-d the hand at the holster (the draw and the holster), PS-e the admin (the press check, the slide racked, the clearing; the magazine out and in beside it), seen when you work the P-12 in your own hands (a press check, a reload, a rack or lock back and release at a pause: the stage's pistolCheck and pistolMag, the doll's and the card's check), not in the tower's LOAD and SHOW CLEAR, which the drill runs this round as one beat with the pistol in its holster and the rifle drawn in your hands (the review of 2026-11-18; the lead's or v0.0.24's to draw); each on you on the I and C cards (today's doll, then the stance), on a man with his P-12 on the target card at 4 and 14 m, and on the stage's figure in four facings beside today's frame (the low ready walking too). RH, the R-7 on its sling while the pistol is up, at the low ready: RH1 across the chest, muzzle down (the default), RH2 on the strong-side hip, RH3 swung round to the back; on the cards from the front and from behind, on the figure in four facings and walking side on, the rifle swinging with the stride, never through the arms. Score a stance to have it redrawn, and pick the hang.",
- "open": {"default": ["PS-a", "PS-b", "PS-c", "PS-d", "PS-e", "RH1"], "since": "2026-11-18", "decides": "the P-12's stances on the figure, the doll and the card (PS), and how the R-7 hangs while the pistol is up (RH)", "builtIn": "v0.0.23"},
+ "open": {"default": ["PS-b", "PS-c"], "since": "2026-11-20", "decides": "the P-12's high ready (PS-b) and aimed (PS-c), redrawn on your scores of 2026-11-20; PS-a, PS-d, PS-e and RH1 (your stars) kept", "builtIn": "v0.0.28", "rank": 5},
  "pixel": true,
  "groups": [
   {
@@ -15,11 +15,11 @@
   {
    "id": "PS",
    "title": "PS: the P-12's stances",
-   "about": "You on the I and C cards (today, then the stance), a man so on the target card at 4 and 14 m, then the stage's figure, today's frame and the stance in four facings, and the frames that go with it side on.",
+   "about": "You on the I and C cards (today, then the stance), a man so on the target card at 4 and 14 m, then the stage's figure, today's frame and the stance in four facings, and the frames that go with it side on. PS-b and PS-c redrawn (v0.0.28, your scores of 2026-11-20, 0 and 50; again on the art director's pass the same day, \"praying hands\", \"black on black\"): the high ready, painted by hand on the third pass: the P-12 tipped toward you, its slide the lightest thing on his chest with the front sight and the muzzle's bore at its top, over one double fist with the trigger guard's gap, the forearms upright under it and the elbows tucked under the fists; aimed, P3's hold (portrait-pose P), the slide in lit steel; on the black suit the gloves a clear grey and the sleeves a step lighter, so the arms stand off the chest. Today's (v0.0.27's) drawing first, on the doll and on the card.",
    "views": [
     { "id": "PS-a", "name": "PS-a: the low ready (drawn)", "query": "ps=PS-a", "pixel": "676x492" },
-    { "id": "PS-b", "name": "PS-b: the high ready (drawn)", "query": "ps=PS-b", "pixel": "676x492" },
-    { "id": "PS-c", "name": "PS-c: aimed (drawn)", "query": "ps=PS-c", "pixel": "676x492" },
+    { "id": "PS-b", "name": "PS-b: the high ready: the slide tipped toward you over one double fist, the forearms upright (redrawn)", "query": "ps=PS-b", "pixel": "676x492" },
+    { "id": "PS-c", "name": "PS-c: aimed (redrawn: P3, the slide in lit steel, the gloves grey)", "query": "ps=PS-c", "pixel": "676x492" },
     { "id": "PS-d", "name": "PS-d: the hand at the holster (drawn)", "query": "ps=PS-d", "pixel": "676x492" },
     { "id": "PS-e", "name": "PS-e: the admin: the press check (drawn when you work it in your hands; not in the tower's LOAD and SHOW CLEAR, run holstered)", "query": "ps=PS-e", "pixel": "676x492" }
    ]
@@ -34,5 +34,6 @@
     { "id": "RH3", "name": "RH3: swung round to the back", "query": "rh=RH3", "pixel": "676x492" }
    ]
   }
- ]
+ ],
+ "scored": {"on": "2026-11-20", "picks": ["PS-a", "PS-d", "PS-e", "RH1"]}
 }

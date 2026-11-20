@@ -1,7 +1,6 @@
 {
  "title": "The stack's figures: two marines in the black suit told apart, moving, in the shoot house (today's look and five candidates)",
  "about": "The v0.0.14 reviews: \"You and your #2 merge into one blob on the walk\" and \"In the black suit the legs barely read\". The suit stays black (the Corps' armour is black); five ways to keep the two men and their legs apart at 16 px/m, each beside today's look. Every view is the game's own picture of the hall at room 1's door (test-shoothouse at 10:00 on seed 48213: the house's light and floor, the fog of awareness, the post pass, the Mars palette; shot by capture.mjs with the stack moved out), with the stack drawn over it as the stage draws it: the game's figure code (walk cycle B's Combat glide at the low ready, side on with the plant lock; the stack's beat when still), lit by the tint the view gives a figure there, then the post pass's outline, grade and snap. S-h checks that drawing against the game's own picture of GO. The moment, 8.7 s looped: you and your #2 glide (1.23 m/s) from the start mark to the stack on room 1's door, one behind the other along the hall (one depth: the blob), then your #2 crosses in front of you to the door's far side (0.65 m nearer the camera). The gallery's pictures are stills at each tile's telling moment; open a view live (O) and it moves: Space stops and starts it, S slows it to a quarter, the arrows step a tick while stopped, R starts again. Score each candidate in motion; several can be joined (say which).",
- "open": {"default": ["S-a"], "since": "2026-11-14", "decides": "how you and your #2 are told apart in the black suit (S0, today's, until scored)", "builtIn": "v0.0.24"},
  "pixel": true,
  "groups": [
   {
@@ -19,5 +18,6 @@
     { "id": "S-h", "name": "The check: today's look at GO drawn by the sample, beside the game's own picture", "query": "set=check", "pixel": "334x134" }
    ]
   }
- ]
+ ],
+ "scored": {"on": "2026-11-20", "picks": ["S-b", "S-f"]}
 }

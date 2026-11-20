@@ -35,7 +35,7 @@
 // and the sandbox's test rooms (the title and ?play= start them; the Tests menu never lists them).
 // v0.0.25's test-zerocqb, "Hold to hold" (its build sheet §1 item 1; ROADMAP §4.2's 0.0.7e): the shoot house's lane on the Wreck at Phobos,
 // its own scenario, `ship` (the operation record's one field the lane branches on, a key of src/data/places/ships.js SHIPS), `tug` (the yard tug's pull, set at GO),
-// `familiar: 'walls'` (the walls briefed, every compartment black until seen) and `menu` (false: played by its URL only, left off the
+// `familiar: 'walls'` (the walls briefed, every compartment unknown until seen; v0.0.28: every combat scene's, the intel) and `menu` (false: played by its URL only, left off the
 // Tests menu by main.js scenes(), until its ship rule is met).
 // v0.0.26's test-breach, "Bang, then go" (its build sheet §1 item 1; ROADMAP §4.2's 0.0.7f): the house's scenario cut to room 1 with
 // the live lane's two role-players in it, `breach` ('drawn': the bang and the held door from the seed; shoothouse.js drawBreach) and
@@ -138,10 +138,12 @@ export const SCENES = deepFreeze({
     // lead's quiet run and the nets' eight-room lanes meet 0 cases (the ship rule), then ['a', 'all']; &rooms=all plays the eight
     // whatever this says)
     rooms: ['a'],
-    // (its build sheet item 7: the house as set is briefed, so familiar; drawn from the seed it is not, its rooms black until
-    // seen (src/sim/places/known.js familiarOf; the user, 2026-11-17: "we see what is in the rooms before entering them, this should
-    // not be the case when we start generating procedurally"). Absent on a scene: every place familiar)
-    familiar: 'set',
+    // (the intel (src/sim/places/known.js familiarOf; the user, 2026-11-17: "we see what is in the rooms before entering them, this
+    // should not be the case when we start generating procedurally"; v0.0.28, the user's note of 2026-11-20: "the layout would be
+    // known most of the time, unless the scenario justifies the lack of intel"): 'walls', the plan briefed, set or drawn, every
+    // room's inside unknown until seen; 'none' only the outside, for a scene whose brief says why. Absent on a scene: every place
+    // familiar)
+    familiar: 'walls',
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
   // (v0.0.19: "Stack and clear, live", the same lane with two role-players of the cadre in place of stands 2a and 3a, firing
@@ -160,8 +162,8 @@ export const SCENES = deepFreeze({
     // a live lane as asked (liveDraw), but the page plays it as set and the picker's house row waits on its ship rule: F80
     // (tests/flawless-end.mjs) is OPEN, F44's band (the tier one painted on 3 of 7 drawn lanes against 5%), so ['set', 'drawn'] when it is MET)
     draws: ['set'],
-    // (as test-shoothouse's, the scenario's: a drawn live lane, the tests' only while F80 is open, is unfamiliar)
-    familiar: 'set',
+    // (as test-shoothouse's, the scenario's: the plan briefed, the rooms' insides unknown until seen)
+    familiar: 'walls',
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
   // ("Bang, then go" (its build sheet §1 item 1, §3.2; ROADMAP §4.2's 0.0.7f; COMBAT §7.10, §7.11, §25.18.2): room 1 of lane
@@ -181,7 +183,7 @@ export const SCENES = deepFreeze({
     body: {}, outfit: 'combatSuit', course: 'house', stances: true, sheets: ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone'], sheet: 'private',
     pars: ['basic', 'advanced', 'operator'],
     draws: ['set'],
-    familiar: 'set',
+    familiar: 'walls',
     newSeed: ['Another door', 'a new seed, a new draw'],
     // (on the Tests menu, after "Stack and clear, live", from the integration of v0.0.26: its ship rule met, scene-breach,
     // breach-nodead and breach-save (F138) and env-noregress (F147) green in the full run on the merged tree; by URL only until then)
@@ -273,6 +275,22 @@ export const SCENES = deepFreeze({
     familiar: 'walls',
     newSeed: ['Another hauler', 'a new seed, new holdouts'],
     endOn: { fact: 'range', phase: ['clear', 'fellBack', 'down', 'stopped'] },
+  },
+  // ("The window and the canopy" (its build sheet item 1, §0 item 19; ROADMAP §4.2's 0.0.8; PLACES #15): Base Melas's armoury at 07:50 on
+  // the sol, the range's course engine with the course 'armoury' (src/sim/scenarios/armoury-day.js): your R-7 drawn by serial at window 1 and shown
+  // clear, the serials in the rank, twenty rounds by count, the relay as its outcome, the lane's show clear and brass, the declaration, the canopy's
+  // cleaning against the leader's ten-thirty, the barrel and the armourer's inspection. The picker's five sheets, the private first; "Another day"
+  // a new seed. By its URL only (`menu: false`) until its ship rule (F170, F171, F179 and F181 green on the lead's quiet run), then last on the
+  // Tests menu, after "Away the boarding party"
+  'test-armoury': {
+    id: 'test-armoury', title: 'The window and the canopy', scenario: 'test-armoury', host: MELAS, env: SITE_ENV, hour: 7 + 50 / 60,
+    goal: 'Draw your rifle by serial and show it clear, draw your rounds by count, then the canopy and the window: clean it, turn it in.',
+    aspects: [['window', 'the window and the count: the card, the serial, the show clear, the issue, the declaration'], ['cleaning', 'the canopy: rushed, normal or careful, its time and its roll'],
+      ['inspection', "the armourer's eye: passed, or clean it again"]],
+    body: {}, outfit: 'utilities', course: 'armoury', sheets: ['recruit', 'private', 'sgt', 'raider', 'tierone'], sheet: 'private',
+    newSeed: ['Another day', 'a new seed, a new draw'],
+    menu: false,
+    endOn: { fact: 'range', phase: ['clear', 'stopped'] },
   },
 });
 

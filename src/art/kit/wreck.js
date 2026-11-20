@@ -3,11 +3,14 @@
 // The Wreck is a stripped Tharsis corvette (src/data/places/wreck.js): a ship's compartment 2.2 m clear, every standing piece deck
 // to deckhead so one grid serves a body on either face. Its pieces, each its catalogue's size (src/sim/places/fixtures.js,
 // pinned equal to FOOTPRINTS by places-validate):
-//   scuttle    the trunk's hatch, Ø 0.8 m, its make its mounting: in the deck ('deck', the fixture's y 0) a square coaming in hazard
-//              stripes round its lid, dogged (H-a of samples/wreck-faces until scored: the area's batch is drawn once, so the lid
-//              shown open is the view's to add as a moving piece, as a door's leaf is, D's); in the deckhead ('deckhead', y 2.2) the
-//              same coaming drawn as a rim of four bars
-//              hanging under it, the hole between them left empty (nothing of the deck above is ever drawn: VIEWS §2.9)
+//   scuttle    the trunk's hatch, Ø 0.8 m, its make its mounting: in the deck ('deck', the fixture's y 0) a round grey coaming
+//              round its lid, dogged, a hand wheel on the lid (SCUTTLE_LOOK 'H-b', samples/wreck-faces' H, the user's star of
+//              2026-11-20: the area's batch is drawn once, so the lid shown open is the view's to add as a moving piece, as a door's
+//              leaf is, D's); in the deckhead ('deckhead', y 2.2) the same coaming hanging under it as a ring, the hole inside it left
+//              empty (nothing of the deck above is ever drawn: VIEWS §2.9). Round in boxes: the ring and the lid are laid a pixel
+//              row at a time at the area's own density (k.ppm), each row's runs one box or one flat piece, so the circle is the
+//              sample's on whole pixels at 16 and at 24 px/m, in one batch with the rest (no draw call of its own). H-a, v0.0.25's
+//              square coaming in hazard stripes with four dogs, stays drawable
 //   speaker    the 1MC's: a grey box 0.2 m square under the deckhead, its grille ('onemc'), or a squat horn ('horn')
 //   cargo      a stack of crates 1.2 m square deck to deckhead, lashed with two yellow straps a face ('lashed') or under a net ('netted')
 //   berthRack  the brig's berth couches racked on end deck to deckhead: four posts ('grey' or bare 'steel'), four couch pans in a
@@ -24,7 +27,7 @@ const RIM_M = 0.08, RIM_H_M = 0.06;
 // (hazard stripes over a face, bands `band` px wide)
 const stripes = (px, w, h, band) => { for (let j = 0; j < h; j++) for (let i = 0; i < w; i++) px(i, j, 1, 1, Math.floor((i + j) / band) % 2 ? C.hazardD : C.hazard); };
 const rimFace = tex('wreck:coaming', (px, w, h, p) => stripes(px, w, h, Math.max(2, Math.round(3 * U(p)))));
-// (the scuttle's lid, dogged: square, a dog at each corner turned in, the trunk's stencil: samples/wreck-faces' H-a until scored)
+// (the scuttle's lid, dogged, under H-a: square, a dog at each corner turned in, the trunk's stencil: samples/wreck-faces' H-a)
 const LID = 0x5d666f;
 const lidTop = tex('wreck:lid', (px, w, h, ppm) => {
   paintedSteel(px, 0, 0, w, h, { c: LID, ppm, seed: 52 });
@@ -34,10 +37,46 @@ const lidTop = tex('wreck:lid', (px, w, h, ppm) => {
   px(Math.floor(w / 2) - 1, Math.floor(h / 2) - 1, 3, 3, C.steelD);
 });
 
-/** The trunk's scuttle (see the header): a coaming round its dogged lid in the deck, or a rim of four bars under the deckhead. */
+/** How the trunk's scuttle is drawn (see the header): 'H-b' round with a hand wheel (v0.0.28, the user's star), or 'H-a' square with dogs. */
+export const SCUTTLE_LOOK = 'H-b';
+const RING_C = 0x7f868e, WHEEL_C = C.steel;
+/**
+ * H-b's pixels at a density (see the header): rows of runs { j, i0, i1, kind } across the scuttle's W (N pixels a side, its middle a
+ * pixel's centre on an odd N): 'ring' the coaming (the outer RIM_M, at least a pixel and a half), 'lid' and 'wheel' inside it (the
+ * wheel a ring at 0.45 of the radius and its two spokes, a pixel wide, the sample's). Pure; the kit lays them, the tests read them.
+ */
+export function roundScuttleRuns(W, ppm) {
+  const N = Math.max(3, Math.round(W * ppm)), R = N / 2, rim = Math.max(1.5, RIM_M * ppm), wR = Math.round(R * 0.45), runs = [];
+  const kindAt = (i, j) => {
+    const dx = i + 0.5 - R, dy = j + 0.5 - R, r = Math.hypot(dx, dy);
+    if (r > R) return null;
+    if (r >= R - rim) return 'ring';
+    if (Math.abs(r - wR) < 0.5 || (Math.abs(dx) < 0.5 && Math.abs(dy) <= wR) || (Math.abs(dy) < 0.5 && Math.abs(dx) <= wR)) return 'wheel';
+    return 'lid';
+  };
+  for (let j = 0; j < N; j++) {
+    let i0 = 0, kind = kindAt(0, j);
+    for (let i = 1; i <= N; i++) {
+      const k = i < N ? kindAt(i, j) : undefined;
+      if (k !== kind) { if (kind) runs.push({ j, i0, i1: i, kind }); i0 = i; kind = k; }
+    }
+  }
+  return { N, runs };
+}
+
+/** The trunk's scuttle (see the header): under H-b a round coaming round its dogged lid and its wheel in the deck, or the ring under the deckhead; under H-a v0.0.25's square. */
 export function scuttle(k, o) {
   const { W, D } = o, head = o.make === 'deckhead';
   k.comp();
+  if ((o.look ?? SCUTTLE_LOOK) === 'H-b') {
+    const { N, runs } = roundScuttleRuns(W, k.ppm), P = W / N, at = (i) => -W / 2 + i * P, atZ = (j) => -D / 2 + j * (D / N);
+    for (const r of runs) {
+      const x0 = at(r.i0), x1 = at(r.i1), z0 = atZ(r.j), z1 = atZ(r.j + 1);
+      if (r.kind === 'ring') k.box({ x0, x1, z0, z1, y: head ? -RIM_H_M : 0, h: RIM_H_M, faces: { top: RING_C, front: tone(RING_C, -0.2), sides: tone(RING_C, -0.3) } });
+      else if (!head) k.ground({ x0, z0, x1, z1, lift: 0.004, color: r.kind === 'wheel' ? WHEEL_C : LID });
+    }
+    return;
+  }
   if (head) {
     // (y: the fixture's, the deckhead's height; the rim hangs RIM_H_M under it)
     const y = -RIM_H_M;

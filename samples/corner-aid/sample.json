@@ -1,0 +1,17 @@
+{
+ "title": "Your corner shown, without angles drawn on the floor",
+ "about": "Your note of 2026-11-20 on pistol-stances T: \"BTW not a big fan of the angles drawn on the floor, we need a slicker way of doing it\". The corner aid (the coach's chalk teal, by rung, always or off on the Esc menu's To score page) shows your corner as you go into a room, your point of domination and your #2's, and your sector. Each picture is drawn by code from the game's own plan, corner rule and sector of room 1 on its entry and room 3 (the L) of the house as set (seed 48213, the private: make.mjs), at the stage's 16 px a metre, the floor and the walls in plain tones, two moments a room: the aid whole as you go in, and fading once your sector is taken. A-a is v0.0.27's: your sector as a wedge, two dotted rays from your point to the walls and a dotted arc between them, your point a ring with a dot, your #2's dotted. A-b (the game's from v0.0.28, the default until you score): no angle drawn across the floor; your sector shown where it ends, a short solid mark at the foot of each wall its edges meet, the two framing the stretch of wall you own, your point a ring, your #2's solid in a fainter grey, the whole gone over 400 ms once your sector is taken.",
+ "open": {"default": ["A-b"], "since": "2026-11-20", "decides": "how the corner aid shows your sector as you go into a room", "builtIn": "v0.0.28", "rank": 6},
+ "pixel": true,
+ "groups": [
+  {
+   "id": "A",
+   "title": "A: your corner and your sector, as you go in and fading",
+   "about": "Room 1 on its entry and room 3, the house as set: your corner in teal, your #2's in grey.",
+   "views": [
+    { "id": "A-a", "name": "A-a: the wedge, two dotted rays and an arc (v0.0.27)", "query": "a=A-a", "pixel": "496x172" },
+    { "id": "A-b", "name": "A-b: a mark at the foot of each wall your sector meets (the default)", "query": "a=A-b", "pixel": "496x172" }
+   ]
+  }
+ ]
+}

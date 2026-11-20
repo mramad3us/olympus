@@ -74,7 +74,8 @@
 //      taken away, your silhouette inked through it by the post pass); behind a mass taller than
 //      TALL_MASS_M 3.2 m for longer than that, the ground's geometry above 1 m is cut over a disc of
 //      SEE_WIDE_M 3.5 m round you (materials.js uSeeWide), so you see where you walk, not only yourself;
-//      a roof over you (an open shed you stand under) is lifted the same way;
+//      a roof over you (an open shed you stand under, or from v0.0.28 one whose roof's picture lies over your feet: the armoury's
+//      apron under the cleaning canopy's) is lifted the same way;
 //  11. the people: one instanced draw (src/render/figures.js), yours never deferred; the berths;
 //  12. the upload queue drained (src/render/uploads.js: 1 MB and 2 ms a frame, yours first);
 //  13. stage.render(); 15. stats.
@@ -225,13 +226,13 @@ import * as ALERTS from '../sim/time/alerts.js';
 import { TICK_MS } from '../core/clock.js';
 import { createSplash, CURTAIN_MS } from './splash.js';
 import { createVignettes } from './vignettes.js';
-import { vignetteItems, insideSpot, BEACON_Y_M } from './vignette-items.js';
+import { vignetteItems, insideSpot, cleanWarmItems, BEACON_Y_M } from './vignette-items.js';
 import { BAND_OF } from '../art/figures/poses.js';
 import { BREATH_HZ } from '../art/figures/bedding.js';
 import { boardFxPixels, BOARD_FX_MAX } from './board-fx.js';
 import { createFigures } from './figures.js';
 import { areaFromJob, reserveParts } from './batch.js';
-import { createFogMask, createKnownTexture, FOG_CELL_M } from './fog.js';
+import { createFogMask, createKnownSender, FOG_CELL_M } from './fog.js';
 import { MOODS } from './moods.js';
 import { LEAD_S } from './camera.js';
 import { PX_PER_M } from './scale.js';
@@ -280,11 +281,11 @@ import { chaosOf, easeChaos, CALM as CHAOS_CALM } from './chaos.js';
 import { AFTER_R_M } from './chaos.js';
 import * as BLOOD from '../sim/body/blood.js';
 import * as KNOWN from '../sim/places/known.js';
-import { createKnown, UNKNOWN_C } from './known.js';
+import { createKnown, UNKNOWN_C, UNKNOWN_HATCH } from './known.js';
 import { GAIT_G, FREEFALL } from '../data/body/needs.js';
 import * as FOOTING from '../sim/body/footing.js';
 import { faceCard } from '../art/figures/poses.js';
-import { heightLookOf, liftOf, onFaceOfActor, wallHOf, faceTurnFrame, OVERHEAD_LOOK, FLOAT_SCALE_FROM_M, FLOAT_SCALE_K, FACE_CHANGE_MS } from './faces.js';
+import { heightLookOf, liftOf, onFaceOfActor, wallHOf, faceTurnFrame, OVERHEAD_LOOK, FLOAT_LOOK, FLOAT_SCALE_FROM_M, FLOAT_SCALE_K, FACE_CHANGE_MS } from './faces.js';
 import { G0_MS2 } from '../core/phys.js';
 
 /** The pieces' sizes the far window reads to find a long piece reaching into it (the range's kinds and the kit's). */
@@ -342,6 +343,8 @@ export const stanceGait = (gait, stance) => STANCE_FRAMES[stance]?.[gait] ?? gai
 export const DRESS_FRAME_MS = 900;
 /** An activity's part, the frame it shows (the sink's: 0.0.6's hands washed as the face is, the clippers in the razor's frame; undressing and dressing); anything else is the gait's. */
 const PART_FRAME = Object.freeze({ teeth: 'brush', shave: 'shave', face: 'basin', hands: 'basin', clip: 'shave', in: 'dress', dress: 'dress', 'turn-in': 'dress' });
+/** An activity's frame whatever its part (v0.0.28: the clean at the table, the basin's lean over the mat: samples/armoury-day F-a until scored). */
+const ACTIVITY_FRAME = Object.freeze({ 'clean-rifle': 'basin', 'clean-again': 'basin' });
 /** The beacon's red pool (the stage's dynamic lamp slots: a lamp of kind 'beacon', VIEWS §2.7's hard-edged pool). */
 export const BEACON_LAMP = Object.freeze({ y: 2.4, r: 2.2, color: 0xff4a3a, core: 0.55, ring: 0.22, kind: 'beacon' });
 const HEAD_OF_FACE = { down: 'n', up: 's', right: 'w', left: 'e' };
@@ -413,7 +416,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   const splash = createSplash(stage), vignettes = createVignettes(stage, { ppm });
   const rangeLayer = createRange(stage, { ppm }), decals = createDecals(stage, { ppm });
   // (the boarding's dust and the lock panel's lamp, see the header)
-  const boardFx = createPixels(stage.THREE, BOARD_FX_MAX, { ppm, order: 1 });
+  const boardFx = createPixels(stage.THREE, BOARD_FX_MAX, { ppm, order: 1, name: 'board-fx' });
   const blood = createBlood(stage, { ppm });
   // (0.0.9: the training bangs: their bodies, flashes and smoke)
   const bangs = createBangs(stage, { ppm });
@@ -434,7 +437,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   let heldMood = null, palette = null, fogOn = true, testFog = false, fog = null, fogAt = null, fogWant = null;
   // (0.0.12: the shoot house's stands seen this session, by key (see the range's draw below))
   let standsSeen = { key: null, keys: new Set() };
-  let lastState = null, wipe = null, seeK = 0, liftK = 0, liftRect = null, propsSig = '', tallS = 0, wideK = 0, vigCut = null;
+  let lastState = null, wipe = null, seeK = 0, liftK = 0, liftRect = null, propsSig = '', tallS = 0, wideK = 0, vigCut = null, cleanWarmed = null;
   const lead = [0, 0];
   let lastT = null, snapNext = true, realS = 0, ownLook = null, eyeShown = null, eyeState = null, eyeHeld = null;
   const looks = new Map();                                           // person id → { look, key }
@@ -756,7 +759,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     const tf = fig.frame, part = fig.activity?.part ?? null;
     if (tf === 'sit' || tf === 'climb' || tf === 'standUp') return tf;
     if (tf === 'dress') return `dress${Math.floor(msA / DRESS_FRAME_MS) % 2}`;
-    const pf = part ? PART_FRAME[part] : null;
+    const pf = ACTIVITY_FRAME[fig.activity?.id] ?? (part ? PART_FRAME[part] : null);
     if (pf === 'dress') return `dress${Math.floor(msA / DRESS_FRAME_MS) % 2}`;
     return pf ?? null;
   }
@@ -846,19 +849,20 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       stats.fog.recomputes++; stats.fog.ms = now() - t0; stats.fog.source = real ? 'sightMask' : 'test';
     }
     fog.ease(snap ? Infinity : dtS || Infinity);
-    const [tex, x0, z0, w, h] = fog.upload();
+    // (F73: the cells that changed sent through the renderer, never the whole mask a frame: fog.js's header)
+    const [tex, x0, z0, w, h] = fog.upload(stage.renderer);
     if (!kOn) stats.fog.known = null;
     stage.setFog(tex, x0, z0, w, h, light?.dimK ?? stage.mood.dimK, kOn ? knownFrame() : null);
   }
-  // (the known cells' texture, one bit a cell (render/known.js), made for each new mask and re-sent only when a cell turned known)
+  // (the known cells' texture, one bit a cell (render/known.js), made for each new mask; when a cell turned known, the rows that
+  // changed since the last send are sent (v0.0.28, F73: fog.js createKnownSender), `sent` their bytes)
   function knownFrame() {
     const m = known.mask;
     if (!m) return null;
-    if (!knownTex || knownTex.image.data !== m.data) { knownTex?.dispose(); knownTex = createKnownTexture(m); }
-    const sent = known.take();
-    if (sent) knownTex.needsUpdate = true;
-    stats.fog.known = { cells: known.count, of: m.nx * m.nz, sent: sent ? m.w * m.h : 0 };
-    return { texture: knownTex, x0: m.x0, z0: m.z0, cellM: m.cellM, nx: m.nx, nz: m.nz, colour: UNKNOWN_C };
+    if (!knownTex || knownTex.texture.image.data !== m.data) { knownTex?.dispose(); knownTex = createKnownSender(m); }
+    const sent = known.take() ? knownTex.send(stage.renderer) : 0;
+    stats.fog.known = { cells: known.count, of: m.nx * m.nz, sent };
+    return { texture: knownTex.texture, x0: m.x0, z0: m.z0, cellM: m.cellM, nx: m.nx, nz: m.nz, colour: UNKNOWN_C, hatch: UNKNOWN_HATCH };
   }
 
   // ---------- see-through and the lifted roof ----------
@@ -887,9 +891,14 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     tallS = tall ? tallS + (dtS || 0) : 0;
     wideK = Math.max(0, Math.min(1, wideK + (tallS > SEE_DISSOLVE_S ? step : -step)));
     SHARED.uSeeWide.value.set(you.x, you.z, SEE_WIDE_M, wideK);
-    // (a roof over you: the massing rect you stand in, on a ground: an open shed's)
+    // (a roof over you: the massing rect you stand in, on a ground: an open shed's; or an open shed's roof whose picture lies over your feet,
+    // north of it by less than its height (a point h up at depth z shows where the ground at z − h does), lifted the same way: v0.0.28, the
+    // review of C: at the armoury's window, in the rank and at the clearing barrel the cleaning canopy's roof hid the barrels and the rank)
     let over = null;
-    if (live.kind === 'ground') for (const m of live.area.massing ?? []) for (const r of m.rects) if (you.x > r[0] && you.x < r[2] && you.z > r[1] && you.z < r[3]) over = r;
+    if (live.kind === 'ground') for (const m of live.area.massing ?? []) for (const r of m.rects) {
+      if (you.x > r[0] && you.x < r[2] && you.z > r[1] && you.z < r[3]) over = r;
+      else if (m.open && you.x > r[0] && you.x < r[2] && you.z <= r[1] && you.z > r[1] - (m.heightM ?? 3.4)) over = r;
+    }
     if (over) liftRect = over;
     liftK = Math.max(0, Math.min(1, liftK + (over ? step : -step)));
     if (liftRect) SHARED.uLift.value.set(liftRect[0] - 0.3, liftRect[1] - 0.3, liftRect[2] + 0.3, liftRect[3] + 0.3);
@@ -1172,14 +1181,14 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
           // (standing on a height: the range officer on the tower's deck; the blob on the deck under them)
           // (not a body floating in free fall, whose height is the float's below)
           if (!p.y && !floatOf(a, fig) && (fig.posture ?? 'stand') === 'stand' && (fig.y ?? 0) > 0.05) { p.y = fig.y; p.seat = fig.y; p.floorY = fig.y; }
-          // (VIEWS §2.11, float-look's pick (F-b, the default until scored): a body floating drawn at its height over its
+          // (VIEWS §2.11, float-look's pick (F-a, the user's star of 2026-11-20): a body floating drawn at its height over its
           // point on the deck (the locomotion record's y: the card raised by it, figures.js, the blob left on the deck under it, smaller
-          // and fainter the higher he is), past FLOAT_SCALE_FROM_M one scale step nearer the camera (FLOAT_SCALE_K), in the tumble's
+          // and fainter the higher he is; F-b's scale step past FLOAT_SCALE_FROM_M retired, FLOAT_LOOK), in the tumble's
           // frame by its angle, else the float's two drifting frames (the rifle held low in them, poses.js's float rig); a gun aimed keeps its aim)
           const fl = floatOf(a, fig);
           if (fl) {
             p.y = fl.y; p.seat = 0; p.float = true;
-            if (fl.y > FLOAT_SCALE_FROM_M) p.scaleK = FLOAT_SCALE_K;
+            if (FLOAT_LOOK === 'F-b' && fl.y > FLOAT_SCALE_FROM_M) p.scaleK = FLOAT_SCALE_K;
             if (arms.gl?.carry !== 'aim' && !gv?.frame) {
               const tf = tumbleFrame(fl.tumbleRad);
               p.frame = tf !== 'float0' ? tf : `float${Math.floor(fxMs / 1000 + p.phase) % 2}`;
@@ -1238,7 +1247,11 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
           const me = playerActor(state), mx = me?.x ?? f.x, mz = me?.z ?? f.z;
           vigCut = { rect: [Math.min(f.x - hw, mx - 0.35), Math.min(f.z - hd, mz - 0.4), Math.max(f.x + hw, mx + 0.35), Math.max(f.z + hd, mz + 0.1)], k: Math.max(0, Math.min(1, sp.inkK)) };
         }
-      } else stats.vignette = null;
+      } else {
+        stats.vignette = null;
+        // ("The window and the canopy"'s clean pieces stood once, dissolved, while its brief runs, so the clean's splash uploads nothing)
+        if (you && state?.armoury?.range?.course === 'armoury' && cleanWarmed !== String(you.look?.skin)) { vigItems = cleanWarmItems(you); cleanWarmed = String(you.look?.skin); }
+      }
       const alert = typeof ALERTS.alertNow === 'function' ? ALERTS.alertNow(state, msA) : null;
       // (the moving lamps: the alert's beacon, a bang's flash (0.0.9); set on the stage once both are known, and only when they change)
       const moving = [];
@@ -1319,8 +1332,11 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       // drawn lit, range-items.js cornerPixels' CORNER_LIT: a copy of the corners with that one marked, the look itself untouched; the
       // review of 2026-11-18: marked 'known' in a familiar house (the set, briefed: sim/places/known.js familiarOf), whose spot is lit
       // over the remembered floor behind a shut door; in a drawn one true where you see the spot now, else 'hidden': the view still
-      // names it (stats.hotLit), the stage draws nothing of a room you do not know (render/range.js, range-items.js cornerPixels))
-      const litOf = info.hot && rl?.house?.corners?.length ? (c) => (KNOWN.familiarOf(state, live.id) ? 'known' : eye && inSight(c.x, c.z) ? true : 'hidden') : null;
+      // names it (stats.hotLit), the stage draws nothing of a room you do not know (render/range.js, range-items.js cornerPixels);
+      // v0.0.28 (the intel, sim/places/known.js): a corner is the layout's, so under 'walls' (every combat scene's) it is known from the
+      // brief and lit on the room's outline before you see in, as in a familiar place; only a scene with no intel ('none') hides it)
+      const briefedWalls = KNOWN.sceneFamiliar(state)?.familiar === 'walls';
+      const litOf = info.hot && rl?.house?.corners?.length ? (c) => (briefedWalls || KNOWN.familiarOf(state, live.id) ? 'known' : eye && inSight(c.x, c.z) ? true : 'hidden') : null;
       const rlLit = litOf && rl.house.corners.some(c => c.id === info.hot) ? { ...rl, house: { ...rl.house, corners: rl.house.corners.map(c => (c.id === info.hot ? { ...c, lit: litOf(c) } : c)) } } : rl;
       stats.hotLit = rlLit !== rl ? info.hot : null;
       stats.range = rl ? rangeLayer.update(rlLit, { kd: KD_RANGE, ms: fxMs, tintOf: tintAt, views, jamb: state.$look?.jamb ?? null }) : (rangeLayer.update(null), null);
@@ -1427,9 +1443,12 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     const boarding = !!state.armoury?.range?.house?.boarding;
     for (const a of state.actors?.list ?? []) {
       const fig = figureOf(state, a), person = state.people?.[a.who] ?? null, own = a.id === meId, rp = typeof a.hands === 'boolean' || liveMen.has(a.who);
+      // (the look as the frame draws it: with the stack's marks the game draws on you and your #2 (picked: from v0.0.28 STACK_DRAWN_AS
+      // S1 by default, the user's star of 2026-11-20), so the sheets prepared behind the cut are the ones drawn, none painted mid-lane)
+      const seen = picked(lookWith(fig.look, fig, person?.sex), state, a.who);
       // (a rifle in hand: its look and the magazine-out one, with the arms and rifle bands, so a change of
       // posture or a magazine out in stop motion never paints on the main thread)
-      const arms = armsOf(state, a, lookWith(fig.look, fig, person?.sex), state.clock.ms, false);
+      const arms = armsOf(state, a, seen, state.clock.ms, false);
       if (arms.gl) {
         // (0.0.7: the seated band too, sitting with the R-7 at 200 m, so a figure never stands while it paints)
         // (in free fall the float band too, the drift, the tumble and a face change, so nobody's first push-off, tumble or
@@ -1443,7 +1462,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         // (the look as held first, everyone's, then the twins: rifle sheets are taken while free (6 at 16 px/m from v0.0.23, 8 before), so the
         // relay's figures in sight have theirs and a twin waits for a sheet another look leaves)
         for (const magOut of arms.gl.mag === false ? [true, false] : [false, true]) {
-          const L = armedLook(lookWith(fig.look, fig, person?.sex), { weapon: weaponOf(arms.gl), carry: gaitCarry.get(a.id), magOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit) });
+          const L = armedLook(seen, { weapon: weaponOf(arms.gl), carry: gaitCarry.get(a.id), magOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit) });
           const { key: k2, look: L2 } = lookOf(L, `${a.who}${magOut ? ':magout' : ''}`);
           (magOut === (arms.gl.mag === false) ? jobs : twins).push(() => figures.prepare(k2, L2, { bands: rifleBands, own }));
         }
@@ -1456,14 +1475,14 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         // #2 with the G-11's held sheets and the two men asked 41 before, and a marine's stance sheet went up mid-lane))
         if (a.moveStance) for (const c of GAIT_CARRIES) {
           if (c === gaitCarry.get(a.id) || (rp && !RP_CARRIES.includes(c))) continue;
-          const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: weaponOf(arms.gl), carry: c, magOut: laneMagOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit) }));
+          const L = cyc(armedLook(seen, { weapon: weaponOf(arms.gl), carry: c, magOut: laneMagOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit) }));
           // (in free fall the float band in every carry too: a face change or a tumble at the high ready never paints mid-lane)
           twins.push(() => figures.prepare(keyOf(L), L, { bands: ['gait', 'move', ...(fig.gMs2 < FLOAT_G_MS2 ? ['float'] : []), ...(rp ? ['rest'] : [])], own }));
         }
         // (R8, VIEWS §3.10.8: its stance sheets, one a carry it moves in (low, high, aimed), so the glide, Assault and the beats are
         // up before GO and never paint mid-lane)
         if (a.moveStance) for (const c of STANCE_CARRIES) {
-          const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: weaponOf(arms.gl), carry: c, magOut: laneMagOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit), sheet: 'stance' }));
+          const L = cyc(armedLook(seen, { weapon: weaponOf(arms.gl), carry: c, magOut: laneMagOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit), sheet: 'stance' }));
           // (the P-12's high-ready walk in the high carry's sheet only)
           // (a role-player's daze and cower in the low carry's sheet only (poses.js SHOCK_BAND), behind the brief's cut)
           (c === arms.gl.carry ? jobs : twins).push(() => figures.prepare(keyOf(L), L, { bands: STANCE_BANDS.filter(b => b !== HELD_BAND && (b !== PISTOL_HIGH_BAND || c === PISTOL_HIGH_CARRY) && (b !== SHOCK_BAND || ((rp || boarding) && c === SHOCK_CARRY))), own }));
@@ -1473,7 +1492,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         const shapes = a.moveStance && typeof ARMS.heldShapesOf === 'function' ? ARMS.heldShapesOf(state, a.who) : [];
         if (shapes.length) {
           for (const magOut of [arms.gl.mag === false, arms.gl.mag !== false]) {
-            const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: weaponOf(arms.gl), carry: HELD_CARRY, magOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit), sheet: 'stance' }));
+            const L = cyc(armedLook(seen, { weapon: weaponOf(arms.gl), carry: HELD_CARRY, magOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit), sheet: 'stance' }));
             twins.push(() => figures.prepare(keyOf(L), L, { bands: [HELD_BAND], own }));
           }
           figures.prepareHeld?.(shapes);
@@ -1482,7 +1501,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         // (v0.0.19: a role-player may give up: his look with his rifle on the floor, the arms band's handsUp and handsKneel with it,
         // painted before GO, so his hands never wait on a sheet; v0.0.26: named by the live turners, rp above)
         if (rp) {
-          const k0 = arms.kit, bare = armedLook(lookWith(fig.look, fig, person?.sex), { weapon: null, carry: null, magOut: false, ears: !!k0?.ears, carrier: !!k0?.carrier, headset: false, model: null, finish: null, ...(k0?.mask ? { mask: true } : {}) });
+          const k0 = arms.kit, bare = armedLook(seen, { weapon: null, carry: null, magOut: false, ears: !!k0?.ears, carrier: !!k0?.carrier, headset: false, model: null, finish: null, ...(k0?.mask ? { mask: true } : {}) });
           const { key: kb, look: lb } = lookOf(bare, a.who);
           twins.push(() => figures.prepare(kb, lb, { bands: ['gait', 'arms'], own }));
         }
@@ -1490,7 +1509,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       }
       // (an unarmed live man in his kit (the hauler's crew on mag boots) with the arms band and in free fall the float band, as below)
       const crew = liveMen.has(a.who) ? ['arms', ...(fig.gMs2 < FLOAT_G_MS2 ? ['float'] : [])] : [];
-      if (arms.look !== lookWith(fig.look, fig, person?.sex)) { const { key: k3, look: L3 } = lookOf(arms.look, a.who); jobs.push(figures.prepare(k3, L3, { bands: ['gait', ...crew], own })); continue; }
+      if (arms.look !== seen) { const { key: k3, look: L3 } = lookOf(arms.look, a.who); jobs.push(figures.prepare(k3, L3, { bands: ['gait', ...crew], own })); continue; }
       const { look, key } = lookOf(fig.look, a.who);
       if (fig.posture === 'lie' && fig.frame !== 'sitUp' && fig.frame !== 'lieDown') { if (a.id === meId) jobs.push(figures.prepare(key, look ?? {}, { bands: ['gait', 'rest'], own: true })); continue; }   // (a sleeper is a berth; yours may rise)
       // (yours with the move band too: a stroll or a stair never paints on the main thread)
@@ -1587,7 +1606,7 @@ export const DIN_FLASH_LATE_MS = 500;
 export function createDin(stage, { ppm = PX_PER_M } = {}) {
   // (both drawn after the figures, as the bang's flash and the muzzle's star are: three.js draws the figures' cards in its transparent
   // pass, and the horn and the rifle are in the coach's hands, in front of him)
-  const THREE = stage.THREE, px = createPixels(THREE, DIN_PIXELS, { ppm, order: 3 }), flash = createPixels(THREE, DIN_FLASH_PIXELS, { ppm, order: 3 });
+  const THREE = stage.THREE, px = createPixels(THREE, DIN_PIXELS, { ppm, order: 3, name: 'din' }), flash = createPixels(THREE, DIN_FLASH_PIXELS, { ppm, order: 3, name: 'din-flash' });
   // (and over his figure's card, whose depth is toward the camera from his place: no depth test, so the rifle at his hip and the
   // horn at his face show where they cross him (the face's shot of v0.0.10: the rifle showed only past his body))
   for (const m of [px.mesh, flash.mesh]) { m.material.transparent = true; m.material.depthWrite = false; m.material.depthTest = false; }

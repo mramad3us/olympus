@@ -53,9 +53,12 @@ const CARD_HASHES = Object.freeze({
   'the KD at 300': '008ad11243fdbf',
   'zeroing': '1fb688d15ce55b',
   'desert finish': '07214684dd79f5',
-  'P12A drawn': '0e1de556cf713f',
-  'P12C hand': '0c96477e1a84ec',
-  'P12D click': '03416aa7856930',
+  // (the three pistols re-recorded in v0.0.28's carried stage, one cause: the trigger drawn the right way round, its foot forward
+  // toward the muzzle (pistols.js bodyCard; the user's "sidearm trigger is backwards" of 2026-11-20; tests/trigger-way). Were
+  // 0e1de556cf713f, 0c96477e1a84ec and 03416aa7856930; every rifle case unmoved.)
+  'P12A drawn': '075080b00c91d6',
+  'P12C hand': '046fbfe0728c6b',
+  'P12D click': '04ca279de45bf0',
 });
 const hashOf = (pm) => digest(Array.from(pm.data, v => v.toString(16)).join(','));
 

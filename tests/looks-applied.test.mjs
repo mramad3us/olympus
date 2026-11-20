@@ -13,6 +13,8 @@
 //   pixel for pixel, so the gallery shows what the game draws. A sample drawn by sample-local code (pistol-stances' T, the stage's
 //   capture) is checked by its home alone. The shots are palette PNGs (the gallery's magick): read here, palette and all.
 // F's sets (the older picks of 2026-11-19) are F's own test. Prints each home and each view's differing pixels.
+// v0.0.28 (the user's picks of 2026-11-20): the sets scored then join the homes (the daze, the roll, the stack, the float, the
+// Wreck's faces, the shot, the siren), and a group partly decided is held to its stars and its views sent back together.
 import { readFileSync } from 'node:fs';
 import { inflateSync } from 'node:zlib';
 import path from 'node:path';
@@ -22,7 +24,15 @@ import { PORTRAIT_PICKS } from '../src/art/doll/portrait.js';
 import { MAN_GROUND_PICKS } from '../src/art/doll/hitcard.js';
 import { PISTOL_HANG, READY_BUTT, holdGear } from '../src/art/doll/worn.js';
 import { PISTOL_FRAMES } from '../src/art/figures/poses.js';
-import { UNKNOWN_HIDDEN } from '../src/render/known.js';
+import { UNKNOWN_LOOK } from '../src/render/known.js';
+import { STACK_DRAWN_AS } from '../src/art/figures/helmets.js';
+import { DAZE_POSE, COWER_POSE } from '../src/art/figures/poses.js';
+import { MAG_BOOT_LOOK } from '../src/art/figures/templates.js';
+import { FLOAT_LOOK, OVERHEAD_LOOK } from '../src/render/faces.js';
+import { POPUP_LOOK } from '../src/render/range-items.js';
+import { SCUTTLE_LOOK } from '../src/art/kit/wreck.js';
+import { ROLL_NAMED } from '../src/art/doll/portrait.js';
+import { SHOT_HOUSE, SHOT_DEFAULT, WORLD } from '../src/data/sounds.js';
 import { paintWeaponCard } from '../src/art/weaponcard.js';
 import { doll, DOLL_SCALE } from '../src/art/doll/doll.js';
 import { dressOf } from '../src/art/doll/dress.js';
@@ -41,10 +51,22 @@ const HOMES = {
   'portrait-light': { L: P.light, J: P.jamb, V: P.unread },
   'portrait-suit': { D: P.suit },
   'truth-cards': { T: P.truth },
-  'mag-boots': { B: P.boots, H: P.anchor },
+  // (v0.0.28: the boots as the figure and the doll draw them, templates.js MAG_BOOT_LOOK; PORTRAIT_PICKS.boots its record, held equal by defaults-v028)
+  'mag-boots': { B: MAG_BOOT_LOOK, H: P.anchor },
   'target-view': { L: Object.entries(MAN_GROUND_PICKS).find(([, g]) => g === MAN_GROUND_PICKS[P.ground])?.[0], H: P.hostageSide },
   'pistol-stances': { RH: PISTOL_HANG, PS: ['PS-a', 'PS-b', 'PS-c', 'PS-d', 'PS-e'].filter((id, i) => PISTOL_FRAMES.includes(['pistolLow', 'pistolHigh', 'pistolAimed', 'pistolHolster', 'pistolCheck'][i])) },
-  'house-unknown': { U: UNKNOWN_HIDDEN ? 'U1' : null },
+  'house-unknown': { U: UNKNOWN_LOOK },
+  // (v0.0.28, the sets the user scored on 2026-11-20, each group's one home: the daze and the cower (poses.js), a man upside down (R-a
+  // turned, and R-b's words on it: ROLL_NAMED), the stack's marks (S0 to S5 are the views S-a to S-f), a floating body's height, the
+  // Wreck's overhead, pop-up and deck hatch (its T, B and X have no one constant: T-a and B-a are the stage's only drawing, X waits),
+  // the shot in the house and elsewhere (D-a A4, D-b A5), the burn's siren (S-a two tones, S-b the whoop))
+  'breach-poses': { D: DAZE_POSE, C: COWER_POSE },
+  'portrait-faces': { R: [P.roll, ...(P.roll === 'R-a' && ROLL_NAMED.includes('R-b') ? ['R-b'] : [])] },
+  'house-stack-figures': { S: STACK_DRAWN_AS.map(id => `S-${'abcdef'[Number(String(id).slice(1))]}`) },
+  'float-look': { F: FLOAT_LOOK },
+  'wreck-faces': { K: OVERHEAD_LOOK, P: POPUP_LOOK, H: SCUTTLE_LOOK },
+  audio: { D: SHOT_HOUSE === SHOT_DEFAULT ? { A4: 'D-a', A5: 'D-b' }[SHOT_HOUSE] : null },
+  'void-look': { S: WORLD.siren.layers[0].kind === 'glide' ? 'S-b' : 'S-a' },
   // (doll-gear's R: the low ready in both hands (R-a, as redrawn) or hanging from the hand (R-b), by the place holdGear gives rifle-low)
   'doll-gear': { R: { ready: 'R-a', hand: 'R-b' }[holdGear({ rifle: { model: 'r7', place: 'front' } }, { how: 'rifle-low' }).rifle.place] },
   // (wcard2: the weapon card's strip by default, the glyph WC2-A, the word WC2-B: the card painted with no strip named against each)
@@ -52,6 +74,25 @@ const HOMES = {
 };
 /** The node-drawable views, by set: the picture module (for mag-boots, by group). */
 const MODS = { 'portrait-gun': 'gun.js', 'portrait-light': 'light.js', 'portrait-suit': 'suit.js', 'pistol-stances': 'stances.js', 'portrait-pose': 'pose.js', 'portrait-facing': 'facing.js', 'mag-boots': { B: 'boots.js', H: 'anchors.js' } };
+/** The sets whose frames tests/looks-shots.test.mjs checks (v0.0.28: portrait-pose and portrait-facing gained four views, A3, P3, D3 and
+ * F4, and the file went over its quick CPU (TECH §13.7): the same check, the file split, nothing left out). */
+export const SPLIT = new Set(['portrait-pose', 'portrait-facing']);
+/** A set's views drawn in node against their committed shots: { rows, bad } (F123's check, shared with tests/looks-shots.test.mjs). */
+export async function framesOf(sets) {
+  const idx = json(path.join(SAMPLES, 'index.json')), bad = [], rows = [];
+  for (const set of sets) {
+    const mod = MODS[set], s = json(path.join(SAMPLES, set, 'sample.json')), e = idx.samples.find(x => x.id === set), out = [];
+    for (const g of expand(set, s)) for (const v of g.views) {
+      if (OWN.has(`${set}/${g.id}`)) continue;
+      const M = await import(path.join(SAMPLES, set, typeof mod === 'string' ? mod : mod[g.id])), pic = M.picture(new URLSearchParams(v.query));
+      const shot = readPng(readFileSync(path.join(SAMPLES, e.groups.flatMap(x => x.views).find(x => x.id === v.id).shot))), k = shot.w / pic.w, d = differ(pic, shot, k);
+      out.push(`${v.id} ${d}`);
+      if (d || !Number.isInteger(k)) bad.push(`${set} ${v.id}: ${d} px off its shot (×${k})`);
+    }
+    rows.push(`${set}: ${out.join(', ')}`);
+  }
+  return { rows, bad };
+}
 /** Views a sample draws by its own code (checked by the home alone). */
 const OWN = new Set(['pistol-stances/T']);
 
@@ -102,7 +143,12 @@ export default [
           const scored = ids.filter(id => new RegExp(`\\b${id.replace(/[-]/g, '\\-')}\\b[^.]*(★|picked|pick)`).test(entry) && !/^(R|H|T|G|P|M|E|O|W)\d$/.test(id));
           // (v0.0.24 F: a set the user scored carries its picks in "scored" where "open" stood (tools/gallery.mjs indexEntry))
           const filed = (e?.scored?.picks ?? s.scored?.picks ?? []).filter(id => ids.includes(id));
-          const pick = scored.length ? scored : filed.length ? filed : want;
+          // (v0.0.28: a set scored or sent back after that entry (the picks of 2026-11-20) carries its own: its "scored" and "open" win)
+          const newer = (s.scored?.on ?? s.open?.since ?? '') > '2026-11-19';
+          // (v0.0.28: in a set scored on 2026-11-20 a group partly decided carries both, its stars in "scored" and the views sent back in
+          // "open" (pistol-stances PS): the pick is both, in the group's order)
+          const both = newer ? ids.filter(id => filed.includes(id) || want.includes(id)) : [];
+          const pick = scored.length && !newer ? scored : newer && both.length ? both : filed.length ? filed : want;
           rows.push(`${set} ${g.id}: home ${have.join('+') || '-'}; ${scored.length ? `scored ${scored.join('+')}` : `default ${want.join('+') || '-'}`}`);
           if (!pick.length || pick.join('+') !== have.join('+')) bad.push(`${set} ${g.id}: home ${have.join('+')}, the pick ${pick.join('+')}`);
         }
@@ -120,6 +166,7 @@ export default [
     async fn() {
       const idx = json(path.join(SAMPLES, 'index.json')), bad = [], rows = [];
       for (const [set, mod] of Object.entries(MODS)) {
+        if (SPLIT.has(set)) continue;
         const s = json(path.join(SAMPLES, set, 'sample.json')), e = idx.samples.find(x => x.id === set), out = [];
         for (const g of expand(set, s)) for (const v of g.views) {
           if (OWN.has(`${set}/${g.id}`)) continue;

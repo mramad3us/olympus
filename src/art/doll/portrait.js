@@ -25,8 +25,8 @@
 // the jamb is the hit card's paint (./hitcard.js, from the record's light and cover, never the doll's key): lightK (src/data/
 // portrait.js: the level over LIGHT_FULL_K, never below LIGHT_FLOOR_K, the sample's L1) darkens the figure, JAMB_C draws the jamb
 // over the hidden share (J1, the house's wall with its lit edge toward you), the marks on top. cardBackdrop is the I and C cards'
-// ground by the place (D-a, the doll's own wall, today's and the default; D-b the place's tones; D-c with a rim of the place's
-// light on the suit: samples/portrait-suit's, lifted). The user's standing rule of 2026-11-19 holds over each: "keep things simple,
+// ground by the place (D-a, the doll's own wall, v0.0.24's; D-b the place's tones, the game's from v0.0.28, the user's star of
+// 2026-11-20; D-c with a rim of the place's light on the suit: samples/portrait-suit's, lifted). The user's standing rule of 2026-11-19 holds over each: "keep things simple,
 // it's a game. I love the attention do detail, but only if it won't impact gameplay or performance (or introduce so much
 // complexity it creates bugs)".
 // v0.0.25 (the build sheet item 12, §3.4; PC§5): a man or a board upside down to you is drawn as you see him (R-a, samples/portrait-
@@ -34,6 +34,11 @@
 // card's figure, its marks and their numbers with him, about the figure's box (turnFigure, the sample's own rule: whole pixels, no
 // resampling, the ground's wash left upright, a quarter turn halved where it would not fit), the words and the frame upright; R-b
 // draws him upright and names his face in the words (ROLL_FACE_WORDS). Your own I and C cards are the mirror's, never turned.
+// v0.0.28 (the user's stars of 2026-11-20, R-a and R-b both): R-a's card names his face in its words too (ROLL_NAMED).
+// v0.0.28 (the user's picks of 2026-11-20: "I need you to be serious about this ... please, make an effort for quality"): the
+// defaults redrawn, the old kept drawable for the samples: aimed at you through the sights (A3, P3: ./held.js), a man side on a
+// true profile (F4: ./side.js, the facing 'sideR' or 'sideL'), his hands not read veiled from the collar down (V3: hitcard.js
+// UNREAD_ROW), sitting drawn whole (D3), the hostage card's hostile (H1 rebuilt, H0 v0.0.27's), every gun in its own colours (G2).
 // Pure but the caches (./dress.js's LRU, the masks by doll).
 import { word } from '../paint.js';
 import { backdropAt } from './doll.js';
@@ -47,16 +52,24 @@ export { LIGHT_FULL_K, LIGHT_FLOOR_K, lightK };
 /** The gun's tones on a board (G1, the board's dark ink, as the stage paints a turner's hold: its lit pixels a step lighter). */
 export const PORTRAIT_HOLD = Object.freeze({ ink: 0x2a2216, lit: 0x3d3220 });
 /** The looks drawn until the user scores them (the build sheet v0.0.23 §5: the samples' defaults). */
-export const PORTRAIT_PICKS = Object.freeze({ gun: 'G1', where: 'W1', hostage: 'H1', aim: 'A1', pistol: 'P1', kneel: 'K1', down: 'D1', cower: 'C1', prone: 'Y-p', back: 'F1', side: 'F3', unread: 'V1',
+export const PORTRAIT_PICKS = Object.freeze({ gun: 'G2', where: 'W1', hostage: 'H1', aim: 'A3', pistol: 'P3', kneel: 'K1', down: 'D3', cower: 'C1', prone: 'Y-p', back: 'F1', side: 'F4', unread: 'V3',
   // (the rest of v0.0.23's sets, each at its default until scored (the build sheet v0.0.24 item 14): the card's body
   // (portrait-facing R), his light and the jamb (portrait-light L, J), the I and C cards' ground (portrait-suit D), the truth
   // cards' layout (truth-cards T), the boots and the anchor (mag-boots B, H), the hostage card's side and a man's card's ground
   // (target-view H, L))
-  body: 'R1', light: 'L1', jamb: 'J1', suit: 'D-a', truth: 'T-a', boots: 'B-b', anchor: 'H-a', hostageSide: 'H-a', ground: 'L-a',
+  // (the user's stars of 2026-11-20: the place's backdrop behind you on the I and C cards (portrait-suit D-b), the heavier
+  // sole (mag-boots B-a: templates.js MAG_BOOT_LOOK draws it, this the record), the lanyard starred (mag-boots H-b: drawn when you
+  // clip in; a hand on a hold and the wedge, other anchors in the sim, keep their own drawings, worn.js ANCHOR_LOOKS, my call))
+  body: 'R1', light: 'L1', jamb: 'J1', suit: 'D-b', truth: 'T-a', boots: 'B-a', anchor: 'H-b', hostageSide: 'H-a', ground: 'L-a',
   // (a man upside down to you (portrait-faces R): R-a turned as you see him, R-b upright with his face named)
   roll: 'R-a' });
 /** The words R-b puts before a turned subject's, by the roll (v0.0.25): his face as you see it. */
 export const ROLL_FACE_WORDS = Object.freeze({ 1: 'ON HIS SIDE', 2: 'UPSIDE DOWN', 3: 'ON HIS SIDE' });
+/**
+ * The roll picks whose card names his face in its words (v0.0.28: the user starred both R-a and R-b on 2026-11-20, joined, my call:
+ * the card turned as you see him, R-a, and its words naming his face as R-b's do, so a glance at the words alone still says it).
+ */
+export const ROLL_NAMED = Object.freeze(['R-a', 'R-b']);
 /** The roll a card is drawn turned by under the picks: the record's on R-a, none on R-b (v0.0.25). */
 export const rollDrawn = (roll, picks = null) => ((picks?.roll ?? PORTRAIT_PICKS.roll) === 'R-b' ? 0 : ((Number(roll) || 0) % 4 + 4) % 4);
 
@@ -88,7 +101,7 @@ export function turnFigure(col, W, figH, roll) {
   return { halved: halve, map: (x, y) => { const [a, b] = to(x - x0, y - y0); return [ox + Math.floor(a / s), oy + Math.floor(b / s)]; } };
 }
 /** A side card's facing by the side pick (F3 the head turned, the record's own 'left' or 'right'; F2 the profile) and the back's (F1 drawn from behind). */
-export const SIDE_FACINGS = Object.freeze({ F3: null, F2: 'profile' }), BACK_FACINGS = Object.freeze({ F1: 'back' });
+export const SIDE_FACINGS = Object.freeze({ F3: null, F2: 'profile', F4: 'side' }), BACK_FACINGS = Object.freeze({ F1: 'back' });
 /** The ship switches (the build sheet's ship rules): the poses and the facing drawn, or every card standing and front on. */
 export const PORTRAIT_POSES = true, PORTRAIT_FACING = true;
 /** "Bang"'s boards keep the hold the user starred (question 1's default: 'hand', the gun hanging); 'ready' on their yes. */
@@ -96,9 +109,13 @@ export const BANG_BOARD_HOLD = 'hand';
 /** Where a board's painted man holds his gun by the W pick: W1 at the ready as the stage paints it, W2 hanging (today's, the crop lowered). */
 export const BOARD_PLACES = Object.freeze({ W1: 'ready', W2: 'hand' });
 /** The hostage card's hostile by the H pick: H1 his pistol raised at her head (a rifle up at the high ready), H2 his gun at the ready beside her. */
-export const HOSTAGE_PLACES = Object.freeze({ H1: Object.freeze({ pistol: 'hostage', rifle: 'high' }), H2: Object.freeze({ pistol: 'ready', rifle: 'ready' }) });
+// (the judge's pass of 2026-11-20 on H1 and H2, "no hand on it": every gun of the hostile's in his fist, drawn whole by
+// ./held.js hostageHold: H1's P-12 at her temple, its rifle up at the high ready on his free side; H2's gun down at the ready there;
+// H0 is v0.0.27's, for the sample)
+export const HOSTAGE_PLACES = Object.freeze({ H1: Object.freeze({ pistol: 'hostage', rifle: 'hostageHigh' }), H2: Object.freeze({ pistol: 'hostageReady', rifle: 'hostageReady' }), H0: Object.freeze({ pistol: 'hostageOld', rifle: 'high' }) });
+
 /** The candidates' holds by pick (portrait-pose): A2 the rifle canted across the chest (aimed away's line), P2 the pistol cupped at the chest. */
-export const AIM_PLACES = Object.freeze({ A1: null, A2: 'away' }), PISTOL_AIM_PLACES = Object.freeze({ P1: null, P2: 'cupped' });
+export const AIM_PLACES = Object.freeze({ A1: null, A2: 'away', A3: 'sights' }), PISTOL_AIM_PLACES = Object.freeze({ P1: null, P2: 'cupped', P3: 'sights' });
 
 const picksOf = (o) => ({ ...PORTRAIT_PICKS, ...(o ?? {}) });
 
@@ -112,8 +129,13 @@ export function drawnRec(rec, picks = null) {
   if (!PORTRAIT_POSES) out.pose = 'stand';
   if (!PORTRAIT_FACING) out.facing = 'front';
   // (the facing as scored: a side card the profile on F2, F3 the record's own side (the head turned); the back F1's)
-  if ((out.facing === 'left' || out.facing === 'right') && SIDE_FACINGS[P.side]) out.facing = SIDE_FACINGS[P.side];
+  // (F4, v0.0.28: a true profile, facing the record's side: 'sideR' his front toward the viewer's right)
+  if ((out.facing === 'left' || out.facing === 'right') && SIDE_FACINGS[P.side]) out.facing = SIDE_FACINGS[P.side] === 'side' ? (out.facing === 'left' ? 'sideL' : 'sideR') : SIDE_FACINGS[P.side];
   if (out.facing === 'back') out.facing = BACK_FACINGS[P.back] ?? 'front';
+  // (prone, side on: drawn as the prone card is, end on behind the gun (Y-p): the profile has no prone of its own)
+  if (out.pose === 'prone' && (out.facing === 'sideR' || out.facing === 'sideL')) out.facing = 'front';
+  // (sitting: D3 drawn whole (doll.js POSE_BENDS.sit), D1 v0.0.23's bend)
+  if (out.pose === 'sit' && P.down === 'D1') out.pose = 'sitD1';
   // (prone, Y-p: the head and shoulders low behind the gun, end on, whatever its carry: the bend keeps only what is over the line)
   if (out.pose === 'prone' && out.hold && /^(rifle|pistol)-(low|high|aim|ready)$/.test(out.hold.how ?? '')) { out.hold.how = out.hold.how.startsWith('rifle') ? 'rifle-aim' : 'pistol-aim'; out.aimAt = 'you'; }
   const how = out.hold?.how;
@@ -147,7 +169,7 @@ export function maskOf(pm, scale) {
   const hit = MASKS.get(pm);
   if (hit) return hit;
   const mask = new Uint8Array(pm.w * pm.h);
-  for (let y = 0; y < pm.h; y++) for (let x = 0; x < pm.w; x++) mask[y * pm.w + x] = pm.data[y * pm.w + x] !== word(backdropAt(x, y, scale)) ? 1 : 0;
+  for (let y = 0; y < pm.h; y++) for (let x = 0; x < pm.w; x++) mask[y * pm.w + x] = pm.data[y * pm.w + x] !== word(backdropAt(x, y, scale, pm.backOff ?? 0)) ? 1 : 0;
   MASKS.set(pm, mask);
   return mask;
 }
@@ -201,7 +223,7 @@ export const SUIT_PLACES = Object.freeze({
 export const RIM_K = 0.55;
 const hexOfWord = (v) => ((v & 0xff) << 16) | (v & 0xff00) | ((v >>> 16) & 0xff);
 /**
- * A doll on the I and C cards' ground (see the header): D-a (the default) the doll as it is, the very Pixmap; D-b the doll's wall,
+ * A doll on the I and C cards' ground (see the header): D-a the doll as it is, the very Pixmap; D-b (the default) the doll's wall,
  * floor and shadow in the place's tones (SUIT_PLACES: 'house', 'bay', 'street'); D-c D-b with the suit's outer pixels on the lit side
  * (the light from the upper left, as the doll's own) lifted toward the place's light by RIM_K. scale: the doll's.
  */
@@ -212,7 +234,7 @@ export function cardBackdrop(pm, scale, place = 'bay', look = PORTRAIT_PICKS.sui
   for (let y = 0; y < pm.h; y++) for (let x = 0; x < pm.w; x++) {
     const i = y * pm.w + x;
     if (mask[i]) continue;
-    const b = backdropAt(x, y, scale);
+    const b = backdropAt(x, y, scale, pm.backOff ?? 0);
     data[i] = word(b === 0x383c4a ? Pl.wall : b === 0x1f2029 ? Pl.shadow : Pl.floor);
   }
   if (look === 'D-c') {

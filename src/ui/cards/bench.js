@@ -29,6 +29,8 @@
 // biggest job's key; a result with them gains the busiest tick, the UI's p95, the links after the warm, the largest upload
 // (its KB, its key and when) and TECH §16.1's verdict (src/data/bench.js BENCH_BUDGET): a PASS or a FAIL a bound, on the card
 // and in Copy results, so a Windows paste says where it stands. A result without them (a v0.0.20 page's) reads as before.
+// v0.0.28 (its build sheet item 25, F73): the largest upload names its senders, the frame's GL bytes by who sent them (render/stats.js
+// tag: 'fog 5.9 KB, decals:9600 34.8 KB', largest first; main.js bench()'s upKey), on its line and on the verdict's upload bound.
 import { BENCH_SLOW_MS, BANG_FRAMES_MS, BENCH_BUDGET } from '../../data/bench.js';
 export { BANG_FRAMES_MS };
 
@@ -114,12 +116,12 @@ export function houseOf(frames, { calls, medianMs, p95Ms, viewP95Ms }) {
     row('calls', 'draw calls', calls, B.calls, calls <= B.calls),
     row('view', 'view CPU p95', viewP95Ms, B.viewMs, viewP95Ms <= B.viewMs),
     row('links', 'programs linked after the warm', links, B.links, links <= B.links),
-    row('upload', `largest upload after GO + ${B.uploadAfterS} s (KB)`, up.kb, B.uploadKB, up.kb <= B.uploadKB),
+    { ...row('upload', `largest upload after GO + ${B.uploadAfterS} s (KB)`, up.kb, B.uploadKB, up.kb <= B.uploadKB), by: up.key },
   ];
   return { tickMaxMs: r2(Math.max(0, ...frames.map(f => f.tickMax ?? 0))), uiP95Ms: r2(pct(ui, 0.95)), linksAfterWarm: links, upload: up, judge, pass: judge.every(j => j.pass) };
 }
 /** The verdict in words: 'PASS' or 'FAIL', and each bound "median 16.7 ≤ 16.7 ✓" (FAIL's first). */
-export const verdictText = (r) => `TECH §16.1 ${r.pass ? 'PASS' : 'FAIL'}: ${[...r.judge].sort((a, b) => a.pass - b.pass).map(j => `${j.what} ${j.value} ${j.pass ? '≤' : '>'} ${j.limit} ${j.pass ? 'PASS' : 'FAIL'}`).join(' · ')}`;
+export const verdictText = (r) => `TECH §16.1 ${r.pass ? 'PASS' : 'FAIL'}: ${[...r.judge].sort((a, b) => a.pass - b.pass).map(j => `${j.what} ${j.value}${j.by ? ` (${j.by})` : ''} ${j.pass ? '≤' : '>'} ${j.limit} ${j.pass ? 'PASS' : 'FAIL'}`).join(' · ')}`;
 
 /** The frames drawn while a splash showed: { frames, medianMs, p95Ms, over25 }, or null with none. */
 export function splashOf(frames) {
@@ -169,7 +171,7 @@ export function benchCard(r, { onCopy, onAgain = null } = {}) {
     ...(r.splash ? [['splash', `${r.splash.frames} frames: median ${r.splash.medianMs} ms · p95 ${r.splash.p95Ms} · ${r.splash.over25} over ${BENCH_SLOW_MS} ms`]] : []),
     ...(r.bang ? [['at a bang', `${r.bang.frames} frames: median ${r.bang.medianMs} ms · max ${r.bang.maxMs} · ${r.bang.over25} over ${BENCH_SLOW_MS} ms`]] : []),
     ...(r.judge ? [['busiest tick', `${r.tickMaxMs} ms · UI ${r.uiP95Ms} ms p95`], ['after the warm', `${r.linksAfterWarm} programs linked · largest upload ${r.upload.kb} KB${r.upload.key ? ` (${r.upload.key})` : ''}${r.upload.atS !== null ? ` at ${r.upload.atS} s` : ''}`],
-      ...r.judge.map(j => [j.pass ? 'PASS' : 'FAIL', `${j.what}: ${j.value} against ${j.limit}`])] : []),
+      ...r.judge.map(j => [j.pass ? 'PASS' : 'FAIL', `${j.what}: ${j.value}${j.by ? ` (${j.by})` : ''} against ${j.limit}`])] : []),
   ];
   const said = el('span', { className: 'copied', textContent: '' });
   const copy = el('button', { className: 'item lead copy', type: 'button', textContent: 'Copy results' });

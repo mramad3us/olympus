@@ -21,14 +21,28 @@
 //     stall's partition (VIEWS §3.4: "boots visible under the gap");
 //   - lockerOpen, lockerDoor: a wall locker with its door open (the kit's own open front: quarters.js
 //     lockerFront) and the door swung out beside it, for dressing;
-//   - beacon: the alert horn's red beacon in hall-2 (the build sheet §8, item 23), lit or dark.
+//   - beacon: the alert horn's red beacon in hall-2 (the build sheet §8, item 23), lit or dark;
+//   - cleanMat (v0.0.28, "The window and the canopy": the build sheet §1 C, item 20; UK§8): the cleaning mat on the table's top,
+//     1.0 × 0.4 m (16 × 6 px at 16 px/m), stood as an upright card (the camera's cabinet projection draws a top view on an upright
+//     card at the same pixels as lying flat), its picture by the clean's part: 0 the rifle whole on the mat (the stage's own
+//     16 px R-7, its colours: templates.js shapeAt, outfits.js coloursOf), the strip's and together again's (the set's fifth frame
+//     is its first, pixel for pixel, so four are painted), 1 laid out in strip order and dirty (the upper with its barrel, the lower
+//     and stock, the carrier, the charging handle, the piston, the magazine, a white rag; grit tan on the upper, carbon at the bolt
+//     and the muzzle), 2 the same cleaned (the rag grey, the grit gone), 3 oiled (a glint on the carrier and the upper); on the mat's colour, MAT_LOOK (M-a, the Corps' olive rubber, until samples/armoury-day M is
+//     scored). With `colour` (the cleaner's skin) his hands at the mat's two north corners, where the figure's reach over the table's
+//     top would show them (the stage draws a man standing north of a table behind its top below about 0.5 m, his hands among it);
+//   - airPuff (v0.0.28): the air hose's mist blowing the parts out, 0.4 m square, three frames widening and thinning (shown in the
+//     clean's first fifth at 6 fps on the view's clock).
+// The mat's and the puff's pictures are samples/armoury-day's (M's matFrame and puffFrame, the defaults pixel for pixel at 16 px/m:
+// art-clean), drawn at another density by the nearest of their 16 px/m cells.
 // Variety comes from the activity's hash (the vignette's seed), never the sim's dice (VIEWS §5.2). Each
 // piece also says how it stands: its size in metres and whether it is mist (drawn without an outline or
 // a depth of its own, so a cloud has no ink round it) or solid. Pure: Pixmaps, no GPU objects.
 import { paint, GLOW } from '../paint.js';
 import { tone, hash3, noise } from '../tone.js';
 import { lockerFront } from './quarters.js';
-import { TOWEL } from '../figures/outfits.js';
+import { TOWEL, wear, coloursOf } from '../figures/outfits.js';
+import { shapeAt } from '../figures/templates.js';
 
 /** The pieces a vignette can stand, by name: { wM, hM (their size, metres), mist (no outline, no depth), frames (how many) }. */
 export const VIGNETTE_PIECES = Object.freeze({
@@ -44,7 +58,57 @@ export const VIGNETTE_PIECES = Object.freeze({
   lockerOpen: Object.freeze({ wM: 0.6, hM: 1.9, mist: false, frames: 1 }),
   lockerDoor: Object.freeze({ wM: 0.125, hM: 1.8, mist: false, frames: 1 }),
   beacon: Object.freeze({ wM: 0.25, hM: 0.25, mist: false, frames: 2 }),
+  cleanMat: Object.freeze({ wM: 1.0, hM: 0.4, mist: false, frames: 4 }),
+  airPuff: Object.freeze({ wM: 0.4, hM: 0.4, mist: true, frames: 3 }),
 });
+/** The cleaning mat's look until samples/armoury-day M is scored (M-a: the Corps' olive rubber; M-b would be a tan canvas, 0xb4a07a). */
+export const MAT_LOOK = Object.freeze({ mat: 0x4c5638 });
+/** The mat's and the puff's cells at 16 px/m: [w, h] (1.0 × 0.4 m; 0.4 m square). */
+export const MAT_CELLS = Object.freeze([16, 6]), PUFF_CELLS = 6;
+// (the stage's 16 px R-7 in its colours, the mat's parts and what is on them: the sample's)
+const RIFLE_COL = coloursOf(wear({ weapon: 'rifle', model: 'r7' }), 16);
+const PART_STEEL = 0x34363c, PART_LOWER = 0x2a2c30, PART_CARRIER = 0x5a5c62, RAG_C = 0xe4e0d2, RAG_USED_C = 0x9a988e, GRIT_C = 0xb89a68, CARBON_C = 0x141414, GLINT_C = 0xf2f0e6;
+/** The R-7 lying level at lenPx cells: [[x, y, colour]] from its left end, its top row 0 (templates.js shapeAt in the R-7's colours). */
+export function rifleLyingCells(lenPx) {
+  const sh = shapeAt('rifle', lenPx, 1), y0 = Math.min(...sh.map(c => c[1]));
+  return sh.map(([a, b, ch]) => [a, b - y0, RIFLE_COL[ch] ?? 0x2a2c30]);
+}
+/**
+ * One frame of the mat (part 0 to 4, see the header) at 16 px/m on its colour, with the cleaner's hands when skin is given: a 16 × 6 grid of
+ * 0xrrggbb, its rows north to south. Pure: the sample's matFrame with the hands.
+ */
+export function matCells(part, matColour = MAT_LOOK.mat, skin = 0) {
+  const [w, h] = MAT_CELLS, g = Array.from({ length: h }, (_, j) => Array.from({ length: w }, (_, i) => ((i + j) % 5 === 0 ? tone(matColour, -0.06) : matColour)));
+  const put = (x, y, c) => { if (x >= 0 && y >= 0 && x < w && y < h) g[y][x] = c; };
+  if (part === 0 || part === 4) for (const [x, y, c] of rifleLyingCells(14)) put(x + 1, y + 1, c);
+  else {
+    for (let x = 1; x <= 10; x++) { put(x, 1, PART_STEEL); put(x, 2, tone(PART_STEEL, -0.1)); }
+    for (let x = 1; x <= 6; x++) { put(x, 4, PART_LOWER); put(x, 5, tone(PART_LOWER, -0.08)); }
+    for (let x = 8; x <= 10; x++) put(x, 4, PART_CARRIER);
+    put(12, 1, PART_STEEL); put(12, 2, PART_STEEL); put(13, 1, PART_STEEL);
+    for (let x = 12; x <= 14; x++) put(x, 4, tone(PART_STEEL, 0.08));
+    for (let x = 12; x <= 14; x++) put(x, 5, 0x3c3a34);
+    const rag = part === 1 ? RAG_C : RAG_USED_C;
+    put(14, 1, rag); put(15, 1, rag); put(14, 2, rag); put(15, 2, rag);
+    if (part === 1) { for (const x of [2, 4, 5, 7, 9]) put(x, 1, GRIT_C); put(8, 4, CARBON_C); put(10, 1, CARBON_C); }
+    if (part === 3) { put(9, 4, GLINT_C); put(6, 1, GLINT_C); }
+  }
+  // (the hands at the mat's north corners: the figure's reach over the table's top, its skin and the skin a shade under)
+  if (skin) for (const x of [1, 2, 13, 14]) { put(x, 0, skin); put(x, 1, tone(skin, -0.18)); }
+  return g;
+}
+/** The puff's frame f (0 to 2) at 16 px/m: a 6 × 6 grid of 0xrrggbb or null (clear), a mist widening and thinning. Pure: the sample's puffFrame. */
+export function puffCells(f) {
+  const n = PUFF_CELLS, g = Array.from({ length: n }, () => Array(n).fill(null)), r = 1 + f * 1.1, c = 0xd8dcde;
+  // (a pixel of mist inside the radius, one in (f + 2) left out by hash, so each frame is thinner than the last)
+  for (let j = 0; j < n; j++) for (let i = 0; i < n; i++) { const d = Math.hypot(i - n / 2 + 0.5, j - n / 2 + 0.5); if (d <= r && hash3(i, j, f) % (f + 2) !== 0) g[j][i] = f === 2 ? tone(c, -0.12) : c; }
+  return g;
+}
+// (a 16 px/m grid drawn at w × h by the nearest of its cells)
+function cellsAt(px, w, h, g) {
+  const gw = g[0].length, gh = g.length;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) { const c = g[Math.min(gh - 1, Math.floor(y * gh / h))][Math.min(gw - 1, Math.floor(x * gw / w))]; if (c !== null) px(x, y, 1, 1, c); }
+}
 /** The steam's three densities: rising as the water starts, thick while it runs, thinning after. */
 export const STEAM_DENSITY = Object.freeze([0.55, 1.0, 0.32]);
 const STEAM = 0xeef3f4, STEAM_SHADE = 0xc9d6dc, WATER = 0xa9c7d8, WATER_LIT = 0xdcecf4, BOOT = 0x47302a, RED = 0xb43a32;
@@ -167,6 +231,9 @@ const PAINTERS = {
     px(0, 0, w, h, tone(c, -0.1)); px(0, 0, 1, h, tone(c, 0.06)); px(w - 1, 0, 1, h, tone(c, -0.2));
     for (let y = Math.floor(h * 0.1); y < h * 0.9; y += 3) px(1, y, Math.max(1, w - 2), 1, tone(c, -0.16));
   },
+  // (the cleaning mat by the clean's part, the cleaner's hands when his skin is given (colour); the air hose's puff)
+  cleanMat(px, w, h, { frame, colour }) { cellsAt(px, w, h, matCells(Math.max(0, Math.min(3, frame)), MAT_LOOK.mat, colour)); },
+  airPuff(px, w, h, { frame }) { cellsAt(px, w, h, puffCells(Math.max(0, Math.min(2, frame)))); },
   // (the horn's beacon: a red lens in a steel cage, lit (it glows, unlit by the scene) or dark)
   beacon(px, w, h, { on }) {
     px(0, 0, w, h, 0x565b67); px(0, 0, w, 1, tone(0x565b67, 0.1));

@@ -16,6 +16,15 @@
 // The scrubber here is drawn by this module in the plan's colours (the game's is the page's DOM, housePlanEl).
 import { paintHitcard, CARD_W, CARD_MIN } from '../../src/art/doll/hitcard.js';
 import { pic, GAP } from '../portrait-lib/card.js';
+import { standSeen } from '../../src/sim/people/seen.js';
+
+/**
+ * A card's subject as the end card gives it (src/ui/cards/house.js truthRows: a stand's board, its face and holds at your first round,
+ * standSeen's record). lane.json's models are hitMarks' (make.mjs), which carry no subject; without one paintHitcard draws "Bang"'s
+ * board (BANG_BOARD_HOLD 'hand', the gun in the khaki's two tones): the truth cards drew no gun and 3B v0.0.27's hostage (the judge's
+ * pass of 2026-11-20). Drawn as the game draws them since v0.0.24.
+ */
+export const subjectOf = (m) => ({ kind: 'board', key: `${m.face}|${m.holds}|truth`, face: m.face, holds: m.holds, rec: standSeen(m.face, m.holds) });
 
 export const LAYOUTS = Object.freeze(['T-a', 'T-b', 'T-c']), DEFAULT = 'T-a';
 /** The plan's size (its frame at 16 px/m: the house's rooms, 30 × 14.3 m, and a 6 px margin, houseplan.js planFrame of lane.json, held by samples-portrait), the scrubber's height. */
@@ -41,7 +50,7 @@ export function planTimes(look, lane) {
 export function picture(look, lane, plans) {
   const L = LAYOUTS.includes(look) ? look : DEFAULT, [W, H] = SIZE[L], P = pic(W, H, C.bg), report = { frame: [W, H], layout: L, cards: [] };
   const plan = (img, x, y) => { for (let j = 0; j < img.h; j++) for (let i = 0; i < img.w; i++) P.put(x + i, y + j, img.px[j * img.w + i]); };
-  const card = (c, x, y, size) => { const pm = paintHitcard({ ...c.model, size }); P.blit(pm, x, y); report.cards.push({ stand: c.stand, leg: c.leg, size: pm.w, marks: pm.marks.length, x, y }); };
+  const card = (c, x, y, size) => { const pm = paintHitcard({ ...c.model, subject: subjectOf(c.model), size }); P.blit(pm, x, y); report.cards.push({ stand: c.stand, leg: c.leg, size: pm.w, marks: pm.marks.length, x, y }); };
   if (L === 'T-a') {
     plan(plans[0], GAP, GAP);
     P.write(GAP + PLAN_W + 8, GAP + 2, `THE PLAN AT THE LANE'S END · ${s1(lane.laneMs)}`, C.label);

@@ -1,17 +1,16 @@
 {
  "title": "A man turned on the target card: from behind, in profile, or front on with his head turned; and the card's body",
- "about": "Your note of 2026-11-17: the card should \"show us what we would be seeing\". The card drew every man front on, though the stage drew him turned away. His facing is read from your eye (front within 45° of you, from behind beyond 135°, a side between). Each picture is one candidate, the live lane's role-player drawn by the game's own doll and card code (A's back of a man for F1): F, today's card (front on) for comparison, the candidate at 4, 14 and 30 m, then the card as he turns (a new card each time his facing crosses a band) beside the stage's frames of him facing you, side on and away; R, the card's body for a man with no marks on him, three records (aimed at you, at the low ready, the hands up) at the near and mid bands. F1 (from behind) and F3 (a side: front on, the head and the gun's line turned) are drawn in this release at their defaults; F2 (the profile) only if you score it, in v0.0.24. R1 (the doll, the card you starred) stays; R2 and R3 (the stage's own figure) would be for an unmarked man only (its chibi head cannot carry the marks life size): your pick in v0.0.24.",
- "open": {"default": ["F1", "F3", "R1"], "since": "2026-11-18", "decides": "a man turned on the target card (F) and the card's body (R)", "builtIn": "v0.0.23"},
+ "about": "Your note of 2026-11-17: the card should \"show us what we would be seeing\". The card drew every man front on, though the stage drew him turned away. His facing is read from your eye (front within 45° of you, from behind beyond 135°, a side between). Each picture is one candidate, the live lane's role-player drawn by the game's own doll and card code (A's back of a man for F1): F, today's card (front on) for comparison, the candidate at 4, 14 and 30 m, then the card as he turns (a new card each time his facing crosses a band) beside the stage's frames of him facing you, side on and away; R, the card's body for a man with no marks on him, three records (aimed at you, at the low ready, the hands up) at the near and mid bands. F1 (from behind) is your star; F4 (a true profile) is the default for a man side on from v0.0.28, and F2 and F3 are withdrawn (your note of 2026-11-20: \"low effort and terrible\"). R1 (the doll, the card you starred) stays; R2 and R3 (the stage's own figure) would be for an unmarked man only (its chibi head cannot carry the marks life size): your pick in v0.0.24.",
+ "open": {"default": ["F1", "F4"], "since": "2026-11-20", "decides": "a man side on on the target card (F4, redrawn on your note of 2026-11-20); F1 from behind (your star) kept", "builtIn": "v0.0.28", "rank": 1},
  "pixel": true,
  "groups": [
   {
    "id": "F",
    "title": "F: a man turned",
-   "about": "Today's card, the candidate at three bands, then the turn and the stage's frames.",
+   "about": "Today's card, the candidate at three bands, then the turn and the stage's frames. F4 (v0.0.28, your note of 2026-11-20 on F2 and F3: \"low effort and terrible, I need you to be serious about this\"; redrawn again on the art director's pass the same day): a man side on drawn as a profile of his own; the masked head painted by hand on the third pass (\"a thumb shape\"): the high-and-tight hair over the crown, the forehead's slope over the lens's frame, the mask's lower shell a beak over the nose and back under the chin, its vents, the strap one pixel back over the clipped sides, the ear, the neck set back at about 0.6 of the head's depth; the sleeves in the pattern, the forearm the upper arm's length, the low ready's upper arm forward of the vertical, the high ready's stock under his arm and the firing fist on the grip, the P-12's far hand under the grip; the R-7 placed by its own sight, so his eye is behind the SO-4 and the butt in his shoulder under his cheek; his near hand on the handguard and his far fist on the grip, each arm bent at its elbow; the carrier's plates and its pouches off his chest. Either way he faces, the light from the upper left. Today's card is v0.0.27's F3; under it F4 at his other holds and poses. On F1's page the turn is one man at one moment: front, side and back all at the low ready; from behind he is F1 as you starred it. F2 (the front squeezed) and F3 (the head turned) are withdrawn.",
    "views": [
-    { "id": "F1", "name": "F1: from behind (the default for his back)", "query": "v=F1", "pixel": "844x439" },
-    { "id": "F3", "name": "F3: front on, his head turned (the default for a side)", "query": "v=F3", "pixel": "844x439" },
-    { "id": "F2", "name": "F2: in profile", "query": "v=F2", "pixel": "844x439" }
+    { "id": "F1", "name": "F1: from behind (your star, the default for his back)", "query": "v=F1", "pixel": "844x439" },
+    { "id": "F4", "name": "F4: a true profile, drawn side on (the redraw, the default for a man side on)", "query": "v=F4", "pixel": "844x652" }
    ]
   },
   {
@@ -24,5 +23,6 @@
     { "id": "R3", "name": "R3: the stage's own cell, blown up", "query": "v=R3", "pixel": "616x439" }
    ]
   }
- ]
+ ],
+ "scored": {"on": "2026-11-20", "picks": ["R1"]}
 }

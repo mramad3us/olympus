@@ -134,8 +134,10 @@ function bodyCard(C, D, c) {
   px(gx - 1, Y0 + 9, 2, gb - Y0 - 9, C.F); px(gx, Y0 + 9, 1, gb - Y0 - 9, C.FD);
   if (D.guard === 'round') { px(gx, gb, 1, 1, null); px(gx - 1, gb - 1, 1, 1, C.F); }
   if (D.guard === 'hook') { px(gx + 1, gb - 2, 2, 2, C.F); px(gx + 2, gb - 3, 1, 1, C.FD); }
-  // The trigger, its face curving back toward its foot, the safety blade's line down its middle.
-  for (let k = 0; k < 7; k++) { const x = at(0.088) - Math.round(k * k / 14); px(x, Y0 + 10 + k, 2, 1, STEEL_D); px(x + 1, Y0 + 10 + k, 1, 1, k > 1 && k < 6 ? STEEL_L : STEEL); }
+  // The trigger: hung from the frame at its top, its blade curving forward to its foot (toward the muzzle), so its face is
+  // concave where the finger sits; the safety blade's line down its middle. (v0.0.28, the user's "sidearm trigger is
+  // backwards" of 2026-11-20: the foot curved back toward the grip, so the pistol read as pointing the other way.)
+  for (let k = 0; k < 7; k++) { const x = at(0.084) + Math.round(k * k / 14); px(x, Y0 + 10 + k, 2, 1, STEEL_D); px(x + 1, Y0 + 10 + k, 1, 1, k > 1 && k < 6 ? STEEL_L : STEEL); }
   // The slide stop above the trigger, at the seam.
   px(at(0.078), Y0 + 3, M(0.02), 2, STEEL_D); px(at(0.078), Y0 + 3, M(0.02), 1, STEEL);
   // The lanyard loop at the heel (p12d).

@@ -868,7 +868,7 @@ export default [
     },
   },
   {
-    name: 'rules: the runner\'s gates and warm-up (the build sheet v0.0.25 §2 step 4): tests/run.mjs parses, reads GATES and WARM from the environment and warms a worker with its WARM_LANES; every test marked gate: true is heavy, and they are the drawn and eight-room sweeps\' four; v0.0.27 (K7): a time line red once is run again, the four tick files\' quick cases marked',
+    name: 'rules: the runner\'s gates and warm-up (the build sheet v0.0.25 §2 step 4): tests/run.mjs parses, reads GATES and WARM from the environment and warms a worker with its WARM_LANES; every test marked gate: true is heavy, and they are the drawn and eight-room sweeps\' four; v0.0.27 (K7): a time line red once is run again, the four tick files\' quick cases marked; v0.0.28: each quick file\'s CPU by its own worker\'s factor and the wall judged by the load (helpers.mjs workerK, wallJudged)',
     fn() {
       execFileSync(process.execPath, ['--check', path.join(root, 'tests/run.mjs')], { stdio: ['ignore', 'pipe', 'pipe'] });
       const src = readFileSync(path.join(root, 'tests/run.mjs'), 'utf8');
@@ -876,7 +876,11 @@ export default [
       // quick cases are marked timeLine)
       const marked = ['house-tick-budget', 'house-live-perf', 'breach-tick', 'zerocqb-tick'].filter(f => /\n {4}timeLine: true,/.test(readFileSync(path.join(root, 'tests', `${f}.test.mjs`), 'utf8')));
       const has = { gates: /const GATES = process\.env\.GATES === '1'/.test(src), warm: /const WARM = process\.env\.WARM !== '0'/.test(src), lanes: /const WARM_LANES = /.test(src), skip: /if \(t\.gate && !GATES\)/.test(src), warmUp: /async function warmUp\(/.test(src),
-        timeLine: /if \(err && t\.timeLine && /.test(src) && /err = await once\(\);\n/.test(src) && marked.length === 4 };
+        timeLine: /if \(err && t\.timeLine && /.test(src) && /err = await once\(\);\n/.test(src) && marked.length === 4,
+        // (v0.0.28's stage 0, its build sheet §2 step 3: the factor timed before each quick file and the warm-up, the files and the sum
+        // judged on the CPU normalised by it, the wall by the load at the start and the end; tests/run-guards.test.mjs holds the rules)
+        perWorker: /r\.kW = workerK\(\)\.k/.test(src) && /const kW = quick \? \(await import\('\.\/helpers\.mjs'\)\)\.workerK\(\)\.k : 1/.test(src) && /overCeiling\(sumS, QUICK_CPU_S\)/.test(src),
+        wallLoad: /const loadStart = os\.loadavg\(\)\[0\]/.test(src) && /judged = wallJudged\(loadStart, loadNow, cores\)/.test(src) };
       // (each test object marked gate: true, found by its marker, with the heavy flag in the same object before it)
       const gates = [];
       for (const f of readdirSync(path.join(root, 'tests')).filter(x => x.endsWith('.test.mjs') && x !== 'syntax.test.mjs')) {

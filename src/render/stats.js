@@ -13,6 +13,13 @@
 //     when the GPU has them (a frame or three late, never waiting), and keeps `last`: the latest
 //     complete frame's milliseconds by pass. Where the browser offers no timer (Chrome often does not)
 //     `available` is false and `last` stays null; a disjoint frame (the GPU clock jumped) is dropped.
+//     v0.0.28 (its build sheet item 25, §3.5; F73): every upload is also counted by its sender. A sender names its data once,
+//     tag(name, ...arrays) (the fog mask 'fog', the known cells 'known', a pixel layer 'decals:<layer>'), in a registry keyed by
+//     the arrays' ArrayBuffers; an upload whose source data is a tagged buffer (three.js hands a DataTexture's image.data and a
+//     buffer attribute's array to the GL call itself, inside the render or out of it) is counted under that name, and any other
+//     under its call and size ('texSubImage2D 256×3', 'bufferSubData'). A frame's `senders` lists them largest first and `top`
+//     names them in words ('fog 48.0 KB, decals:range 2.1 KB'), what the bench card's largest upload says it was. The registry
+//     is a WeakMap: tagging costs nothing when nothing is counted, and a disposed layer's arrays leave it with their buffers.
 //   - readBack(gl, ...): the one readPixels in the game, refused unless the test flag is up
 //     (globalThis.__olympusTestReadback): TECH §9.10, readback stalls the pipeline (D3D11 most of
 //     all), so play never does it; a test page may, to compare the CPU's light with the GPU's.
@@ -33,22 +40,42 @@ const texelBytes = (format, type) => PACKED.get(type) ?? (COMPONENTS.get(format)
 const sourceSize = (s) => (s && typeof s === 'object' ? [s.width ?? s.videoWidth ?? 0, s.height ?? s.videoHeight ?? 0] : [0, 0]);
 const isData = (v) => v !== null && v !== undefined && typeof v === 'object';
 
-const zero = () => ({ calls: 0, uploads: 0, bytes: 0, allocBytes: 0, compiles: 0, links: 0, byCall: {} });
+const zero = () => ({ calls: 0, uploads: 0, bytes: 0, allocBytes: 0, compiles: 0, links: 0, byCall: {}, bySender: {}, senders: [], top: null });
+
+// (the senders' names by the ArrayBuffer their data lives in: see the header)
+const SENDERS = new WeakMap();
+/** Name a sender's data (typed arrays or ArrayBuffers): every upload made from them is counted under `name` (see the header). */
+export function tag(name, ...data) {
+  for (const d of data) { const b = d?.buffer ?? d; if (b && typeof b === 'object') SENDERS.set(b, name); }
+  return name;
+}
+/** The name a source's data was tagged with, or null. */
+export const senderOf = (data) => { const b = data?.buffer ?? data; return b && typeof b === 'object' ? SENDERS.get(b) ?? null : null; };
+const kbText = (bytes) => `${(bytes / 1024).toFixed(1)} KB`;
+/** A frame's senders, largest first ([[name, bytes]]), and in words: the three largest with their KB, then how many more. */
+export function sendersOf(bySender) {
+  const list = Object.entries(bySender).filter(([, b]) => b > 0).sort((a, b) => b[1] - a[1] || (a[0] < b[0] ? -1 : 1));
+  const top = list.length ? list.slice(0, 3).map(([n, b]) => `${n} ${kbText(b)}`).join(', ') + (list.length > 3 ? `, ${list.length - 3} more` : '') : null;
+  return { senders: list, top };
+}
 
 /**
  * Count what gl is asked to send: { frame() (close the frame: its counts become `last`, the running
- * total goes on), last, total, max (the most bytes and uploads in any one frame), dispose() }.
+ * total goes on), last, total, max (the most bytes and uploads in any one frame), dispose() }. A frame's
+ * `bySender`, `senders` and `top` (see the header) are the frame's alone; `total` keeps the calls and bytes.
  */
 export function instrumentGL(gl) {
   const saved = [];
   let cur = zero(), last = zero();
   const total = zero(), max = { bytes: 0, uploads: 0, links: 0, compiles: 0, frame: 0 };
   let frames = 0;
-  const note = (name, bytes = 0, upload = true) => {
+  // (src: the data sent, its sender's tag looked up by its buffer; size: the fallback name's dimensions, an untagged texture's)
+  const note = (name, bytes = 0, upload = true, src = null, size = '') => {
     for (const c of [cur, total]) {
       c.calls++; c.byCall[name] = (c.byCall[name] ?? 0) + 1;
       if (upload) { c.uploads++; c.bytes += bytes; } else c.allocBytes += bytes;
     }
+    if (upload && bytes > 0) { const who = senderOf(src) ?? (size ? `${name} ${size}` : name); cur.bySender[who] = (cur.bySender[who] ?? 0) + bytes; }
   };
   const wrap = (name, count) => {
     const fn = gl[name];
@@ -60,24 +87,25 @@ export function instrumentGL(gl) {
     };
   };
   wrap('texImage2D', (a) => {
-    if (a.length >= 9) { const [, , , w, h, , format, type, px] = a; note('texImage2D', w * h * texelBytes(format, type), isData(px)); }
-    else { const [w, h] = sourceSize(a[5]); note('texImage2D', w * h * texelBytes(a[3], a[4])); }
+    if (a.length >= 9) { const [, , , w, h, , format, type, px] = a; note('texImage2D', w * h * texelBytes(format, type), isData(px), px, `${w}×${h}`); }
+    else { const [w, h] = sourceSize(a[5]); note('texImage2D', w * h * texelBytes(a[3], a[4]), true, a[5], `${w}×${h}`); }
   });
   wrap('texSubImage2D', (a) => {
-    if (a.length >= 9) { const [, , , , w, h, format, type] = a; note('texSubImage2D', w * h * texelBytes(format, type)); }
-    else { const [w, h] = sourceSize(a[6]); note('texSubImage2D', w * h * texelBytes(a[4], a[5])); }
+    if (a.length >= 9) { const [, , , , w, h, format, type, px] = a; note('texSubImage2D', w * h * texelBytes(format, type), true, px, `${w}×${h}`); }
+    else { const [w, h] = sourceSize(a[6]); note('texSubImage2D', w * h * texelBytes(a[4], a[5]), true, a[6], `${w}×${h}`); }
   });
-  wrap('texImage3D', (a) => { const [, , , w, h, d, , format, type, px] = a; note('texImage3D', w * h * d * texelBytes(format, type), isData(px)); });
-  wrap('texSubImage3D', (a) => { const [, , , , , w, h, d, format, type] = a; note('texSubImage3D', w * h * d * texelBytes(format, type)); });
+  wrap('texImage3D', (a) => { const [, , , w, h, d, , format, type, px] = a; note('texImage3D', w * h * d * texelBytes(format, type), isData(px), px, `${w}×${h}×${d}`); });
+  wrap('texSubImage3D', (a) => { const [, , , , , w, h, d, format, type, px] = a; note('texSubImage3D', w * h * d * texelBytes(format, type), true, px, `${w}×${h}×${d}`); });
   wrap('texStorage2D', (a) => { const [, levels, fmt, w, h] = a; note('texStorage2D', w * h * (SIZED.get(fmt) ?? 4) * (levels > 1 ? 4 / 3 : 1), false); });
   wrap('texStorage3D', (a) => { const [, levels, fmt, w, h, d] = a; note('texStorage3D', w * h * d * (SIZED.get(fmt) ?? 4) * (levels > 1 ? 4 / 3 : 1), false); });
-  wrap('bufferData', (a) => { const v = a[1]; if (typeof v === 'number') note('bufferData', v, false); else note('bufferData', v?.byteLength ?? 0); });
-  wrap('bufferSubData', (a) => { const v = a[2]; const len = a.length >= 5 && a[4] ? a[4] * (v?.BYTES_PER_ELEMENT ?? 1) : v?.byteLength ?? 0; note('bufferSubData', len); });
+  wrap('bufferData', (a) => { const v = a[1]; if (typeof v === 'number') note('bufferData', v, false); else note('bufferData', v?.byteLength ?? 0, true, v); });
+  wrap('bufferSubData', (a) => { const v = a[2]; const len = a.length >= 5 && a[4] ? a[4] * (v?.BYTES_PER_ELEMENT ?? 1) : v?.byteLength ?? 0; note('bufferSubData', len, true, v); });
   wrap('compileShader', () => { cur.compiles++; total.compiles++; });
   wrap('linkProgram', () => { cur.links++; total.links++; });
   return {
     /** Close a frame: its counts are `last`, the next frame starts at zero. */
     frame() {
+      Object.assign(cur, sendersOf(cur.bySender));
       last = cur; cur = zero(); frames++;
       if (last.bytes > max.bytes) { max.bytes = last.bytes; max.frame = frames; }
       max.uploads = Math.max(max.uploads, last.uploads); max.links = Math.max(max.links, last.links); max.compiles = Math.max(max.compiles, last.compiles);

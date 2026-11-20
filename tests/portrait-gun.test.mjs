@@ -21,7 +21,7 @@ const board = (face, holds, rangeM, subject = true) => paintHitcard({ face, hold
 
 export default [
   {
-    name: 'F89 the gun reads on the house\'s board (the user\'s note of 2026-11-17, seed 4028068471\'s 2a, 3b and 1a, and a threat with a pistol): at the near, mid and far bands at least GUN_PX_MIN pixels in the board\'s ink and 90% of the gun inside the figure\'s rows (v0.0.22: 0 in a hold tone, the rifle half below the crop)',
+    name: 'F89 the gun reads on the house\'s board (the user\'s note of 2026-11-17, seed 4028068471\'s 2a, 3b and 1a, and a threat with a pistol): at the near, mid and far bands at least GUN_PX_MIN pixels in a tone of its own (G2 from v0.0.28, its own colours; G1 the board\'s ink) and 90% of the gun inside the figure\'s rows (v0.0.22: 0 in a hold tone, the rifle half below the crop)',
     fn() {
       const rows = [], bad = [];
       for (const [stand, face, holds] of STANDS) for (const m of BANDS_M) {

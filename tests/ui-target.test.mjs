@@ -80,21 +80,28 @@ export default [
         const carry = await page.evaluate(() => { const s = window.__olympus.state; return s.people[s.player.id].kit.carry?.posture ?? null; });
         console.log(`      at the brief the R-7 is carried ${carry}`);
         // (each piece's pixels: the colours the full doll has beyond the same doll drawn without that piece, by the page's own modules)
-        const pieces = await page.evaluate(async () => {
-          const s = window.__olympus.state, pid = s.player.id, P = s.people[pid], { gearOf } = await import('/src/sim/arms/gear.js'), { dressOf } = await import('/src/art/doll/dress.js'), { doll } = await import('/src/art/doll/doll.js');
-          const gear = gearOf(s, pid), hist = (pm) => { const o = {}; for (const v of pm.data) { const k = ((v & 255) << 16) | (v & 0xff00) | ((v >>> 16) & 255); o[k] = (o[k] ?? 0) + 1; } return o; };
-          const full = hist(doll({ ...dressOf(gear, { look: P.look, sex: P.sex }) })), out = { gear: { carrier: !!gear.carrier, pistol: gear.pistol?.place ?? null, rifle: gear.rifle?.place ?? null }, full, extra: {} };
+        const piecesNow = () => page.evaluate(async () => {
+          // (v0.0.28: counted on the figure the cards draw, your mirror record (main.js mirrorDoll: seen.js seenOf with mirror, painted by
+          // portrait.js on the shoot house's ground, D-b from v0.0.28, cardBackdrop), not the bare gear's doll on its own wall: the place's
+          // tones are not the doll's wall's, so a piece's colour shared with that wall was never seen; the pieces left out of the same record)
+          const s = window.__olympus.state, pid = s.player.id, P = s.people[pid], { gearOf } = await import('/src/sim/arms/gear.js'), { seenOf } = await import('/src/sim/people/seen.js'), { paintPortrait, cardBackdrop } = await import('/src/art/doll/portrait.js');
+          const gear = gearOf(s, pid), rec = seenOf(s, pid, { mirror: true }), person = { look: P.look, sex: P.sex }, hist = (pm) => { const o = {}; for (const v of pm.data) { const k = ((v & 255) << 16) | (v & 0xff00) | ((v >>> 16) & 255); o[k] = (o[k] ?? 0) + 1; } return o; };
+          const drawn = (g) => cardBackdrop(paintPortrait({ ...rec, gear: g, key: null }, person, { scale: 1 }).pm, 1, 'house');
+          const full = hist(drawn(rec.gear)), out = { gear: { carrier: !!gear.carrier, pistol: gear.pistol?.place ?? null, rifle: gear.rifle?.place ?? null }, full, extra: {} };
           for (const [name, minus] of [['carrier', { carrier: null }], ['holster', { pistol: null, thigh: null }], ['rifle', { rifle: null }]]) {
-            const m = hist(doll({ ...dressOf({ ...gear, ...minus }, { look: P.look, sex: P.sex }) })), e = {};
+            const m = hist(drawn({ ...rec.gear, ...minus })), e = {};
             for (const [c, n] of Object.entries(full)) if (n > (m[c] ?? 0)) e[c] = { full: n, without: m[c] ?? 0 };
             out.extra[name] = e;
           }
           return out;
         });
-        assert(pieces.gear.carrier && pieces.gear.pistol === 'holster' && pieces.gear.rifle, JSON.stringify(pieces.gear));
+        const pieces0 = await piecesNow();
+        assert(pieces0.gear.carrier && pieces0.gear.pistol === 'holster' && pieces0.gear.rifle, JSON.stringify(pieces0.gear));
         for (const [key, sel] of [['KeyI', '.pk-doll canvas'], ['KeyC', 'canvas.doll']]) {
           await page.keyboard.press(key);
           await page.waitForSelector(sel, { timeout: 10000 });
+          // (the record as the card was drawn from it, read with the card open)
+          const pieces = await piecesNow();
           const px = await page.evaluate((q) => { const c = document.querySelector(q), g = c.getContext('2d'), d = g.getImageData(0, 0, c.width, c.height).data, out = {}; for (let i = 0; i < d.length; i += 4) { const k = (d[i] << 16) | (d[i + 1] << 8) | d[i + 2]; out[k] = (out[k] ?? 0) + 1; } return { w: c.width, h: c.height, out }; }, sel);
           // (v0.0.24: the Corps' helmet is R3 (the user's pick of 2026-11-19), its narrow visor in its own colour, not the old dome's
           // COMBAT_SUIT.visor: counted against the doll's own visor pixels at the canvas's density)

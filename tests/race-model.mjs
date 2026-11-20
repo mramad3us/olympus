@@ -90,7 +90,7 @@ export function marineFirst(r, m, { bang = false, rifle = true } = {}) {
 // ---- the defender's choice (COMBAT §7.11; not built: the model's own, as the design wrote it) ----
 const DOC = {
   irregular: { coverMiss: { cover: 0.5, blind: 0.5 }, pinnedPass: { cover: 0.5, blind: 0.5 }, pinnedBad: 'flee' },
-  police: { coverMiss: { cover: 1 }, pinnedPass: { cover: 1 }, pinnedBad: 'surrender' },
+  police: { coverMiss: { cover: 1 }, pinnedPass: { cover: 1 }, pinnedBad: 'give' },
   military: { coverMiss: { cover: 0.7, blind: 0.3 }, pinnedPass: { cover: 0.7, blind: 0.3 }, pinnedBad: 'freeze' },
 };
 const pickW = (r, w) => { let u = next(r); for (const [k, v] of Object.entries(w)) if ((u -= v) <= 0) return k; return Object.keys(w)[0]; };
@@ -104,7 +104,7 @@ function choose(r, t, f) {
   if (passed(g)) return pickW(r, D.pinnedPass);
   return g !== 'disaster' ? 'freeze' : D.pinnedBad;
 }
-const reroll = (st, bandNow, bandThen, sinceMs) => st !== 'flee' && st !== 'surrender' && (bandNow !== bandThen || ((st === 'cover' || st === 'blind') && bandNow >= 2 && sinceMs >= CHOICE_DWELL_MS));
+const reroll = (st, bandNow, bandThen, sinceMs) => st !== 'flee' && st !== 'give' && (bandNow !== bandThen || ((st === 'cover' || st === 'blind') && bandNow >= 2 && sinceMs >= CHOICE_DWELL_MS));
 const FACING = { aimed: [0.8, 0.2, 0], alert: [0.4, 0.3, 0.3], surprised: [0.3, 0.3, 0.4] };
 
 /**
@@ -137,7 +137,7 @@ export function defenderFirst(r, t, st, { bang = false, delayS = 1, kit = KIT.ov
     if (state === 'startled') decide(ms);
     else if (reroll(state, bandN(feltAt(ms)), band, ms - since)) decide(ms);
     else band = bandN(feltAt(ms));
-    if (state === 'flee' || state === 'surrender') return { fires: Infinity, choice: first, flash, pool: pool0, felt: f0, startleMs };
+    if (state === 'flee' || state === 'give') return { fires: Infinity, choice: first, flash, pool: pool0, felt: f0, startleMs };
     if (takeEnd === null && ms >= 0 && ms >= blindEnd) {
       const g = noticeGrade(r, t.awr, 'sector', modOf(feltAt(ms), 'awareness') + (ms < dazzleEnd ? DAZZLE_SIGHT : 0));
       takeEnd = ms + 1000 * takeInS(t.wf, 'sector', g, feltAt(ms));

@@ -125,7 +125,7 @@ const SHELL = 0xc8c0ae, SKINSUIT = 0x3b4256, SUIT_RING = 0x4c5262, SUIT_BOOT = 0
  * light and its dark at 16 px/m, the skin under it darker, the seams and rings a cool grey, the visor smoked blue-grey (its glint the 'l').
  * v0.0.24 (the user, 2026-11-19, of the P-12 in the suit's hands: "The suit needs more color variation for the gloves, they dont stand
  * out enough (maybe gray gloves would be better for this color suit)"): the gloves a mid grey (glove), apart from the rings' dark grey. */
-/** v0.0.24: the mag boots' colours on the figure (samples/mag-boots B-b, the default until scored: boots.js SOLE_C, CUFF_C) and their letters. */
+/** v0.0.24: the mag boots' colours on the figure (samples/mag-boots: boots.js SOLE_C, CUFF_C; the cuff drawn only under B-b, templates.js MAG_BOOT_LOOK) and their letters. */
 export const MAG_BOOT_C = Object.freeze({ sole: 0x24262c, cuff: 0x8a9099 });
 export { MAG_BOOT_LETTERS };
 export const COMBAT_SUIT = Object.freeze({ shell: 0x2c2f37, skin: 0x1c1e24, ring: 0x484c57, boot: 0x1f2127, visor: 0x33465a, pack: 0x26282f, carrier: 0x23252c, pouches: 0x34363e, glove: 0x80848c });
@@ -166,8 +166,9 @@ export function wear(look = {}) {
   // (v0.0.19: the role-players' force-on-force mask over a bare head (helmets.js FOF_MASKS: an id, or true for the default; compose.js head())
   // (a mask named is drawn; `true` is the man's own of M2 and M3 by his seed, helmets.js fofMaskFor)
   if (look.mask) L.mask = FOF_MASKS[look.mask] ? look.mask : fofMaskFor(seed);
-  // (mag boots worn (the gear record's boots 'mag', the look's `boots`): the sole and the cuff of mag-boots' B-b, the default
-  // until scored, drawn over the boot's own pixels after the body is composed (templates.js magBootCells); absent on every other look)
+  // (mag boots worn (the gear record's boots 'mag', the look's `boots`): mag-boots' B-a, the heavier sole, the user's star of
+  // 2026-11-20 (templates.js MAG_BOOT_LOOK), drawn over the boot's own pixels after the body is composed (templates.js
+  // magBootCells); absent on every other look)
   if (look.boots === 'mag') L.magBoots = true;
   const camo = { pattern: 'valles' };
   switch (outfit) {

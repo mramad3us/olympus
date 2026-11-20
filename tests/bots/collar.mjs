@@ -165,15 +165,27 @@ export function collarBotOf(kind, tier, seed = 1) {
 export const runCollar = (game, bot, opts = {}) => runHouse(game, bot, { maxMs: 20 * 60_000, ...opts });
 /**
  * One lane of the boarding from the fill (or a setup) to the card: { tier, seed, bot, holdouts, setup, done, end, laneS, ticks, legs (each
- * leg's state, H for held), type, track (the men's choices met: what → n), dead (the honest bot's dead ends by kind), fallback, protected
+ * leg's state, H for held), type, track (the men's choices met: what → n; a holdout's hands up read 'give', the crew's 'crew hands'), dead (the honest bot's dead ends by kind), fallback, protected
  * (the 'protected' faults), game }. kind: collarBotOf's.
  */
 export function collarLane(createGame, { tier = 'sgt', seed = 48213, bot = 'honest', holdouts = null, setup = null, each = null, maxMs = 20 * 60_000 } = {}) {
   const g = createGame({ scenario: 'test-collar', seed, tier, ...(holdouts ? { holdouts } : {}), ...(setup ? { setup } : {}) });
   const r = runCollar(g, collarBotOf(bot, tier, seed), { maxMs, each });
   const s = g.state, H = s.armoury.range.house, B = H.boarding, mem = r.mem ?? {};
-  const met = {};
-  for (const list of Object.values(B.track ?? {})) for (const e of list) { const k = e.what ?? e.st; if (k) met[k] = (met[k] ?? 0) + 1; }
+  // (the track's keys as the gauge reads them (F157; the lead's call of 2026-11-20, v0.0.28: fix the key, not the threshold): a man's give is
+  // one choice with one name, 'give', whether his table rolled it (the security table's, opfor.js CHOICE_TABLE) or a challenge ended his
+  // freeze or cover (st 'hands' on an armed holdout), counted once a man; the hauler's crew, unarmed and cowering from the first tick,
+  // putting their hands up to a challenge is 'crew hands', kept apart from a holdout's give)
+  const met = {}, crew = new Set((s.armoury.range.turners ?? []).filter(T => T.live?.unarmed).map(T => T.stand));
+  for (const [stand, list] of Object.entries(B.track ?? {})) {
+    let gave = false;
+    for (const e of list) {
+      let k = e.what ?? e.st;
+      if (k === 'hands') k = crew.has(stand) ? 'crew hands' : 'give';
+      if (k === 'give') { if (gave) continue; gave = true; }
+      if (k) met[k] = (met[k] ?? 0) + 1;
+    }
+  }
   return { tier, seed, bot, holdouts: holdouts ?? null, setup, done: r.done, end: B.end?.why ?? H.end?.why ?? null, laneS: H.goAtMs === null || !H.end ? null : Math.round((H.end.atMs - H.goAtMs) / 100) / 10,
     ticks: s.clock.tick, legs: H.rooms.map(L => (L.held ? 'H' : L.state[0])).join(''), type: B.type, track: met, dead: mem.dead ?? {}, fallback: !!B.fallback, protected: (B.protected ?? []).length, game: g };
 }

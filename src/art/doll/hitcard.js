@@ -69,10 +69,20 @@ import { word } from '../paint.js';
 import { glyphOf } from '../font.js';
 import { GLOWS } from '../palette.js';
 import { doll } from './doll.js';
+import { HOSTAGE_WHOLE } from './held.js';
 import { dressOf, dressedReady } from './dress.js';
 import { INK, mix, lum } from './grid.js';
 import { paintPortrait, portraitReady, maskOf, boardGear, boardLook, PORTRAIT_HOLD, PORTRAIT_PICKS, BANG_BOARD_HOLD, BOARD_PLACES, HOSTAGE_PLACES, jambOver, litPixel, lightK as litK, turnFigure, rollDrawn } from './portrait.js';
 
+/**
+ * A posed figure's extra rows under the band's crop: the whole of its pose's drop (card px), so a man set down shows to the floor.
+ * Only for the poses drawn whole in v0.0.28 and sent back to score, POSED_TO_FOOT: sitting (D3, whose boots are on the floor). The
+ * kneel (K1), the cower and the daze were starred as cropped on 2026-11-20 and keep that crop, front on or side on (the review of the
+ * picks: the art director's third pass had cropped them to the foot, a starred card redrawn, and side on at CARD_MIN the boots ran
+ * into the words).
+ */
+export const POSED_TO_FOOT = Object.freeze(['sit']);
+export const posedExtra = (pm) => (POSED_TO_FOOT.includes(pm?.pose?.pose) && pm?.anchors?.drop > 0 ? Math.round(pm.anchors.drop) : 0);
 /** The card in card pixels (the HUD's HITCARD at --ui 1), the words' strip under the figure. */
 export const CARD_W = 200, CARD_H = 200, WORDS_H = 40;
 /** The near band's figure density (card px a metre: VIEWS §7.7) and the doll's scale for it (the doll draws 72 px a metre at scale 1: doll.js PX_PER_CM 0.72). */
@@ -145,7 +155,7 @@ const DOLLS = new Map();
 function dollFor(face = 'threat', holds = 'rifle', scale = HIT_SCALE, side = 'right', place = 'hand', hostage = 'H1') {
   const key = `${face}|${holds}|${scale}${face === 'hostage' && side === 'left' ? '|left' : ''}${place === 'hand' ? '' : `|${place}`}${face === 'hostage' && place !== 'hand' && hostage !== 'H1' ? `|${hostage}` : ''}`;
   if (DOLLS.has(key)) return DOLLS.get(key);
-  let pm, held, cover = null;
+  let pm, held, cover = null, behind = null;
   if (face === 'hostage') {
     // (the hostile is the man-target, centred, its head circle on his head; the hostage in front of him, HOSTAGE_DX_PX to the side
     // and a little lower, so his head and his gun hand show beside the hostage's: side 'right' puts the hostile at the viewer's right)
@@ -165,13 +175,26 @@ function dollFor(face = 'threat', holds = 'rifle', scale = HIT_SCALE, side = 'ri
       if (sx < 0 || sy < 0 || sx >= front.w || sy >= front.h || !fm[j]) continue;
       data[i] = front.data[j]; held[i] = 0; cover[i] = 1;
     }
+    // (H1 rebuilt (the user's "more efforts on the gun wielding cards" of 2026-11-20): what his hold draws over her, his
+    // gun hand and the P-12 at her temple, his left forearm across her chest (./held.js hostageHold), drawn again over her: his pixels)
+    const whole = holds !== 'unseen' && !!HOSTAGE_WHOLE[holds === 'rifle' ? places?.rifle : places?.pistol];
+    if (whole) {
+      const over = doll({ ...dressOf(boardGear('threat', holds === 'rifle' ? 'rifle' : 'pistol', place, places), { look: boardLook('threat'), sex: 'm' }), scale, layer: 'over' }), om = maskOf(over, scale), oh = over.held ?? new Uint8Array(over.w * over.h);
+      for (let y = 0; y < back.h; y++) for (let x = 0; x < back.w; x++) {
+        const i = y * back.w + x, sx = side !== 'left' ? back.w - 1 - x : x, j = y * over.w + sx;
+        if (!om[j]) continue;
+        // (her pixels his arm and gun now cover, `behind`: a round through them goes on into her; the tests' read, never painted)
+        if (cover[i]) (behind ??= new Uint8Array(back.w * back.h))[i] = 1;
+        data[i] = over.data[j]; held[i] = oh[j]; cover[i] = 0;
+      }
+    }
     pm = { ...back, data };
   } else {
     // (the board's painted man: v0.0.17's arguments exactly where the gear adds nothing (a rifle in the hand, empty hands))
     pm = doll({ ...dressOf(boardGear(face, holds, place), { look: boardLook(face), sex: 'm' }), scale });
     held = pm.held;
   }
-  const out = { pm, mask: maskOf(pm, scale), held: held ?? new Uint8Array(pm.w * pm.h), ...(cover ? { cover } : {}) };
+  const out = { pm, mask: maskOf(pm, scale), held: held ?? new Uint8Array(pm.w * pm.h), ...(cover ? { cover } : {}), ...(behind ? { behind } : {}) };
   DOLLS.set(key, out);
   return out;
 }
@@ -186,6 +209,35 @@ function subjectDoll(subject, scale, { place = 'hand', picks = null } = {}) {
   const P = { ...PORTRAIT_PICKS, ...(picks ?? {}) };
   return dollFor(subject?.face ?? 'threat', subject?.holds ?? 'rifle', scale, subject?.side ?? (P.hostageSide === 'H-b' ? 'left' : 'right'), place, P.hostage);
 }
+/**
+ * V3 (v0.0.28; the user's words of 2026-11-20: "Hands not seen should not show any hint as to what is behind, but none of those
+ * solutions work, find a way to either blur or otherwise tastefully hide the bottom"; the judge's pass of the same day: "a floating
+ * bust on an empty card ... a hit with no body under it"). A man whose hands your take-in has not read is drawn whole as the neutral
+ * body (unreadRec: standing, nothing in his hands, the arms at his sides, the guns put away), the same for every case, and from
+ * UNREAD_ROW (reference rows of the standing figure: under the shoulders' tops) down a veil lies over him: the card's ground through
+ * an ordered dither (UNREAD_DITHER), fading in over UNREAD_FADE_K of the figure's height to UNREAD_VEIL_K, so his mass and his legs
+ * show through dim and no arm, hand or gun can; HANDS NOT SEEN on a dark plate across the veil at the hands' height. The line is the
+ * same row for every pose and every gun at a band, so its height tells nothing; the marks are drawn on the veil, on the body there.
+ * A board whose hands were not seen takes the same veil (it was two empty fists, the hint the user's note forbids).
+ */
+export const UNREAD_ROW = 38, UNREAD_HANDS_ROW = 64, UNREAD_FADE_PX = 6, UNREAD_WORDS = 'HANDS NOT SEEN', UNREAD_FADE_K = 0.25, UNREAD_VEIL_K = 0.8;
+/**
+ * The veil over the arms (the art director's pass 3 of 2026-11-20: "the neutral arms show hanging, which hints 'hands down'"): beside
+ * the torso (further than UNREAD_TORSO_HALF reference columns from his middle) the veil starts UNREAD_ARM_LIFT rows higher, under the
+ * deltoids' round, and at its full at once, so no arm is read below the shoulder; the plate is no wider than the figure (UNREAD_PLATE_PAD).
+ */
+export const UNREAD_TORSO_HALF = 13.6, UNREAD_ARM_LIFT = 5, UNREAD_PLATE_PAD = 2, UNREAD_LINES = Object.freeze(['HANDS', 'NOT SEEN']);
+/** The veil's ordered dither (a 4 × 4 Bayer matrix, its thresholds in sixteenths). */
+export const UNREAD_DITHER = Object.freeze([0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5]);
+/** A record with his hands' contents taken out (V3): standing, no hold, the rifle gone wherever it was (a rifle slung says a pistol is out), the pistol holstered, nothing held. */
+export function unreadRec(rec) {
+  if (!rec?.gear) return rec ? { ...rec, hold: null, aimAt: null, pose: 'stand' } : rec;
+  const G = rec.gear;
+  const gear = { ...G, rifle: null, pistol: G.pistol && G.pistol.place !== 'holster' ? { ...G.pistol, place: 'holster' } : G.pistol, held: null, device: null, hands: null };
+  return { ...rec, gear, hold: null, aimAt: null, pose: 'stand' };
+}
+/** The hidden part's first card row at a band and a card size (the standing figure's geometry: figAt, its rows, the doll's DROP 2). */
+export const unreadLine = (pxPerM = HIT_PX_PER_M, size = CARD_W) => { const G = figGeom(pxPerM), at = figAt(pxPerM, size); return Math.round(at.y + (UNREAD_ROW + 2) * G.scale - G.rows[0]); };
 /** A man's card's ground (sample L): 'dark', the board's bay dark (L-a, the default), or 'lifted' toward the board's khaki so amber rings read (L-b). */
 export const MAN_GROUNDS = Object.freeze({ dark: 0, lifted: 0.35 });
 /**
@@ -261,11 +313,16 @@ export function paintHitcard(m = {}) {
   // (a board with no subject is "Bang"'s, its painted man as starred (BANG_BOARD_HOLD); the house's boards hold the gun at
   // the ready, W1 (portrait.js); the picks are the defaults or the To score page's live ones (m.picks, never saved))
   const picks = { ...PORTRAIT_PICKS, ...(m.picks ?? {}) }, place = m.subject ? BOARD_PLACES[picks.where] ?? 'ready' : BANG_BOARD_HOLD;
-  const subject = m.subject ?? { kind: 'board', face: m.face, holds: m.holds }, { pm, mask, colour, held, cover } = subjectDoll(subject, G.scale, { place, picks });
+  // (V3: a man whose hands are not read is painted as the one neutral body, and veiled from the collar down (UNREAD_ROW))
+  const unread = picks.unread === 'V3' && ((m.live?.holds === 'unseen' && m.subject?.kind === 'man') || (m.subject?.kind !== 'man' && (m.subject?.holds ?? m.holds) === 'unseen' && (m.subject?.face ?? m.face) !== 'hostage'));
+  const subject0 = m.subject ?? { kind: 'board', face: m.face, holds: m.holds }, subject = unread && subject0.kind === 'man' ? { ...subject0, rec: unreadRec(subject0.rec ?? { kind: 'man', gear: subject0.gear, hold: null, pose: 'stand', facing: 'front' }) } : subject0;
+  const { pm, mask, colour, held, cover, behind } = subjectDoll(subject, G.scale, { place, picks });
   // (a posed doll's body set down by its pose (or drawn from behind, its anchors back.js's): the crop follows the doll's own A zone,
   // so the man-target's zones and marks stay where the sim put them on him; standing front on, no shift, the card as before)
+  // (a man sitting (D3) is cropped on down to the card's foot (POSED_TO_FOOT), so his boots on the floor show; the starred
+  // kneel, cower and daze keep their crop)
   const shift = pm.anchors ? r(pm.anchors.aZone[1] - G.aRow) : 0;
-  const at = figAt(band.pxPerM, S, pm.w), r0 = G.rows[0] + shift, r1 = Math.max(r0 + 1, Math.min(G.rows[1] + shift, r0 + figH - at.y));
+  const at = figAt(band.pxPerM, S, pm.w), r0 = G.rows[0] + shift, r1 = Math.max(r0 + 1, Math.min(G.rows[1] + shift + posedExtra(pm), r0 + figH - at.y));
   const ground = subject.ground ?? MAN_GROUND_PICKS[m.picks?.ground ?? MAN_GROUND_BY_BAND[band.id] ?? picks.ground] ?? 'dark', lift = colour ? MAN_GROUNDS[ground] ?? 0 : 0;
   // (his light, the jamb's share and the yaw side on, from the record (see the header))
   const rec = subject.rec ?? null, level = Number.isFinite(rec?.light?.level) ? rec.light.level : null, hid = rec?.cover ?? null;
@@ -278,9 +335,9 @@ export function paintHitcard(m = {}) {
   const inked = !!m.subject || BANG_BOARD_HOLD !== 'hand';
   const tone = picks.gun === 'G2' ? null : PORTRAIT_HOLD, rim = picks.gun === 'G3', veil = colour && picks.unread === 'V2' && m.live?.holds === 'unseen';
   const isHeld = (x, y) => x >= 0 && y >= 0 && x < pm.w && y < pm.h && !!held?.[y * pm.w + x];
-  let gunIn = 0, gunAll = 0, fx0 = Infinity, fx1 = -Infinity;
-  // (the tests' read of the hostage's pixels on the card (m.herMask), v0.0.25)
-  const her = cover && m.herMask ? new Uint8Array(W * H) : null;
+  let gunIn = 0, gunAll = 0, gunToned = 0, fx0 = Infinity, fx1 = -Infinity;
+  // (the tests' read of the hostage's pixels on the card (m.herMask), v0.0.25; from v0.0.28 herBehind, hers under his arm and gun over her)
+  const her = cover && m.herMask ? new Uint8Array(W * H) : null, herBehind = her ? new Uint8Array(W * H) : null;
   if (held && inked) for (let i = 0; i < held.length; i++) if (held[i]) gunAll++;
   for (let y = r0; y < Math.min(r1, pm.h); y++) for (let x = 0; x < pm.w; x++) {
     const i = y * pm.w + x;
@@ -291,11 +348,37 @@ export function paintHitcard(m = {}) {
     if (hd && !colour && !tone) out = c;
     if (hd && veil) out = (x + y) % 2 ? mix(HIT_C.board, 0x3a3c45, 0.3) : c;
     if (hd) gunIn++;
+    // (the gun's pixels in a tone of their own, not the khaki's: G1's ink, or from v0.0.28 G2's own colours)
+    if (hd && out !== HIT_C.khaki && out !== HIT_C.khakiShade && out !== HIT_C.khakiInk) gunToned++;
     // (his light on the figure; a board's gun keeps its ink, so it reads in any light (F89's tones))
-    put(at.x + x, at.y + y - r0, level === null || (hd && !colour && tone) ? out : litPixel(out, level));
-    if (her && cover[i]) { const cx = r(at.x + x), cy = r(at.y + y - r0); if (cx >= 0 && cy >= 0 && cx < W && cy < H) her[cy * W + cx] = 1; }
+    put(at.x + x, at.y + y - r0, level === null || (hd && !colour) ? out : litPixel(out, level));
+    if (her && (cover[i] || behind?.[i])) { const cx = r(at.x + x), cy = r(at.y + y - r0); if (cx >= 0 && cy >= 0 && cx < W && cy < H) (cover[i] ? her : herBehind)[cy * W + cx] = 1; }
     if (x < fx0) fx0 = x;
     if (x > fx1) fx1 = x;
+  }
+  // (V3: from the line down the card's ground, the man fading into it over the fade's rows, the words in the hidden part)
+  let hidden = null;
+  if (unread) {
+    const line = unreadLine(band.pxPerM, S), F = Math.max(2, r(UNREAD_FADE_K * (r1 - r0))), groundAt = (y) => mix(mix(HIT_C.board, 0x3a3c45, y / figH * 0.6), HIT_C.khakiShade, lift);
+    // (the veil: from the line it grows over F rows to UNREAD_VEIL_K; a pixel under the dither's threshold is the ground, the rest dimmed toward it)
+    const cx = at.x + pm.w / 2, half = UNREAD_TORSO_HALF * G.scale, armLine = line - r(UNREAD_ARM_LIFT * G.scale);
+    for (let y = armLine; y < figH; y++) {
+      const gc = groundAt(y), t0 = y < line ? 0 : UNREAD_VEIL_K * Math.min(1, (y - line + 0.5) / F);
+      for (let x = 1; x < W - 1; x++) {
+        const t = Math.abs(x + 0.5 - cx) > half ? UNREAD_VEIL_K : t0;
+        if (t <= 0) continue;
+        const i = y * W + x, d = (UNREAD_DITHER[(y & 3) * 4 + (x & 3)] + 0.5) / 16;
+        col[i] = d < t ? gc : mix(col[i], gc, t * 0.55);
+      }
+    }
+    // (the words on a dark plate across the veil at the hands' height, no wider than the figure: the small font where the large is)
+    // (the large font where it fits the figure, else the small; where even one small line is wider than he is, two: HANDS / NOT SEEN)
+    const figW = fx1 >= fx0 ? fx1 - fx0 + 1 : pm.w, k = wordsW(UNREAD_WORDS, 2) + 6 <= figW + UNREAD_PLATE_PAD ? 2 : 1;
+    const lines = wordsW(UNREAD_WORDS, k) + 2 * (k + 1) <= figW + UNREAD_PLATE_PAD ? [UNREAD_WORDS] : UNREAD_LINES;
+    const tw = Math.max(...lines.map(l => wordsW(l, k))), th = lines.length * 5 * k + (lines.length - 1) * (k + 1), ty = Math.min(figH - th - 4, r(at.y + (UNREAD_HANDS_ROW + 2) * G.scale - r0)), px = r((W - tw) / 2);
+    rect(px - (k + 1), ty - (k + 1), tw + 2 * (k + 1), th + 2 * (k + 1), HIT_C.plate);
+    lines.forEach((l, i) => write(r((W - wordsW(l, k)) / 2), ty + i * (5 * k + k + 1), l, HIT_C.faint, k));
+    hidden = { line, fade: F };
   }
   // (the board's stakes, from its foot to the words' strip; a man stands on none)
   const foot = at.y + r1 - r0;
@@ -361,6 +444,8 @@ export function paintHitcard(m = {}) {
   // (the hostage card drawn H-b, she at the viewer's right, is the sim's card mirrored (paper.js hostageHead puts her at x < 0),
   // so its marks are mirrored with it: a head hole scored on him stays on him)
   const flipX = subject.face === 'hostage' && (subject.side ?? (picks.hostageSide === 'H-b' ? 'left' : 'right')) === 'left' ? -1 : 1;
+  // (the tests' map of the sim's frame onto the card with her pixels (m.herMask): the origin's card px, px a cm, the mirror)
+  const herAt = () => { const [x0, y0] = manToCard(0, 0, band.pxPerM, { w: pm.w, size: S }); return { x0, y0, pxPerCm: G.pxPerCm, flip: flipX }; };
   const midX = at.x + pm.w / 2, where = (p) => { const [x, y] = manToCard(flipX * p[0], p[1], band.pxPerM, { w: pm.w, size: S }); return [midX + (x - midX) * yawK, y]; };
   // (truth: the calls under the holes first, at CALLS_K; then the holes; belief: the rings, a seen one filled)
   if (truth) for (const mk of list) if (mk.hole && mk.called) { const [x, y] = where(mk.called); ring(r(x), r(y), HIT_C.amber, CALLS_K); }
@@ -429,8 +514,8 @@ export function paintHitcard(m = {}) {
   for (let x = 0; x < W; x++) { col[x] = HIT_C.edge; col[(H - 1) * W + x] = HIT_C.edge; }
   for (let y = 0; y < H; y++) { col[y * W] = HIT_C.edge; col[y * W + W - 1] = HIT_C.edge; }
   for (let i = 0; i < W * H; i++) data[i] = word(col[i]);
-  return { w: W, h: H, data, repeat: false, key: null, glows: false, look: 'B', band: band.id, pxPerM: band.pxPerM, size: S, marks: drawn, zones, ...(cover ? { zonesOffHim: zonesOnHer } : {}), ...(her ? { her } : {}), words: rows, subject: subject.kind ?? 'board', gun: { inCrop: gunIn, all: gunAll }, place,
-    lit: level === null ? 1 : litK(level), jamb, yawK, ground: colour ? ground : null, roll, halved: !!turned?.halved,
+  return { w: W, h: H, data, repeat: false, key: null, glows: false, look: 'B', band: band.id, pxPerM: band.pxPerM, size: S, marks: drawn, zones, ...(cover ? { zonesOffHim: zonesOnHer } : {}), ...(her ? { her, herBehind, herAt: herAt() } : {}), words: rows, subject: subject.kind ?? 'board', gun: { inCrop: gunIn, all: gunAll, toned: gunToned }, place,
+    lit: level === null ? 1 : litK(level), jamb, yawK, hidden, ground: colour ? ground : null, roll, halved: !!turned?.halved,
     anchors: pm.anchors ? { head: [at.x + pm.anchors.head[0], at.y + pm.anchors.head[1] - r0], aZone: [at.x + pm.anchors.aZone[0], at.y + pm.anchors.aZone[1] - r0] } : null };
 }
 

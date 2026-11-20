@@ -8,7 +8,8 @@
 //   offer      the word R's offer opens with ('shower · 10 min, done 19:41')
 //   mask       what may interrupt it (TIME §7.2's notation)
 //   parts      in order, each { part, ms, met, kind, posture, inside?, wet?, outfit?, line?, lie? }: ms a
-//              length or the name of the rule that gives it ('water', 'dress', 'until'); met the
+//              length or the name of the rule that gives it ('water', 'dress', 'until'; v0.0.28's 'clean', the
+//              bench's length × its part's share, src/sim/arms/upkeep.js CLEAN_PARTS); met the
 //              metabolic rate at 1 G (BODY §3.2: the body scales it by g and load), kind its motion
 //              ('still'), posture the body's ('stand', 'sit', 'lie'), inside whether the figure is in
 //              its stall, wet whether the water runs on you, outfit what you wear in it ('towel'), line
@@ -246,6 +247,74 @@ export const ACTIVITIES = deepFreeze({
     parts: [still('collar-fallback', 'asked', 1.5, 'stand', { line: 'Falling back: the inner hatch dogged behind you.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
     durSeconds: true,
     log: ['Falling back: the inner hatch dogged behind you, {dur}.', '{dur} in the lock, the hatch dogged, the casualties carried.', 'The fall back: {dur}.', '{dur} behind the dogged hatch.'],
+  },
+  // ("The window and the canopy" (its build sheet items 10, 11, 13; TIME §8.5, §7.5; WEAPONS §9.3): the rifle stripped, cleaned,
+  // oiled and put back together at a canopy table, started by the scene's row (never offered by R at a spot this round: §0 item 13), its
+  // length the rule 'clean' (src/sim/time/activities.js: upkeep.js cleanMs × the part's share of CLEAN_PARTS, args { tempo, again,
+  // gunId }), the strip its first part (upkeep.js cleanStart: a round left in falls out on the mat) and the bench's roll at the
+  // assembly's end (cleanEnd, the function check folded into it). "Clean it again" is the same at RECLEAN_MIN, the dirt off. Not
+  // stoppable here (§0 item 6; TIME §8.5 makes it stoppable, with the rifle left stripped on the mat and its reassembly lived, when the
+  // career cleans one))
+  'clean-rifle': {
+    id: 'clean-rifle', class: 'kit', uses: [], offer: 'clean the rifle', noun: 'the cleaning', mask: 'D A',
+    parts: [
+      still('strip', 'clean', 2.0, 'stand', { line: 'Stripped on the mat: upper, lower, carrier, bolt, charging handle.' }),
+      still('clean', 'clean', 2.0, 'stand', { line: 'Bore, bolt face, carrier and chamber: brushed, swabbed, patched.' }),
+      still('oil', 'clean', 2.0, 'stand', { line: 'A film of oil on the carrier and the rails.' }),
+      still('assemble', 'clean', 2.0),
+    ],
+    resumable: false, stoppable: false, chunkMs: 0, vignette: 'clean', min: 0,
+    log: ['Rifle stripped, cleaned, oiled, back together: {dur}.', 'The rifle on the mat and back together: {dur}.', '{dur} of brushes, patches and solvent at the table.', 'Cleaned, oiled and function checked: {dur}.'],
+  },
+  'clean-again': {
+    id: 'clean-again', class: 'kit', uses: [], offer: 'clean it again', noun: 'the cleaning again', mask: 'D A',
+    parts: [
+      still('strip', 'clean', 2.0, 'stand', { line: 'Stripped on the mat again.' }),
+      still('clean', 'clean', 2.0, 'stand', { line: 'The carrier and the bore again, where he looked.' }),
+      still('oil', 'clean', 2.0, 'stand', { line: 'Oiled again.' }),
+      still('assemble', 'clean', 2.0),
+    ],
+    resumable: false, stoppable: false, chunkMs: 0, vignette: 'clean', min: 0,
+    log: ['Back to the table: {dur} where he looked.', 'Cleaned again: {dur}.', '{dur} more on the carrier and the bore.', 'The rifle on the mat again: {dur}, and back together.'],
+  },
+  // ("The window and the canopy" (its build sheet items 7 to 14): the scene's splashes, each started by the scene (armoury-day.js
+  // armouryTick), never offered by R, its length the scene's (args.ms), its end the scene's at the next lived tick: the bus there and back, the
+  // relay's forty minutes as their outcome, the walk from the lane, the working party for brass short, the shakedown for a round short, the
+  // squad leader's fetch out of the box and the armourer's pin chit)
+  'arm-bus': {
+    id: 'arm-bus', class: 'day', uses: [], offer: 'the bus', noun: 'the bus', mask: 'D A',
+    parts: [still('arm-bus', 'asked', 2.5, 'stand', { line: 'Echo two on the bus.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['The bus: {dur}.', '{dur} on the bus, rifles between the knees.', 'The bus across the base: {dur}.', '{dur} of the bus and the dust.'],
+  },
+  'arm-relay': {
+    id: 'arm-relay', class: 'day', uses: [], offer: 'the relay', noun: 'the relay', mask: 'D A',
+    parts: [still('arm-relay', 'asked', 3.0, 'stand', { line: 'Relay one fired at the two-five line.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['Relay one on the two-five line: {dur}.', '{dur} prone on the line, two magazines.', 'The relay: {dur} of the tower\'s commands.', '{dur} at the two-five line.'],
+  },
+  'arm-walk': {
+    id: 'arm-walk', class: 'day', uses: [], offer: 'the walk', noun: 'the walk', mask: 'D A',
+    parts: [still('arm-walk', 'asked', 2.5, 'stand', { line: 'Relay one back at the ammunition point.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['Back to the ammunition point: {dur}.', '{dur} up the range road to the ammunition point.', 'The walk back: {dur}.', '{dur} to the ammunition point, rifles slung.'],
+  },
+  'arm-police': {
+    id: 'arm-police', class: 'day', uses: [], offer: 'the working party', noun: 'the working party', mask: 'D A',
+    parts: [still('arm-police', 'asked', 2.0, 'stand', { line: 'Back on the line for your brass.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['The working party: {dur} on the line for your brass.', '{dur} on your knees on the line.', 'Back on the line: {dur}, every case.', '{dur} of the working party.'],
+  },
+  'arm-shakedown': {
+    id: 'arm-shakedown', class: 'day', uses: [], offer: 'the shakedown', noun: 'the shakedown', mask: 'D A',
+    parts: [still('arm-shakedown', 'asked', 2.5, 'stand', { line: 'Pockets out, kit open: the shakedown.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['The shakedown: {dur}, pockets out.', '{dur} of the shakedown, kit on the deck.', 'Nobody left: {dur} of the shakedown.', '{dur} turning out pockets.'],
+  },
+  'arm-fetch': {
+    id: 'arm-fetch', class: 'day', uses: [], offer: 'fetched back', noun: 'the fetch', mask: 'D A',
+    parts: [still('arm-fetch', 'asked', 1.5, 'stand', { line: 'The squad leader came for you.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['Fetched back: {dur}.', '{dur}, and the squad leader came for you.', 'Brought back by the squad leader: {dur}.', '{dur} before the squad leader found you.'],
+  },
+  'arm-chit': {
+    id: 'arm-chit', class: 'day', uses: [], offer: 'the chit', noun: 'the chit', mask: 'D A',
+    parts: [still('arm-chit', 'asked', 1.5, 'stand', { line: 'The armourer fits a pin and writes the chit.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    log: ['A pin fitted and a chit written: {dur}.', '{dur} at the window for the chit.', 'The chit: {dur}.', '{dur} while the armourer fitted a pin.'],
   },
   idle: {
     id: 'idle', class: 'day', uses: [], offer: 'idle', mask: 'D A',

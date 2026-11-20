@@ -12,7 +12,7 @@ import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { engagedOf, seenState } from '../src/sim/arms/engage.js';
 import { hitMarks } from '../src/sim/arms/marks.js';
-import { targetModel, paintOn, UNSEEN_WORDS } from '../src/ui/hud/target.js';
+import { targetModel, paintOn, UNSEEN_WORDS, aimedRec } from '../src/ui/hud/target.js';
 import { paintHitcard, PAINT_C, PAINT_LOOKS, cardDigest } from '../src/art/doll/hitcard.js';
 import { gearOf } from '../src/sim/arms/gear.js';
 import { move } from '../src/sim/arms/kit.js';
@@ -35,7 +35,7 @@ const colourOf = (v) => ((v & 0xff) << 16) | (v & 0xff00) | ((v >>> 16) & 0xff);
 
 export default [
   {
-    name: 'the target view shows a live man as identified, in his gear, with the team\'s paint: engaged as a person (his stand\'s key, his pid) only once taken in, his hands as the stage draws them, unseen or read (v0.0.23, rule V1; v0.0.22 emptied them while unseen), "AIMING" read, your two rounds and your #2\'s one in the cadre\'s pink (truth) or your two painted where called (belief)',
+    name: 'the target view shows a live man as identified, in his gear, with the team\'s paint: engaged as a person (his stand\'s key, his pid) only once taken in, his hands as the stage draws them, unseen or read (v0.0.23, rule V1; v0.0.22 emptied them while unseen), "AIMING" read (said as the figure is drawn, v0.0.28), your two rounds and your #2\'s one in the cadre\'s pink (truth) or your two painted where called (belief)',
     fn() {
       const g = house(), { s, R, who, T, pid } = liveOn(g);
       // (the bracket at a pause before your take-in has seen him: nothing; once taken in: a person, never a board)
@@ -52,8 +52,12 @@ export default [
       takeIn(s, T, 'rifle', 'aiming');
       assert(seenState(s, T.key) === 'aiming', 'the state read');
       const m1 = targetModel(s, { key: T.key, kind: 'person', who, readers });
-      assert(m1.subject.gear.rifle?.place === 'ready' && /^AIMING · /.test(m1.words) && m1.subject.rec.hold.how === m0.subject.rec.hold.how, JSON.stringify({ words: m1.words, rifle: m1.subject.gear.rifle, how: [m0.subject.rec.hold.how, m1.subject.rec.hold.how] }));
-      console.log(`      unseen: '${m0.words}', hold ${m0.subject.rec.hold.how}; read: '${m1.words}', hold ${m1.subject.rec.hold.how} (the read moves the words, never the hands)`);
+      // (v0.0.28, the picks' CARDS (the art director's pass of 2026-11-20: "AIMING · PAIR · 1 SEEN" over the low ready): the read moves
+      // the words, never the hands, but the verb follows the figure (target.js captionState): read aiming, drawn at the low ready,
+      // LOOKING; drawn aimed, AIMING (tests/portrait-caption.test.mjs holds it on the live lanes))
+      const drawnAimed = aimedRec(m1.subject.rec);
+      assert(m1.subject.gear.rifle?.place === 'ready' && (drawnAimed ? /^AIMING · / : /^LOOKING · /).test(m1.words) && m1.subject.rec.hold.how === m0.subject.rec.hold.how, JSON.stringify({ words: m1.words, rifle: m1.subject.gear.rifle, how: [m0.subject.rec.hold.how, m1.subject.rec.hold.how] }));
+      console.log(`      unseen: '${m0.words}', hold ${m0.subject.rec.hold.how}; read aiming: '${m1.words}', hold ${m1.subject.rec.hold.how} (the read moves the words, never the hands; the verb the figure's)`);
       // (your pair on him and your #2's round, as houseShot records them)
       const ms = s.clock.ms;
       R.shots.push({ id: 'sx1', key: T.key, atMs: ms + 10, part: 'torso', row: 'shot:pair' }, { id: 'sx2', key: T.key, atMs: ms + 120, part: 'torso', row: 'shot:pair' });

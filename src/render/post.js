@@ -36,7 +36,8 @@
 //   2a. the unknown (its build sheet item 7; the user, 2026-11-17: "we see what is in the rooms before entering
 //      them"): in an unfamiliar place, setFog's `known` (src/render/known.js: one bit a cell of the area, on the fog's lattice)
 //      looked up at the pixel's own world spot (no lift for height: a man or a box in a room never seen is as unknown as its
-//      floor, and a wall's face toward a known hall is drawn), and a cell never in sight painted UNKNOWN_C whole, before the
+//      floor, and a wall's face toward a known hall is drawn), and a cell never in sight painted UNKNOWN_C whole (from v0.0.28
+//      U2, the user's star: hatched, a line of HATCH_C every HATCH_EVERY pixels along the diagonal, src/render/known.js), before the
 //      fog's dim and instead of it: no outline, no grade and no palette snap on it (U1's black stays black), a chaos over the
 //      picture (a flash's white, the startle's dark) still over it, and a pixel of light still drawn. No `known`, no change;
 //   3. the outline, over the four neighbours: another part more than 0.35 m behind, or a depth jump of
@@ -92,7 +93,7 @@ const POST_FRAG = /* glsl */`
   in vec2 vUv; out vec4 outColor;
   uniform sampler2D tColor, tDepth, tId, tFog, tLut, tPal, tKnown;
   uniform vec2 res; uniform float near, far, outline, grade, fogOn, dimK, srgb, eyeGain, eyeCone, eyeRod, eyeGlare, knownOn;
-  uniform vec4 fogBox, knownBox; uniform ivec2 knownN; uniform vec3 unknownC; uniform mat4 invVP; uniform vec3 peoplePart;
+  uniform vec4 fogBox, knownBox; uniform ivec2 knownN; uniform vec3 unknownC, hatchC; uniform int hatchN; uniform mat4 invVP; uniform vec3 peoplePart;
   uniform int lutN, lutTiles, palCount, snapMode;
   uniform float chaosVig, chaosDither, chaosDrain, chaosDark, chaosPale, chaosWhite, chaosGrey, chaosAfter, chaosVeil, chaosVeilGrey;
   uniform vec2 chaosEye, chaosFace; uniform vec3 chaosBurst;
@@ -165,7 +166,10 @@ const POST_FRAG = /* glsl */`
     vec4 id = texelFetch(tId, ip, 0);
     bool light = id.a > ${(LIGHT_FLAG - 0.05).toFixed(2)} && id.a < ${(LIGHT_FLAG + 0.05).toFixed(2)};
     bool unk = false;
-    if (fogOn > 0.5 && raw < 0.99999 && !light && knownOn > 0.5 && unknownAt(wp.xz)) { unk = true; col = unknownC; }
+    // (U2: the unknown hatched in the fog's felt tint, a pixel line every hatchN along the picture's diagonal, counted from
+    // its top-left as the sample counts it; hatchN 0 the flat colour, U1's)
+    vec3 unkC = unknownC;
+    if (fogOn > 0.5 && raw < 0.99999 && !light && knownOn > 0.5 && unknownAt(wp.xz)) { unk = true; if (hatchN > 0 && (ip.x + int(res.y) - 1 - ip.y) % hatchN == 0) unkC = hatchC; col = unkC; }
     else if (fogOn > 0.5 && raw < 0.99999 && !light) {
       vec2 fp = wp.xz + vec2(0.0, clamp(wp.y, 0.0, 1.0) * 0.5);
       vec2 fv = texture(tFog, (fp - fogBox.xy) / fogBox.zw).rg;
@@ -222,8 +226,8 @@ const POST_FRAG = /* glsl */`
     if (chaosPale > 0.0) col = mix(col, vec3(0.95, 0.94, 0.9), chaosPale);
     col = clamp(col, 0.0, 1.0);
     // (2a: the unknown's colour kept exactly, unless a chaos moved it)
-    bool keepUnk = unk && all(lessThan(abs(col - unknownC), vec3(0.5 / 255.0)));
-    if (keepUnk) col = unknownC;
+    bool keepUnk = unk && all(lessThan(abs(col - unkC), vec3(0.5 / 255.0)));
+    if (keepUnk) col = unkC;
     else if (snapMode == 0) col = snapLut(col); else if (snapMode == 1) col = snapLoop(col);
     outColor = vec4(col, 1.0);
   }`;
@@ -298,7 +302,7 @@ export function createPost(renderer, W, H, { palette, outline = true, grade = 1,
     res: { value: new THREE.Vector2(W, H) }, near: { value: near }, far: { value: far },
     outline: { value: outline ? 1 : 0 }, grade: { value: grade }, srgb: { value: gamma === 'srgb' ? 1 : 0 },
     tFog: { value: null }, fogOn: { value: 0 }, fogBox: { value: new THREE.Vector4(0, 0, 1, 1) }, dimK: { value: 0.48 },
-    tKnown: { value: null }, knownOn: { value: 0 }, knownBox: { value: new THREE.Vector4(0, 0, 1, 0) }, knownN: { value: new THREE.Vector2(0, 0) }, unknownC: { value: new THREE.Vector3(0, 0, 0) }, eyeGain: { value: 1 }, eyeCone: { value: 1 }, eyeRod: { value: 0 }, eyeGlare: { value: 0 },
+    tKnown: { value: null }, knownOn: { value: 0 }, knownBox: { value: new THREE.Vector4(0, 0, 1, 0) }, knownN: { value: new THREE.Vector2(0, 0) }, unknownC: { value: new THREE.Vector3(0, 0, 0) }, hatchC: { value: new THREE.Vector3(0, 0, 0) }, hatchN: { value: 0 }, eyeGain: { value: 1 }, eyeCone: { value: 1 }, eyeRod: { value: 0 }, eyeGlare: { value: 0 },
     chaosVig: { value: 0 }, chaosDither: { value: 0 }, chaosDrain: { value: 0 }, chaosDark: { value: 0 }, chaosPale: { value: 0 }, chaosWhite: { value: 0 }, chaosGrey: { value: 0 }, chaosAfter: { value: 0 }, chaosVeil: { value: 0 }, chaosVeilGrey: { value: 0 },
     chaosEye: { value: new THREE.Vector2(W / 2, H / 2) }, chaosFace: { value: new THREE.Vector2(1, 0) }, chaosBurst: { value: new THREE.Vector3(0, 0, 0) },
     invVP: { value: new THREE.Matrix4() }, peoplePart: { value: new THREE.Vector3(...PEOPLE_ID) },
@@ -349,7 +353,8 @@ export function createPost(renderer, W, H, { palette, outline = true, grade = 1,
   }
   /**
    * The fog of awareness (step 2): its mask texture (null: none), its box in metres, the dim. known (step 2a): the unknown's
-   * cells, { texture, x0, z0, cellM, nx, nz, colour } (src/render/known.js's mask in the view's texture; colour 0xRRGGBB), or null:
+   * cells, { texture, x0, z0, cellM, nx, nz, colour, hatch: { colour, every } } (src/render/known.js's mask in the view's texture;
+   * colours 0xRRGGBB; hatch U2's lines, none U1's flat colour), or null:
    * every cell known, the picture as before.
    */
   const setFog = (tex, x0 = 0, z0 = 0, w = 1, h = 1, dimK = 0.48, known = null) => {
@@ -360,6 +365,8 @@ export function createPost(renderer, W, H, { palette, outline = true, grade = 1,
       U.knownBox.value.set(k.x0, k.z0, k.cellM, 0); U.knownN.value.set(k.nx, k.nz);
       const c = k.colour ?? 0;
       U.unknownC.value.set(((c >> 16) & 255) / 255, ((c >> 8) & 255) / 255, (c & 255) / 255);
+      const hc = k.hatch?.colour ?? c;
+      U.hatchC.value.set(((hc >> 16) & 255) / 255, ((hc >> 8) & 255) / 255, (hc & 255) / 255); U.hatchN.value = k.hatch?.every | 0;
     }
   };
   /** The eye (see the header, step 0): its gain against v0.0.4's exposure (the rods'), the cones' (never over it), the rods' share of vision, 0 to 1, and the glare, log units over the adapted level (0 at rest). */

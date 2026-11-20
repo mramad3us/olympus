@@ -1,7 +1,7 @@
 {
  "title": "The card as you would see him: in his light, half behind the jamb, his hands not yet read",
  "about": "Your note of 2026-11-17: the portraits \"need to be more dynamic and show us what we would be seeing\". Every card is the live lane's role-player 2a (the plate carrier, the force-on-force mask, the R-7 at the low ready) in his own colours, drawn by the game's own doll and card code (samples/portrait-lib/card.js), the candidate drawn over it. L decides the card in his light (built in v0.0.24, on your score; drawn unlit until then), J a man half behind a door's jamb (v0.0.24; drawn whole until then), V his hands before your take-in has read them (this release at V1: v0.0.22 emptied his hands on the card while the stage drew his rifle, a card that contradicted the stage).",
- "open": {"default": ["L1", "J1", "V1"], "since": "2026-11-17", "decides": "his hands not yet read (V, this release at V1); the card in his light (L) and half behind a jamb (J), built in v0.0.24", "builtIn": "v0.0.23"},
+ "open": {"default": ["V3"], "since": "2026-11-20", "decides": "his hands before your take-in has read them (V3, built on your note of 2026-11-20)", "builtIn": "v0.0.28", "rank": 4},
  "pixel": true,
  "groups": [
   {
@@ -25,11 +25,13 @@
   {
    "id": "V",
    "title": "V: his hands before your take-in has read them",
-   "about": "Today's card first (v0.0.22 emptied his hands), then the candidate at the near and mid bands. V1 (the default, this release) his hands and the rifle drawn as the stage shows them, the words \"HANDS NOT SEEN · 2A\" saying what your mind has not read; V2 the hands and what is in them veiled, hatched in the card's ground.",
+   "about": "Today's card first (v0.0.22 emptied his hands), then the candidate at the near and mid bands. V1 (the default, this release) his hands and the rifle drawn as the stage shows them, the words \"HANDS NOT SEEN · 2A\" saying what your mind has not read; V2 the hands and what is in them veiled, hatched in the card's ground. V3 (v0.0.28, your note of 2026-11-20: \"Hands not seen should not show any hint as to what is behind, but none of those solutions work, find a way to either blur or otherwise tastefully hide the bottom\"; redrawn on the art director's pass the same day): the man drawn whole as one neutral body (standing, nothing in his hands, the guns put away, the same for every man), and from the collar down a dithered veil in the card's ground over him, so his mass and legs show through dim and no arm, hand or gun can; HANDS NOT SEEN on a dark plate across it at the hands' height; a hit drawn on the veil, on the body there. On the third pass (\"the neutral arms show hanging\") the veil starts under the deltoids beside the torso, at its full at once, so no arm shows; the plate no wider than the figure (two lines at 14 and 30 m). The board's \"HANDS NOT SEEN\" takes the same veil. Today's V1 card first, then V3 at the near, mid and far bands, then a man with his rifle aimed, his P-12 aimed and empty-handed, each unread (the same from the line down), and a man side on.",
    "views": [
     { "id": "V1", "name": "V1: as the stage shows him, in words (the default)", "query": "v=V1", "pixel": "616x218" },
-    { "id": "V2", "name": "V2: the hands veiled", "query": "v=V2", "pixel": "616x218" }
+    { "id": "V2", "name": "V2: the hands veiled", "query": "v=V2", "pixel": "616x218" },
+    { "id": "V3", "name": "V3: veiled from the collar down and over the arms, one neutral body (the default)", "query": "v=V3", "pixel": "820x422" }
    ]
   }
- ]
+ ],
+ "scored": {"on": "2026-11-20", "picks": ["L1", "J1"]}
 }
