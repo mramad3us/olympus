@@ -233,6 +233,20 @@ export const ACTIVITIES = deepFreeze({
     parts: [still('house-search', 'asked', 1.5, 'stand', { line: 'Searching him: 20 s. His card turns to the truth.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
     log: ['You searched him: {dur}.', '{dur} on your knees by him, the search.', 'The search: {dur}, pockets, panel and kit.', '{dur} of the search.'],
   },
+  // ("Away the boarding party" (its build sheet item 2, item 14): the override's time behind its one splash, Four at the lock's
+  // panel (src/sim/scenarios/shoothouse.js collarTick: an outcome skip, never lived), and the fall back's, the inner hatch shut behind you)
+  'collar-override': {
+    id: 'collar-override', class: 'day', uses: [], offer: 'the override', noun: 'the override', mask: 'D A',
+    parts: [still('collar-override', 'asked', 1.5, 'stand', { line: 'The lock cycles on the override.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    durSeconds: true,
+    log: ['The lock cycles on the override: {dur}.', '{dur} at the lock\'s panel: the override.', 'Four works the panel: {dur}.', 'The override: {dur}, then the lamp goes green.'],
+  },
+  'collar-fallback': {
+    id: 'collar-fallback', class: 'day', uses: [], offer: 'the fall back', noun: 'the fall back', mask: 'D A',
+    parts: [still('collar-fallback', 'asked', 1.5, 'stand', { line: 'Falling back: the inner hatch dogged behind you.' })], resumable: false, stoppable: false, chunkMs: 0, vignette: null, min: 0,
+    durSeconds: true,
+    log: ['Falling back: the inner hatch dogged behind you, {dur}.', '{dur} in the lock, the hatch dogged, the casualties carried.', 'The fall back: {dur}.', '{dur} behind the dogged hatch.'],
+  },
   idle: {
     id: 'idle', class: 'day', uses: [], offer: 'idle', mask: 'D A',
     parts: [still('idle', 'asked', 1.5)], resumable: false, stoppable: true, chunkMs: 0, vignette: null, min: 0,

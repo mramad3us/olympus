@@ -135,6 +135,11 @@ export const CATALOGUE = Object.freeze({
   speaker: K(0.2, 0.2, 0.1, false, false, [], [], 'deckhead'),
   cargo: K(1.2, 1.2, 2.2, true, false, []),
   berthRack: K(0.95, 2.05, 2.2, true, true, ['store']),
+  // (the boarding round's stage 0, the Patient Mule's (its build sheet §1 stage 0; SH§3.4): a Belter's berth pair boxed deck to deckhead (2.0 × 0.9 m,
+  // a curtain each), standing to the hauler's 2.4 m deckhead so one grid serves both faces; and the lock's override panel, hung on its
+  // bulkhead beside the inner hatch (amber while the lock cycles). Drawn by the kit's stand-ins until E's makers (art/kit/belt.js))
+  berthBox: K(2.0, 0.9, 2.4, true, true, ['sleep', 'store']),
+  lockPanel: K(0.3, 0.05, 0.4, false, true, ['work'], [], 'wall'),
 });
 
 /** The catalogue's kinds, in its order. */

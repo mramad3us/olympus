@@ -46,6 +46,7 @@ import { FUNNEL_M, FUNNEL_SIDE_M, funnelZone, inZone } from '../places/zones.js'
 import { swingFrom, stackPointsOf } from '../places/swing.js';
 import { opOf } from './op.js';
 import { planSetOf, plansOfArea } from '../scenes/assemble.js';
+import { shipOf } from '../../data/places/ships.js';
 
 /** In the door: within FUNNEL_M 0.5 of the door's plane, between its jambs widened by FUNNEL_SIDE_M 0.3 (src/sim/places/zones.js, the no-stop zones). */
 export { FUNNEL_M, FUNNEL_SIDE_M };
@@ -62,8 +63,8 @@ const RAD = Math.PI / 180;
 const LAYERS = Object.freeze({ stand: 'stand', kneel: 'crouch', crouch: 'crouch', prone: 'prone', lie: 'prone' });
 const inRect = (r, x, z, e = 1e-9) => x >= r[0] - e && x <= r[2] + e && z >= r[1] - e && z <= r[3] + e;
 
-/** The layout a session runs: the house record's lane, else 'W' on the Wreck (v0.0.25: a record that says `ship: 'wreck'`), else A. */
-export const layoutOf = (state) => { const op = opOf(state); return op?.lane ?? (op?.ship === 'wreck' ? 'W' : DEFAULT_LAYOUT); };
+/** The layout a session runs: the house record's lane, else its ship's letter ('W' on the Wreck, v0.0.25; v0.0.27: the registry's row), else A. */
+export const layoutOf = (state) => { const op = opOf(state); return op?.lane ?? shipOf(op)?.lane ?? DEFAULT_LAYOUT; };
 
 // (a plan's data with what the place gives it: its rects and its plane, see the header)
 function derive(L, layout, key, P) {

@@ -54,6 +54,10 @@
 // as the sergeant at GO, T (the bang's bundle, then the room's rows) and the shot row (Digit1) in turn every 2 s for 20 s: the throw,
 // the burst's flash and smoke, both men in the daze and its sway, a man cowering or giving up, the paint; the band they are drawn
 // from prepared behind the brief's cut, so its upload row must stay under UPLOAD_MID_KB after GO; from Windows ?bench=breach.
+// v0.0.27 (the build sheet §1 D, F165's page half): collar, "Away the boarding party" stacked on cabin 2's hatch (test-collar's 'cabin2'
+// setup: the passage held, cabin 1 and the bunk room cleared) on seed 48213 as the sergeant, the pirates drawn (`holdouts`), T (the hatch's
+// drill, the deckhead man's fight) and the shot row (Digit1) in turn every 2 s for 20 s: the four marines on one look, the armed men
+// aiming, the man on the deckhead, a man down at 0 G; from Windows ?bench=collar. F73's eased fog mask fails it as it fails the others.
 // Every bench's card judges TECH §16.1 (BENCH_BUDGET): the median frame, its p95, no frame over 50 ms after the first 3 s,
 // the draw calls, the view's CPU at its p95, no program linked after the warm, no upload over UPLOAD_MID_KB after GO + 1 s.
 
@@ -124,6 +128,13 @@ export const BENCH_SCENES = Object.freeze({
   }),
   breach: Object.freeze({
     play: 'test-shoothouse', seed: 48213, hour: 10, setup: 'go', tier: 'sgt', breach: 'bang,held',
+    keys: Object.freeze([Object.freeze(['KeyT', 120]), Object.freeze([null, 1880]),
+      ...Array.from({ length: 4 }, () => [Object.freeze(['Digit1', 120]), Object.freeze([null, 1880]), Object.freeze(['KeyT', 120]), Object.freeze([null, 1880])]).flat(),
+      Object.freeze(['Digit1', 120]), Object.freeze([null, 1880])]),
+    warmS: 2,
+  }),
+  collar: Object.freeze({
+    play: 'test-collar', seed: 48213, hour: 10, setup: 'cabin2', tier: 'sgt', holdouts: 'pirates',
     keys: Object.freeze([Object.freeze(['KeyT', 120]), Object.freeze([null, 1880]),
       ...Array.from({ length: 4 }, () => [Object.freeze(['Digit1', 120]), Object.freeze([null, 1880]), Object.freeze(['KeyT', 120]), Object.freeze([null, 1880])]).flat(),
       Object.freeze(['Digit1', 120]), Object.freeze([null, 1880])]),

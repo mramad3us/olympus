@@ -15,6 +15,8 @@ export default [
   {
     name: 'F60 (quick): the tier one by T on 48213 (the keys private\'s lane in house-tick-budget-more\'s sheets), the busiest tick of the sim, each tick the least of three runs, at most 2 ms × the machine\'s factor (4 on a minute boundary); fails on v0.0.20 (3.17 ms)',
     timeoutMs: 120_000,
+    // (v0.0.27's stage 0, K7: a time line; red on time alone it is run again before it counts (tests/run.mjs), the budget unchanged)
+    timeLine: true,
     fn() {
       const lanes = F60_LANES.quick.filter(L => L.tier === 'tierone' && L.bot === 'honest');
       assert(lanes.length === 1 && F60_LANES.sheets.some(L => L.tier === 'private' && L.seed === 48213 && L.bot === 'keys'), JSON.stringify({ quick: F60_LANES.quick }));

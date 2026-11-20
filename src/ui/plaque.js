@@ -489,7 +489,11 @@ export const IDENT_WORDS = Object.freeze({ rifle: 'RIFLE', pistol: 'PISTOL', han
  * after what was identified (contact.js identify's last.state, written only on a passed roll: a failed one leaves none, "can't
  * tell"): "CONTACT · RIFLE · AIMING · TAKEN IN 0.80 S". A stand has none, so every v0.0.18 plate is the same.
  */
-export const STATE_WORDS = Object.freeze({ aiming: 'AIMING', looking: 'LOOKING', running: 'RUNNING', hands: 'HANDS UP', cowering: 'COWERING', down: 'DOWN', dazed: 'DAZED' });
+export const STATE_WORDS = Object.freeze({
+  aiming: 'AIMING', looking: 'LOOKING', running: 'RUNNING', hands: 'HANDS UP', cowering: 'COWERING', down: 'DOWN', dazed: 'DAZED',
+  // ("Away the boarding party": an irregular firing blind over his cover and one running to his refuge (combat/men.js liveStateOf))
+  'firing-blind': 'FIRING BLIND', 'running-away': 'RUNNING AWAY',
+});
 /** The strip's span for a take-in (ms): STRIP_SPAN_MS, or the next whole second past a longer one. */
 export const stripSpanMs = (ms) => Math.max(STRIP_SPAN_MS, Math.ceil((Number(ms) || 0) / 1000) * 1000);
 /**

@@ -208,6 +208,17 @@
 // only, behind the brief's cut (K4: nothing painted or sent mid-lane when a man first dazes or cowers). prepareOwn names a role-player
 // by the range's live turners: his actor's hands flag, which named him before, is written only when he gives up, so at a load it
 // named none, and his bare look (the hands up) was sent mid-lane at his give too.
+// v0.0.27 (the build sheet item 16, §3.5, §11 risk 8; "Away the boarding party"): A REAL FIGHT ABOARD. A man firing blind is drawn
+// in the shock band's 'blind' and a man down in free fall in its 'downFree' (poses.js, from look.js gunLook's action): planted on
+// his boots and standing on his face's card (turned on the deckhead as an upright man is), never the casualty's lying card, the
+// berth or the seat; one with no rifle (the hauler's crew) in the float band's float0, the base sheet's slack body; while the band
+// is not up, float0 again. Aboard the boarding the shock band goes up behind the cut in every armed mover's low stance sheet, the
+// marines' too (any of the four may be knocked down at 0 G). A man whose only gun is the P-12 is drawn with it (look.js
+// sidearmOnly: the look's weapon poses.js SIDEARM, weaponOf). And the boarding's own look (look.js boardLook): the dust puffed where a
+// round met a face (DUST_PUFF_MS, a ring of BOARD_FX_C's dust or the ball's darker grit, no hole drawn after) and the lock's override
+// panel's lamp, amber, red or green as the collar's record says, two lit pixels over the batch's panel (render/board-fx.js). An unarmed
+// live man on his knee (the hauler's crew, cowering in a corner) is drawn showing his empty hands (the arms band's handsKneel, up
+// behind the cut), as seen.js's card reads him, never the corpsman kneeling at work ('aid').
 import * as FIGURE from '../sim/people/figure.js';
 import * as PERCEPTION from '../sim/people/perception.js';
 import * as ALERTS from '../sim/time/alerts.js';
@@ -217,6 +228,7 @@ import { createVignettes } from './vignettes.js';
 import { vignetteItems, insideSpot, BEACON_Y_M } from './vignette-items.js';
 import { BAND_OF } from '../art/figures/poses.js';
 import { BREATH_HZ } from '../art/figures/bedding.js';
+import { boardFxPixels, BOARD_FX_MAX } from './board-fx.js';
 import { createFigures } from './figures.js';
 import { areaFromJob, reserveParts } from './batch.js';
 import { createFogMask, createKnownTexture, FOG_CELL_M } from './fog.js';
@@ -242,7 +254,7 @@ import { playerActor } from '../core/ids.js';
 import { STRIDE_WRAP_M } from '../data/body/gait.js';
 import { planOf } from '../sim/places/plan.js';
 import * as ARMS from '../sim/arms/look.js';
-import { rifleFrame, gaitCarryOf, RIFLE_BANDS, GAIT_CARRIES, STANCE_BANDS, STANCE_CARRIES, POOL_OF, HELD_BAND, HELD_CARRY, PISTOL_HIGH_BAND, PISTOL_HIGH_CARRY, SHOCK_BAND, SHOCK_CARRY, shockFrameOf, dazeSway, heldFrameOf, tumbleFrame } from '../art/figures/poses.js';
+import { rifleFrame, gaitCarryOf, RIFLE_BANDS, GAIT_CARRIES, STANCE_BANDS, STANCE_CARRIES, POOL_OF, HELD_BAND, HELD_CARRY, PISTOL_HIGH_BAND, PISTOL_HIGH_CARRY, SHOCK_BAND, SHOCK_CARRY, shockFrameOf, dazeSway, heldFrameOf, tumbleFrame, SIDEARM } from '../art/figures/poses.js';
 import { createGaitView } from './gait-view.js';
 import { CYCLE } from '../data/body/gait.js';
 import { FLASH_LIT_M, FLASH_LIGHT } from './figures.js';
@@ -400,6 +412,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   const chunks = createChunks({ THREE, renderer: stage.renderer, painter, uploads, ppm });
   const splash = createSplash(stage), vignettes = createVignettes(stage, { ppm });
   const rangeLayer = createRange(stage, { ppm }), decals = createDecals(stage, { ppm });
+  // (the boarding's dust and the lock panel's lamp, see the header)
+  const boardFx = createPixels(stage.THREE, BOARD_FX_MAX, { ppm, order: 1 });
   const blood = createBlood(stage, { ppm });
   // (0.0.9: the training bangs: their bodies, flashes and smoke)
   const bangs = createBangs(stage, { ppm });
@@ -407,7 +421,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   const devices = createDevices(stage, { ppm });
   // (0.0.10: the din: the coach's horn and rifle among the figures, the blanks' flashes over them)
   const din = createDin(stage, { ppm });
-  stage.scene.add(figures.group, clocks.group, vignettes.group, rangeLayer.group, decals.group, blood.group, bangs.group, devices.group, din.group);
+  stage.scene.add(figures.group, clocks.group, vignettes.group, rangeLayer.group, decals.group, blood.group, bangs.group, devices.group, din.group, boardFx.mesh);
   // (0.0.9: the chaos on the picture: the reading main.js gives (setChaos), the numbers shown (eased), the startle whose pale frame was drawn)
   let chaosWant = null, chaosShown = null, paleDone = null, movingSig = '', reduceFlashes = false;
   // (the far window: its own camera, post, fog and chunks; drawn inside the stage's composite, before the blit)
@@ -704,6 +718,9 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
   // stop motion, a change of posture changes no sheet)
   const gaitCarry = new Map();
   const RO_POST = /(^|:)kd-ro$/;
+  // (the look's weapon, the rifle's, or the pistol's where it is his only gun (look.js gunLook's sidearmOnly: the boarding's
+  // smugglers), so no R-7 is drawn on a man who carries none: poses.js poseOf)
+  const weaponOf = (gl) => (!gl ? null : gl.sidearmOnly ? SIDEARM : 'rifle');
   /** What an actor carries and wears, as the figure draws it: { gl (gunLook or null), look (armed), kit }. */
   function armsOf(state, a, look, msA, walking) {
     const person = state.people?.[a.who] ?? null;
@@ -717,7 +734,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     const headset = !!person?.post && RO_POST.test(person.post.key ?? '');
     if (!gl && !kit?.ears && !kit?.carrier && !headset && !kit?.mask && !kit?.boots) return { gl: null, look, kit };
     // (mag boots worn, kitLook's boots (only when worn), so every other look is as it was)
-    const v = { weapon: gl ? 'rifle' : null, carry, magOut: gl ? gl.mag === false : false, ears: !!kit?.ears, carrier: !!kit?.carrier, headset, model: gl?.model ?? null, finish: gl?.finish ?? null, ...(kit?.mask ? { mask: true } : {}), ...(kit?.boots ? { boots: kit.boots } : {}) };
+    const v = { weapon: weaponOf(gl), carry, magOut: gl ? gl.mag === false : false, ears: !!kit?.ears, carrier: !!kit?.carrier, headset, model: gl?.model ?? null, finish: gl?.finish ?? null, ...(kit?.mask ? { mask: true } : {}), ...(kit?.boots ? { boots: kit.boots } : {}) };
     // (the twin: the same look with the magazine the other way, whose sheet the figures draw while this one's band paints;
     // the sibs: the same look with each other gait carry, whose sheets hold the same carry-free frames (the rework's R2))
     // (R8: an armed mover in a stance, the stance sheet in the carry held: the glide, Assault and the beats, VIEWS §3.10.8)
@@ -1035,6 +1052,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       const rl = typeof ARMS.rangeLook === 'function' && (live.id === KD_RANGE.area || ((state.armoury?.range?.course === 'house' || state.armoury?.range?.course === 'anchors') && state.armoury.range.area === live.id)) ? ARMS.rangeLook(state, fxMs) : null;
       const eye = me && typeof PERCEPTION.eyeOf === 'function' && typeof PERCEPTION.visibility === 'function' ? PERCEPTION.eyeOf(state, me) : null;
       const inSight = (x, z) => PERCEPTION.visibility(state, eye, x, z, ms) > 0;
+      // (the live men, for an unarmed one cowering: see the header)
+      const liveWho = new Set((state.armoury?.range?.turners ?? []).filter(T => T.live?.who).map(T => T.live.who));
       for (const a of state.actors?.list ?? []) {
         const was = a.id !== meId && eye ? memory.recall(a.id, a.x, a.z, inSight, combat && !KNOWN.alwaysDrawn(state, a) ? { combat, seenEver: KNOWN.seenEver(state, a, { rooms: memFresh, sight: inSight }) } : undefined) : null;
         if (was?.hide) { peopleHidden++; continue; }
@@ -1114,7 +1133,10 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
           p.gv = { band: gv.band, kind: gv.kind, beat: gv.beat, lagPx: gv.lagPx, offM: Math.hypot(gv.offX, gv.offZ), lift: gv.lift, carry: gl?.carry ?? null };
         }
         const tf = fig.frame;
-        if (tf === 'hurt') {
+        // (down in free fall, hanging from his locked boots (look.js downFreeOf, see the header): armed, gunLook's 'downFree'
+        // from the shock band; unarmed, the float band's slack body; never the lying card, the berth or the seat)
+        const slack = arms.gl ? shockFrameOf(arms.gl) === 'downFree' : typeof ARMS.downFreeOf === 'function' && ARMS.downFreeOf(state, a);
+        if (tf === 'hurt' && !slack) {
           // (a casualty lying where they fell: the lie band's card on the ground, never a berth)
           p.frame = 'hurt';
         } else if (tf === 'sitUp' || tf === 'lieDown') {
@@ -1125,12 +1147,15 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
           const u = edge ? Math.max(0, Math.min(1, (fig.upK - (1 - SIT_SLIDE_K)) / SIT_SLIDE_K)) : 0, w = u * u * (3 - 2 * u);
           people.push({ ...p, ...b, lie: b.lie, x: b.x, z: b.z, card: false, id: `${a.id}:berth` });
           Object.assign(p, { x: edge ? st.x + (fig.edgeX - st.x) * w : st.x, z: edge ? st.z + (fig.edgeZ - st.z) * w : st.z, frame: st.frame, face: st.face, y: st.y, seat: st.y, noBlob: true });
-        } else if (tf === 'lie' || (fig.posture === 'lie' && !frameOf(fig, frameMs))) Object.assign(p, berthOf(a, fig, a.who, { msA, breathS }));
+        } else if (!slack && (tf === 'lie' || (fig.posture === 'lie' && !frameOf(fig, frameMs)))) Object.assign(p, berthOf(a, fig, a.who, { msA, breathS }));
         else {
-          const f = frameOf(fig, frameMs);
+          const f = slack ? null : frameOf(fig, frameMs);
           // (v0.0.19: a role-player who gave up, his hands up and empty, standing or kneeling (poses.js handsUp, handsKneel))
-          if (a.hands === true && !arms.gl) p.frame = a.stance === 'kneel' ? 'handsKneel' : 'handsUp';
-          else if (f === 'sit' || (!f && fig.posture === 'sit')) { p.frame = 'sit'; p.y = Math.max(0, (fig.y ?? 0.45) - figures.layout.body.seatM); p.seat = p.y; }
+          if (slack && !arms.gl) p.frame = 'float0';
+          // (an unarmed live man on his knee, the hauler's crew cowering in a corner, shows his empty hands: handsKneel, as
+          // seen.js's card reads him; never the corpsman's 'aid')
+          else if ((a.hands === true || (liveWho.has(a.who) && a.stance === 'kneel')) && !arms.gl) p.frame = a.stance === 'kneel' ? 'handsKneel' : 'handsUp';
+          else if (!slack && (f === 'sit' || (!f && fig.posture === 'sit'))) { p.frame = 'sit'; p.y = Math.max(0, (fig.y ?? 0.45) - figures.layout.body.seatM); p.seat = p.y; }
           else if (f === 'climb') { p.frame = 'climb'; p.y = Math.max(0, fig.y ?? 0); p.seat = 0; }
           else if (f) p.frame = f;
           else if (gv?.frame) { /* (R8: the beat's frame, set above) */ }
@@ -1139,7 +1164,8 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
           // (a role-player dazed or cowering (see the header): the shock band's frame, its sway, the carry's frame its stand-in)
           if (p.frame && p.frame === rf?.frame && POOL_OF[BAND_OF[p.frame]] === 'stance' && shockFrameOf(arms.gl)) {
             p.frame = dazeSway(p.frame, fxMs, reduceFlashes);
-            p.fallback = rifleFrame({ ...arms.gl, action: null }, { face, x, z, ms: fxMs }).frame ?? 'idle0';
+            // (down at 0 G while its band is not up, the float band's slack body, never a man standing at the ready)
+            p.fallback = p.frame === 'downFree' ? 'float0' : rifleFrame({ ...arms.gl, action: null }, { face, x, z, ms: fxMs }).frame ?? 'idle0';
           }
           // (below the ground: the pits' detail on their floor, drawn at their height, so the ground hides them)
           if ((fig.y ?? 0) < -0.05 && !p.frame) { p.y = fig.y; p.seat = fig.y; p.floorY = fig.y; }
@@ -1163,7 +1189,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
           // (see the header: a face change under way through the tumble's 45° frames at its lift; planted on a face other than
           // the deck, the standing card turned by faceCard about its anchor at his feet on the face, scaled by heightLookOf at his lift,
           // his blob on the deck below (a dashed ring under the deckhead, K-b))
-          const onF = onFaceOfActor(a), upright = (fig.posture ?? 'stand') === 'stand', turnT = upright ? faceTurnOf(state, a, msA) : null;
+          const onF = onFaceOfActor(a), upright = slack || (fig.posture ?? 'stand') === 'stand', turnT = upright ? faceTurnOf(state, a, msA) : null;
           const tff = turnT ? faceTurnFrame(turnT) : null;
           if (tff) {
             const L = liftOf(a), hl = heightLookOf(L);
@@ -1320,6 +1346,12 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       const bl = typeof BLOOD.bloodLook === 'function' ? BLOOD.bloodLook(state, live.id, fxMs) : null;
       stats.blood = blood.update(bl, { ms: fxMs, figures: people.filter(q => !q.remembered).map(q => ({ id: q.id, x: q.x, z: q.z, face: q.face, lie: q.frame === 'hurt' || !!q.lie, kneel: /kneel|aid/.test(q.frame ?? '') })), tintOf: tintAt });
       const ds = decals.update(rl?.lying ?? [], tintAt);
+      // (the boarding's dust and the lock panel's lamp, see the header)
+      const bdl = typeof ARMS.boardLook === 'function' ? ARMS.boardLook(state, fxMs) : null;
+      let nfx = 0;
+      if (bdl) for (const q of boardFxPixels(bdl, fxMs, ppm)) if (boardFx.set(nfx, { ...q, color: q.c, tint: q.light ? [1, 1, 1] : tintAt(q.x, q.z), noLine: true })) nfx++;
+      boardFx.count(nfx);
+      stats.board = bdl ? { dust: bdl.dust.length, pixels: nfx, panel: bdl.panel?.lit ?? null } : null;
       stats.lying = rl ? { items: ds.items, pixels: ds.pixels } : null;
       vignettes.update(vigItems, tintAt, vigRed);
       // 9. the fog; 10. what stands between the camera and you
@@ -1390,6 +1422,9 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
     // (the role-players by the range's live turners: an actor's hands flag is written only when he gives up, so at the load
     // `typeof a.hands === 'boolean'` named none of them, and neither his bare look's bands nor the shock band went up behind the cut)
     const liveMen = new Set((state.armoury?.range?.turners ?? []).filter(T => T.live?.who).map(T => T.live.who));
+    // (aboard the boarding every armed mover may go down in free fall (the marines too: B's knock), so the shock band's
+    // downFree goes up behind the cut in every low carry's stance sheet there, as the role-players' daze and cower do)
+    const boarding = !!state.armoury?.range?.house?.boarding;
     for (const a of state.actors?.list ?? []) {
       const fig = figureOf(state, a), person = state.people?.[a.who] ?? null, own = a.id === meId, rp = typeof a.hands === 'boolean' || liveMen.has(a.who);
       // (a rifle in hand: its look and the magazine-out one, with the arms and rifle bands, so a change of
@@ -1408,7 +1443,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         // (the look as held first, everyone's, then the twins: rifle sheets are taken while free (6 at 16 px/m from v0.0.23, 8 before), so the
         // relay's figures in sight have theirs and a twin waits for a sheet another look leaves)
         for (const magOut of arms.gl.mag === false ? [true, false] : [false, true]) {
-          const L = armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: gaitCarry.get(a.id), magOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit) });
+          const L = armedLook(lookWith(fig.look, fig, person?.sex), { weapon: weaponOf(arms.gl), carry: gaitCarry.get(a.id), magOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit) });
           const { key: k2, look: L2 } = lookOf(L, `${a.who}${magOut ? ':magout' : ''}`);
           (magOut === (arms.gl.mag === false) ? jobs : twins).push(() => figures.prepare(k2, L2, { bands: rifleBands, own }));
         }
@@ -1421,24 +1456,24 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         // #2 with the G-11's held sheets and the two men asked 41 before, and a marine's stance sheet went up mid-lane))
         if (a.moveStance) for (const c of GAIT_CARRIES) {
           if (c === gaitCarry.get(a.id) || (rp && !RP_CARRIES.includes(c))) continue;
-          const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: c, magOut: laneMagOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit) }));
+          const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: weaponOf(arms.gl), carry: c, magOut: laneMagOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit) }));
           // (in free fall the float band in every carry too: a face change or a tumble at the high ready never paints mid-lane)
           twins.push(() => figures.prepare(keyOf(L), L, { bands: ['gait', 'move', ...(fig.gMs2 < FLOAT_G_MS2 ? ['float'] : []), ...(rp ? ['rest'] : [])], own }));
         }
         // (R8, VIEWS §3.10.8: its stance sheets, one a carry it moves in (low, high, aimed), so the glide, Assault and the beats are
         // up before GO and never paint mid-lane)
         if (a.moveStance) for (const c of STANCE_CARRIES) {
-          const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: c, magOut: laneMagOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit), sheet: 'stance' }));
+          const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: weaponOf(arms.gl), carry: c, magOut: laneMagOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit), sheet: 'stance' }));
           // (the P-12's high-ready walk in the high carry's sheet only)
           // (a role-player's daze and cower in the low carry's sheet only (poses.js SHOCK_BAND), behind the brief's cut)
-          (c === arms.gl.carry ? jobs : twins).push(() => figures.prepare(keyOf(L), L, { bands: STANCE_BANDS.filter(b => b !== HELD_BAND && (b !== PISTOL_HIGH_BAND || c === PISTOL_HIGH_CARRY) && (b !== SHOCK_BAND || (rp && c === SHOCK_CARRY))), own }));
+          (c === arms.gl.carry ? jobs : twins).push(() => figures.prepare(keyOf(L), L, { bands: STANCE_BANDS.filter(b => b !== HELD_BAND && (b !== PISTOL_HIGH_BAND || c === PISTOL_HIGH_CARRY) && (b !== SHOCK_BAND || ((rp || boarding) && c === SHOCK_CARRY))), own }));
         }
         // (a mover who carries a device: the held band in the slung-in-front carry's stance sheet, and the cards of the shapes
         // he carries, baked here behind the cut (the brief's splash), so a device in the hands never paints mid-lane)
         const shapes = a.moveStance && typeof ARMS.heldShapesOf === 'function' ? ARMS.heldShapesOf(state, a.who) : [];
         if (shapes.length) {
           for (const magOut of [arms.gl.mag === false, arms.gl.mag !== false]) {
-            const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: 'rifle', carry: HELD_CARRY, magOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit), sheet: 'stance' }));
+            const L = cyc(armedLook(lookWith(fig.look, fig, person?.sex), { weapon: weaponOf(arms.gl), carry: HELD_CARRY, magOut, ears: !!arms.kit?.ears, carrier: !!arms.kit?.carrier, headset: false, model: arms.gl.model ?? null, finish: arms.gl.finish ?? null, ...kitExtra(arms.kit), sheet: 'stance' }));
             twins.push(() => figures.prepare(keyOf(L), L, { bands: [HELD_BAND], own }));
           }
           figures.prepareHeld?.(shapes);
@@ -1453,11 +1488,15 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
         }
         continue;
       }
-      if (arms.look !== lookWith(fig.look, fig, person?.sex)) { const { key: k3, look: L3 } = lookOf(arms.look, a.who); jobs.push(figures.prepare(k3, L3, { bands: ['gait'], own })); continue; }
+      // (an unarmed live man in his kit (the hauler's crew on mag boots) with the arms band and in free fall the float band, as below)
+      const crew = liveMen.has(a.who) ? ['arms', ...(fig.gMs2 < FLOAT_G_MS2 ? ['float'] : [])] : [];
+      if (arms.look !== lookWith(fig.look, fig, person?.sex)) { const { key: k3, look: L3 } = lookOf(arms.look, a.who); jobs.push(figures.prepare(k3, L3, { bands: ['gait', ...crew], own })); continue; }
       const { look, key } = lookOf(fig.look, a.who);
       if (fig.posture === 'lie' && fig.frame !== 'sitUp' && fig.frame !== 'lieDown') { if (a.id === meId) jobs.push(figures.prepare(key, look ?? {}, { bands: ['gait', 'rest'], own: true })); continue; }   // (a sleeper is a berth; yours may rise)
       // (yours with the move band too: a stroll or a stair never paints on the main thread)
-      const bands = [...(fig.posture === 'sit' || fig.posture === 'lie' ? ['gait', 'rest'] : ['gait']), ...(a.id === meId ? ['move'] : [])];
+      // (an unarmed live man (the hauler's crew) with the arms band, his hands shown on his knee or up, and in free fall the
+      // float band, his slack body if he goes down: see the header)
+      const bands = [...(fig.posture === 'sit' || fig.posture === 'lie' ? ['gait', 'rest'] : ['gait']), ...(a.id === meId ? ['move'] : []), ...crew];
       jobs.push(figures.prepare(key, look ?? {}, { bands, own: a.id === meId }));
     }
     return Promise.all([...jobs, ...twins].map(j => (typeof j === 'function' ? j() : j)));
@@ -1465,7 +1504,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
 
   /** Compile the stage's programs (warm.js): once, at boot. */
   function warm() {
-    warming ??= warmUp(stage, { figures, extra: [clocks.material], instanced: [vignettes.group.children[0], vignettes.group.children[1], rangeLayer.pixels.mesh, decals.pixels.mesh, blood.pixels.mesh, blood.marks.mesh, bangs.pixels.mesh, bangs.smoke.mesh, bangs.flash.mesh, din.pixels.mesh, din.flash.mesh] }).then((r) => { far.warm(); warmed = true; stats.warm = { programs: r.programs, compiled: r.compiled, ms: Math.round(r.ms) }; return r; },
+    warming ??= warmUp(stage, { figures, extra: [clocks.material], instanced: [vignettes.group.children[0], vignettes.group.children[1], rangeLayer.pixels.mesh, decals.pixels.mesh, blood.pixels.mesh, blood.marks.mesh, boardFx.mesh, bangs.pixels.mesh, bangs.smoke.mesh, bangs.flash.mesh, din.pixels.mesh, din.flash.mesh] }).then((r) => { far.warm(); warmed = true; stats.warm = { programs: r.programs, compiled: r.compiled, ms: Math.round(r.ms) }; return r; },
       (e) => { warmed = true; console.warn('view: the warm-up failed', e); return null; });
     return warming;
   }
@@ -1532,7 +1571,7 @@ export function createView({ stage, painter = null, uploads = null, ppm = PX_PER
       endWipe();
       for (const c of cache.values()) c.built?.dispose();
       cache.clear(); live = null;
-      figures.dispose(); fog?.dispose(); knownTex?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose(); rangeLayer.dispose(); decals.dispose(); blood.dispose(); far.dispose(); bangs.dispose(); devices.dispose(); din.dispose();
+      figures.dispose(); fog?.dispose(); knownTex?.dispose(); clocks.dispose(); chunks.dispose(); lighting.dispose(); vignettes.dispose(); splash.dispose(); rangeLayer.dispose(); decals.dispose(); boardFx.dispose(); blood.dispose(); far.dispose(); bangs.dispose(); devices.dispose(); din.dispose();
     },
   };
 }

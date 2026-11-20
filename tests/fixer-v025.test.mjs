@@ -25,8 +25,11 @@ import { debriefOf } from '../src/sim/scenarios/house-debrief.js';
 import { runSheetOf } from '../src/sim/scenarios/shoothouse.js';
 import { truthRows } from '../src/ui/cards/house.js';
 import { WRECK_LEGS, VOID_CADRE } from '../src/data/courses.js';
-import { wreckDeckAt as deckOfData } from '../src/data/places/wreck.js';
-import { wreckDeckAt as deckOfAssemble } from '../src/sim/scenes/assemble.js';
+// (v0.0.27's stage 0 re-read the one deck test's case: the test moved from data/places/wreck.js wreckDeckAt to the registry's
+// data/places/ships.js shipDeckAt, any ship's, which assemble.js re-exports and two.js and bundle.js import; the case holds the same:
+// one function, the Wreck's decks by it, no stand-in in two.js or bundle.js)
+import { shipDeckAt as deckOfData } from '../src/data/places/ships.js';
+import { shipDeckAt as deckOfAssemble } from '../src/sim/scenes/assemble.js';
 import { stepsOf } from '../src/sim/arms/shooting.js';
 import { instinctNow } from '../src/sim/skills/instinct.js';
 import { isHeld } from '../src/core/clock.js';
@@ -244,12 +247,12 @@ export default [
     },
   },
   {
-    name: 'fixer-v025: one deck test (data/places/wreck.js wreckDeckAt, assemble.js re-exporting it): no 30 m stand-in left in two.js or bundle.js (the code review)',
+    name: 'fixer-v025: one deck test (data/places/ships.js shipDeckAt from v0.0.27, assemble.js re-exporting it): no 30 m stand-in left in two.js or bundle.js (the code review)',
     fn() {
       const two = readFileSync(path.join(root, 'src/sim/combat/two.js'), 'utf8'), bundle = readFileSync(path.join(root, 'src/sim/combat/bundle.js'), 'utf8');
-      const xs = [0, 4.6, 9.2, 25, 35, 60, 64.6, 69.2];
-      assert(deckOfData === deckOfAssemble && xs.every(x => deckOfData(x) === (x < 30 ? 5 : 6)), xs.map(deckOfData).join(','));
-      assert(!/ONE_DECK_M|SHIP_DECK_M/.test(two + bundle) && /wreckDeckAt/.test(two) && /wreckDeckAt/.test(bundle), 'the stand-ins');
+      const xs = [0, 4.6, 9.2, 25, 35, 60, 64.6, 69.2], wreckDeck = (x) => deckOfData('wreck', x);
+      assert(deckOfData === deckOfAssemble && xs.every(x => wreckDeck(x) === (x < 30 ? 5 : 6)), xs.map(wreckDeck).join(','));
+      assert(!/ONE_DECK_M|SHIP_DECK_M/.test(two + bundle) && /shipDeckAt/.test(two) && /shipDeckAt/.test(bundle), 'the stand-ins');
     },
   },
   {

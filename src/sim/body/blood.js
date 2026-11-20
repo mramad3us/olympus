@@ -12,9 +12,13 @@
 // names its area (a site has several, and their frames overlap), my call.
 // bloodLook(state, area, ms) is what the stage draws: the area's decals, and the marks on each figure
 // (an actor's person's wounds that show: { part, atMs }). Drips are lived only: a skip draws none.
-// bloodLook is Pure. spatter and dripStep write places.sites[site].blood.
+// bloodLook is Pure. spatter and dripStep write places.sites[site].blood. v0.0.27: no drip in free fall (under arms/throw.js
+// FREE_G_MS2 where the body is, as wounds.js applyHit's spatter): the drop is due and passed, nothing falls.
 import { hash, hash01 } from '../../core/hash.js';
 import { TICK_MS, SEC_MS } from '../../core/clock.js';
+import { G0_MS2 } from '../../core/phys.js';
+import { gravityAt } from '../places/env.js';
+import { FREE_G_MS2 } from '../arms/throw.js';
 
 export const BLOOD_DECALS_MAX = 120;
 export const DRIP_S = Object.freeze([3, 7]);
@@ -53,6 +57,9 @@ export function dripStep(state, ms = state.clock.ms) {
     i.drip ??= ms + dripGap(seed, a.who, ms);
     if (ms < i.drip) continue;
     i.drip = ms + dripGap(seed, a.who, ms);
+    // (none in free fall, under arms/throw.js FREE_G_MS2, as wounds.js applyHit's spatter: blood there goes off in globules,
+    // not built (FT§19); read only when a drip is due, so a bleeding body pays one gravity lookup a few seconds)
+    if (gravityAt(state, null, a.x, a.z).gG * G0_MS2 < FREE_G_MS2) continue;
     const h = hash01('drip-at', seed, a.who, ms), x = a.x + (h - 0.5) * 0.3, z = a.z + (hash01('drip-z', seed, a.who, ms) - 0.5) * 0.2, k = 1 + (h < 0.5 ? 0 : 1);
     // (lying still, the drips pool: the last pool under them grows instead of a new decal)
     const list = state.places?.sites?.[siteOf(state, area)]?.blood ?? [];

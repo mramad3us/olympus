@@ -123,7 +123,7 @@ import { testHandling } from './scenarios/handling.js';
 import { testRange } from './scenarios/range.js';
 import { testPairs } from './scenarios/pairs.js';
 import { testStress } from './scenarios/stress.js';
-import { testShoothouse, testZerocqb } from './scenarios/shoothouse.js';
+import { testShoothouse, testZerocqb, testCollar } from './scenarios/shoothouse.js';
 import { testAnchors } from './scenarios/anchors.js';
 import { testBurn } from './scenarios/burn.js';
 import { refusesAct } from './combat/contact.js';
@@ -141,7 +141,9 @@ export const DOMAIN_ORDER = Object.freeze(['tech', 'time', 'places', 'body', 'pe
 /** The scenarios a new game can start in: each fills a fresh state (fill(state, { at })). */
 export const SCENARIOS = Object.freeze({ sandbox, barracks, 'test-shower': testShower, 'test-night': testNight, 'test-handling': testHandling, 'test-range': testRange, 'test-pairs': testPairs, 'test-stress': testStress, 'test-shoothouse': testShoothouse, 'test-anchors': testAnchors, 'test-burn': testBurn,
   // ("Hold to hold", the house's fill on the Wreck (shoothouse.js testZerocqb): its own scenario, since specOf holds one host a scenario)
-  'test-zerocqb': testZerocqb });
+  'test-zerocqb': testZerocqb,
+  // ("Away the boarding party" (v0.0.27), the house's fill on the Patient Mule (shoothouse.js testCollar): its own scenario, one host a scenario)
+  'test-collar': testCollar });
 
 // (one host and one environment a scenario: the scenes that share a fill differ only in the hud's fields and their setup)
 const sameStand = (a, b) => JSON.stringify([a.host, a.env]) === JSON.stringify([b.host, b.env]);
@@ -408,7 +410,7 @@ export function createSim({ loop = null, bus, domains = {} } = {}) {
 // ---- a new game ----
 
 /** A new game's state (see the header). */
-export function newGame({ seed, mode = 'standard', scenario = 'sandbox', scene = null, startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null, setup = null, tier = null, env = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, liveDraw = false, again = false, breach = null } = {}) {
+export function newGame({ seed, mode = 'standard', scenario = 'sandbox', scene = null, startMs = START_MS, hour = null, worldId = null, version = '?', domains = {}, at = null, setup = null, tier = null, env = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, liveDraw = false, again = false, breach = null, holdouts = null } = {}) {
   if (seed === undefined || seed === null) throw new Error('newGame(): a seed is needed');
   const spec = specOf({ scene, scenario }), fill = SCENARIOS[spec.scenario], site = spec.host.site;
   const s = newState(seed, { version, mode, scenario: spec.scenario, startMs });
@@ -431,13 +433,15 @@ export function newGame({ seed, mode = 'standard', scenario = 'sandbox', scene =
   // ("Bang, then go"'s draw, the debug's &breach= over the scene's own ('drawn'), passed only when set, as opfor is: without it
   // the scene's `breach` never reaches the fill (its build sheet §14 item 6), and every other scene's fill is as before)
   const br = breach ?? spec.breach ?? null;
+  // ("Away the boarding party"'s holdouts, the debug's &holdouts= over the scene's own (none: drawn from the seed), passed only when set)
+  const ho = holdouts ?? spec.holdouts ?? null;
   // (the shoot house's draw, house and doors, the build sheet §0 item 54: 'set' or 'drawn', a code, 'fixed' (testShoothouse reads
   // them; absent writes nothing, so every lane without them is as before). v0.0.22 (its build sheet §2 step 3): rooms ('all'),
   // layout ('B' | 'C') and plans ('derived') likewise, each passed only when given; liveDraw (the tests' createGame only: a live lane
   // drawn as asked while its ship rule is open, shoothouse.js drawnCodeFor; the B and C review of 2026-11-16) likewise. v0.0.23 (its
   // build sheet §2 step 3, item 14): again (the house's "Again" of the same lane: the tower's short brief) likewise, only when true
   fill(s, { at, setup: setup ?? spec.setup ?? null, tier, ...(par ? { par } : {}), ...(loadout ? { loadout } : {}), ...(op ? { opfor: op } : {}), ...(draw ? { draw } : {}), ...(house ? { house } : {}), ...(doors ? { doors } : {}),
-    ...(rooms ? { rooms } : {}), ...(layout ? { layout } : {}), ...(plans ? { plans } : {}), ...(liveDraw ? { liveDraw } : {}), ...(again ? { again } : {}), ...(br ? { breach: br } : {}) });
+    ...(rooms ? { rooms } : {}), ...(layout ? { layout } : {}), ...(plans ? { plans } : {}), ...(liveDraw ? { liveDraw } : {}), ...(again ? { again } : {}), ...(br ? { breach: br } : {}), ...(ho ? { holdouts: ho } : {}) });
   if (s.places.live?.site !== site) throw new Error(`the scene '${spec.id}' stands on '${site}', and its fill left '${s.places.live?.site}' live`);
   if (live && !s.places.live.env) throw new Error(`the scene '${spec.id}''s fill dropped its environment ('${live.preset}')`);
   s.time.slowToMs = s.clock.ms;                                    // (the slow layer has stepped up to the start)

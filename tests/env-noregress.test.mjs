@@ -30,6 +30,11 @@
 // the suites and tests/saves/v0.0.25-*.json.gz in game-upgrade's. Nothing of v0.0.25 moves through the round but, if it moves, a
 // house-live-pin cell by the DAZED read (a shocked role-player identified DAZED, men.js liveStateOf), re-recorded with that cause
 // alone (the sheet's §0 item 11). B adds 'test-breach' to SCENE_DIGESTS with its first digest: a new scene's own pin.
+// v0.0.27's stage 0 (F150, its build sheet §2 step 1, §8): the same set is "Away the boarding party"'s, on v0.0.26's integrated snapshot
+// (a49eac55, every digest above unmoved there, test-breach's 1d7a05308ffe78 among them), with breach-pin's four lanes, the registry's
+// ship-seam and the deck's hauler-place among the suites and tests/saves/v0.0.26-*.json.gz in game-upgrade's. Nothing of v0.0.26 moves
+// through the round but zerocqb-pin's seven cells and test-zerocqb's digest by K3 (D's named re-record: your #2's hatch stack points
+// within 0.9 m), each cell's cause on its line; D adds 'test-collar' to SCENE_DIGESTS with its first digest.
 import { assert } from './helpers.mjs';
 import { createGame } from './game.mjs';
 import { PRINT_HASH } from './golden.mjs';
@@ -75,6 +80,20 @@ export const SCENE_DIGESTS = Object.freeze({
   // (v0.0.26's fixer: room 1's par planned with the flash on a bang draw (shoothouse.js roomBookOf; the drawn draw on 48213 is bang,held),
   // the leg's and the lane's par in the state from the fill, 1d7a05308ffe78 → 100eb44409c8d3; checked with that fix alone undone)
   'test-breach': '100eb44409c8d3',
+  // (v0.0.27 D's scene, "Away the boarding party": its own first pin, recorded on D's tree after B, A and C (.run/v027/after-BAC.tree with
+  // D's work: the brief in the lock, the override's skip, Standby and GO, the pirates the seed draws on 48213 (pirates:1a,3a,3b,4a/2c,2d),
+  // 1,000 ticks with no keys, 501 lived, the clock standing at GO's stop motion)). Re-recorded once by the fix of D's review, each cause
+  // in turn: the re-cut of B, A and C moved nothing here; the activities of d-outside (src/data/activities.js 'collar-override': the
+  // override's splash its own activity, no longer 'idle') 0a04fa57230611 → 1f4cc7d7ca694a; the lock hatch's swing (C's fix) and the card's
+  // words move nothing at 1,000 ticks (the clock stands at GO)); at E's merge, e-outside.patch (the holdouts' and the crew's dress on
+  // their actors, the pirates' rifles 'urban', the AR's sealed suit) 1f4cc7d7ca694a → 1275f38fbf38fc; e.patch alone moves nothing;
+  // at v0.0.27's carried stage (2026-11-20) the G-11s issued aboard at the fill (shoothouse.js BOARDING_BANGS: three pouches and three
+  // grenades each for you and Four, new items in the state) 1275f38fbf38fc → 0f917fb0a4fd16; the holders' fight on their walk, the
+  // hatch's bang preset and the collar bot's "Get up" move nothing here (checked with the issue alone undone: 1275f38fbf38fc); by the fixer
+  // of v0.0.27's reviews (2026-11-20, .run/v027/fix.md) the override's log line in minutes and seconds ("The override: 2 min 30 s, then
+  // the lamp goes green.", activities.js durSeconds: it read "3 min") 0f917fb0a4fd16 → 1c50416cb32d45, the clock at GO; checked with it
+  // alone undone: 0f917fb0a4fd16
+  'test-collar': '1c50416cb32d45',
 });
 /** The bay at 23:00 (the quick cell): the barracks at hour 23, 1,000 ticks. */
 export const BAY_2300 = Object.freeze({ scenario: 'barracks', hour: 23, seed: 48213, ticks: 1000, digest: '154a1ea53a1608' });
@@ -85,6 +104,8 @@ export const HELD_SUITES = Object.freeze([
   'gear-void',
   // (v0.0.26's stage 0: the Wreck's seven lanes, v0.0.25's pin)
   'zerocqb-pin',
+  // (v0.0.27's stage 0: "Bang, then go"'s four lanes, v0.0.26's pin; the ship registry's seam and the hauler's deck, its golden)
+  'breach-pin', 'ship-seam', 'hauler-place',
 ]);
 /** void-house's steel copy (v0.0.25's F124): the sergeant by T on 48213, house 1 at 0 G in mag boots and at 1 G, every leg clear, ms from the start. */
 export const STEEL_COPY = Object.freeze({ steelMs: 107_550, oneMs: 47_650 });

@@ -24,6 +24,7 @@ import * as signs from './signs.js';
 import * as structure from './structure.js';
 import * as range from './range.js';
 import * as wreck from './wreck.js';
+import * as belt from './belt.js';
 
 /** Footprints by kind: w across, d deep, h tall (metres), and the makes each kind has. */
 export const FOOTPRINTS = Object.freeze({
@@ -108,6 +109,10 @@ export const FOOTPRINTS = Object.freeze({
   berthRack: { w: 0.95, d: 2.05, h: 2.2, makes: ['grey', 'steel'] },
   // (a bulkhead hatch's coaming, the sill under its leaf, laid by the area's job where an opening's leaf is a hatch: src/art/jobs.js)
   coaming: { w: 0.8, d: 0.16, h: 0.3, makes: ['yellow', 'grey'] },
+  // (the boarding round's stage 0, the Patient Mule's pieces, equal to places' catalogue (src/sim/places/fixtures.js): a Belter's boxed berth pair,
+  // deck to deckhead, and the lock's override panel; drawn by src/art/kit/belt.js (v0.0.27's look))
+  berthBox: { w: 2.0, d: 0.9, h: 2.4, makes: ['belt', 'patched', 'bare'] },
+  lockPanel: { w: 0.3, d: 0.05, h: 0.4, makes: ['amber', 'green'] },
 });
 
 const MAKERS = {
@@ -126,6 +131,8 @@ const MAKERS = {
   kdCarrier: range.kdCarrier, kdParapet: range.kdParapet, kdPits: range.kdPits, kdBerm: range.kdBerm, kdFlag: range.kdFlag, kdPoint: range.kdPoint,
   kdLineBoard: range.kdLineBoard, kdCanopy: range.kdCanopy, rangeShack: range.rangeShack, kdTurner: range.kdTurner, kdPaint: range.kdPaint, kdBang: range.kdBang,
   scuttle: wreck.scuttle, speaker: wreck.speaker, cargo: wreck.cargo, berthRack: wreck.berthRack, coaming: wreck.coaming,
+  // (the Patient Mule's two pieces, src/art/kit/belt.js: a Belter's boxed berth pair and the lock's override panel)
+  berthBox: belt.berthBox, lockPanel: belt.lockPanel,
 };
 /** Every kind the kit builds. */
 export const KINDS = Object.freeze(Object.keys(MAKERS));

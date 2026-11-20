@@ -120,10 +120,11 @@ export { playerActor };
  * layout 'A' (the set), 'B' or 'C', a named house that beats house, rooms and draw; plans 'derived'; each passed only when not the
  * default, so no test, pin or golden moves with them absent). breach (v0.0.26: "Bang, then go"'s draw on the house's scenario, 'drawn'
  * or a code '<bang|quiet>,<held|loose>' (shoothouse.js parseBreach), as the page's &breach= does; passed only when given, and keyed by the
- * memo with the other options).
+ * memo with the other options). holdouts (v0.0.27: "Away the boarding party"'s, 'pirates' or 'smugglers', as the page's &holdouts= does;
+ * passed only when given, keyed by the memo likewise).
  */
 export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', hour = null, startMs, worldId = null,
-  domains = {}, version = 'test', strict = true, at = null, setup = null, tier = null, env = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = 'a', layout = null, plans = null, pool = null, again = false, breach = null } = {}) {
+  domains = {}, version = 'test', strict = true, at = null, setup = null, tier = null, env = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = 'a', layout = null, plans = null, pool = null, again = false, breach = null, holdouts = null } = {}) {
   const errors = [];
   let sim = null, hooks = null, seen = 0;
   const bus = recordingBus({ onError: (e, type) => errors.push(`a listener of '${type}': ${firstLine(e)}`) });
@@ -150,7 +151,7 @@ export function createGame({ scenario = 'sandbox', seed = 1, mode = 'standard', 
   if (draw === null && !house && !layout && (rooms ?? 'a') === 'a' && HOUSE_OVERRIDE) { house = HOUSE_OVERRIDE.house ?? null; draw = HOUSE_OVERRIDE.draw ?? null; rooms = HOUSE_OVERRIDE.rooms ?? 'a'; layout = HOUSE_OVERRIDE.layout ?? null; }
   // (v0.0.22, the B and C review of 2026-11-16: a live lane is drawn as the test asks (liveDraw), which the page never passes: there it
   // is the set until its ship rule is met, shoothouse.js drawnCodeFor; a lane with no draw asked is the set either way)
-  const opts = { seed, mode, scenario, hour, worldId, version, domains, at, setup, tier, env, ...(par ? { par } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...houseOpts({ draw, house, doors, rooms, layout, plans, pool }), liveDraw: true, ...(again ? { again } : {}), ...(breach ? { breach } : {}) };
+  const opts = { seed, mode, scenario, hour, worldId, version, domains, at, setup, tier, env, ...(par ? { par } : {}), ...(loadout ? { loadout } : {}), ...(opfor ? { opfor } : {}), ...houseOpts({ draw, house, doors, rooms, layout, plans, pool }), liveDraw: true, ...(again ? { again } : {}), ...(breach ? { breach } : {}), ...(holdouts ? { holdouts } : {}) };
   if (startMs !== undefined) opts.startMs = startMs;
   // (v0.0.26's stage 0: the fresh state kept per process by its options, newGameMemo below)
   loop.setState(newGameMemo(opts));

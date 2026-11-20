@@ -18,7 +18,7 @@
 // LATER; a renamed test or a gauge taken out of its ENFORCED fails it, so the list never claims a check that is gone, and never
 // counts as met a gauge that is red (the review of 2026-11-16: "MET 194" counted F70, F71 and F73, red in their heavy suites). The
 // release announcement quotes the USER and the OPEN rows. Group C, the gauges, is generated: one row a
-// gauge, F1 to GAUGE_LAST (F137 at v0.0.25; F149 at v0.0.26's last merge). Pure data and two resolvers.
+// gauge, F1 to GAUGE_LAST (F137 at v0.0.25; F149 at v0.0.26's last merge; F169 at v0.0.27's, E's). Pure data and two resolvers.
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -130,6 +130,28 @@ export const GAUGE_HOMES = Object.freeze([
     [147, 15, 'stage 0', 'env-noregress.test.mjs', 'env-noregress › env-noregress, quick (F100, F124): the bay at 23:00'],
     [148, 11, 'B, C', 'breach-tick.test.mjs, ui-breach.test.mjs', 'breach-tick › F148 (the tick\'s half, quick)'],
     [149, 14, 'B, C, D', 'breach-words.test.mjs, ui-breach.test.mjs, carried-v026.test.mjs', 'breach-words › F149 (the sim\'s half)'],
+    // (v0.0.27, "Away the boarding party", its build sheet §8: F150 to F169 homed at E's merge, the round's last (by the integration,
+    // as lead.md asked); tests/collar-done.mjs COLLAR_GAUGES is these rows filtered from here on)
+    [150, 19, 'stage 0, every role', 'env-noregress.test.mjs, ship-seam.test.mjs', 'ship-seam › the source scan (F150'],
+    [151, 3, 'stage 0, D', 'hauler-place.test.mjs, hauler-plans.test.mjs', 'hauler-place › the Patient Mule validates'],
+    [152, 2, 'D', 'collar-override.test.mjs, collar-nodead.test.mjs', 'collar-override › F152: the override\'s roll'],
+    [153, 1, 'D', 'collar-flow.test.mjs, collar-fallback.test.mjs, collar-save.test.mjs, collar-nodead.test.mjs', 'collar-fallback › F153: two of the four down', 'the Tests menu\'s ship rule (F150, F153, F155 and F165 green)'],
+    [154, 7, 'B', 'collar-real.test.mjs', 'collar-real › your frangible pair on a pirate (F154)'],
+    [155, 10, 'A, D', 'collar-flow.test.mjs, collar-nodead.test.mjs', 'collar-flow › F155: a round of yours'],
+    [156, 6, 'A', 'collar-choice.test.mjs, carried-v027.test.mjs', 'collar-choice › collar-choice: each doctrine\'s table'],
+    [157, 18, 'D', 'collar-nodead.test.mjs', 'collar-nodead › F157 (heavy)'],
+    [158, 6, 'A', 'collar-blind.test.mjs', 'collar-blind › collar-blind: blind fire only from behind his cover'],
+    [159, 11, 'A', 'collar-side.test.mjs', 'collar-side › collar-side: the side\'s roll comes only'],
+    [160, 12, 'B, D', 'collar-holes.test.mjs, collar-flow.test.mjs', 'collar-holes › 500 misses each way (F160)'],
+    [161, 13, 'B', 'collar-flash.test.mjs', 'collar-flash › 200 throws through each compartment\'s hatch'],
+    [162, 4, 'C', 'collar-team.test.mjs', 'collar-team › the holders go through the lock\'s inner hatch'],
+    [163, 8, 'B, C', 'collar-knock.test.mjs, collar-team.test.mjs', 'collar-knock › struck on a pause'],
+    [164, 9, 'B, C, A', 'collar-aid.test.mjs, collar-team.test.mjs, collar-choice.test.mjs', 'collar-aid › the row "Tourniquet" is offered exactly'],
+    [165, 16, 'D, E, every role', 'collar-tick.test.mjs, look-sealed.test.mjs, ui-collar.test.mjs', 'collar-tick › F165 (the tick\'s half)'],
+    [166, 1, 'D, C, A', 'collar-words.test.mjs, ui-collar.test.mjs', 'collar-words › F166: the boarding\'s words as data'],
+    [167, null, 'the lead (D builds)', 'collar-balance.test.mjs', 'collar-balance › F167 (heavy)'],
+    [168, 16, 'A, E', 'collar-look.test.mjs, ui-collar.test.mjs', 'collar-look › F168 (sim)'],
+    [169, 17, 'D', 'hauler-plans.test.mjs, collar-flow.test.mjs, zerocqb-quick.test.mjs', 'hauler-plans › the hauler\'s derived plans'],
   ].map(([n, v, owner, files, by, when = 'at once']) => ({ from: n, to: n, file: files.split(', ')[0], role: owner, v, owner, files, when, ...(by ? { by } : {}) })),
 ]);
 /** The gauges' names, a short line each (COMBAT §25.19.8 and the sheets' §8; group C's rows). */
@@ -199,6 +221,27 @@ export const GAUGE_WHAT = Object.freeze({
   F147: 'nothing else moves: every v0.0.25 pin byte for byte (the scenes at 1,000 ticks, the house\'s pins, the saves, moment 2\'s walk, the goldens, the steel copy), but a house-live-pin cell moved by the DAZED read, with its cause',
   F148: 'cost: the scene\'s busiest tick under 2 ms × k (the least of three); no doll painted and no figure band uploaded after the brief\'s cut',
   F149: 'every line a text bubble at its speaker, none voiced, none overlapping at 1024 × 768 and 1600 × 900',
+  // (v0.0.27: its sheet's §8, F150 to F169, tests/collar-done.mjs's rows)
+  F150: 'nothing else moves: every v0.0.26 pin byte for byte (house-pin 24, house-pin-drawn 16, house-live-pin 4, breach-pin 4, every scene at 1,000 ticks, the saves) through the registry, K1, the memos and every \'real\' guard; zerocqb-pin and test-zerocqb\'s digest moved only by K3, each cell\'s cause named',
+  F151: 'the deck valid and authored once: the grid, the hatches, the fixtures, the posts and crew spots through spotCheck, every stand id in the house\'s form with a role, the materials each a WALLS row, a golden hash; the plans fresh',
+  F152: 'the override: one splash, 120 to 300 s, the holdouts alerted at its end and not before, on every sheet and seed of the sweep',
+  F153: 'the scene to its card (secured, fallen back, down, time) on every sheet and both types, by T, the keys and the fuzz; no dead end, after a knock too; the fall back ended within 60 s and its splash; ten saves byte for byte',
+  F154: 'one rule, real: every strike rated once, on the struck man\'s own body, by the round\'s own load; 0 marking rounds; the ledger\'s verdict equals fatalWhy of the body',
+  F155: 'hors de combat: no round by Four or a holder at a man with hands up, down or unarmed; the honest bots 0; every fuzz round at one faulted \'protected\'',
+  F156: 'they choose: every change of a defender\'s state is his doctrine\'s table, the shock\'s, the give\'s, the fall\'s, the rise\'s or the side\'s; a crewman fires 0 rounds; no dash on a floor that does not hold',
+  F157: 'every choice seen: over 40 honest seeds, fight, cover, freeze and give each met on at least one lane; blind and flee printed, by sheet and type',
+  F158: 'blind fire: only from cover with a marine in his compartment, no take-in, no sighting, BLIND_FIRE_MOD on every round; FIRING BLIND exactly while st \'blind\'',
+  F159: 'the side gives up only at 35% standing or fewer, rolled at the crossing and every 60 s at 0.5, final; the rate printed',
+  F160: 'holes: 0 marine rounds through a bulkhead or the hull; every miss met by one face once, no onward round; every through round a defender\'s ball; the card\'s counts equal the record\'s',
+  F161: 'the G-11 at 0 G lands inside the compartment it is thrown into, at most 1.5 m back off the face it meets, never past the hatch\'s plane; 60 in it, 20 through an open hatch only; at FREE_G_MS2 and above v0.0.26\'s landings to the byte',
+  F162: 'the holders: 0 rounds through a marine, 0 at a man outside their sector, never off their posts; their words bubbles at them',
+  F163: 'the knock: you are down exactly while your stance is; no act of yours begins while down; "On your feet." and "Get up" after it; Four covers you meanwhile',
+  F164: 'the care: the Tourniquet offered exactly while tourniquetOf is non-null; done, that bleed stopped and cared \'tourniquet\'; the NPCs by the same rule; the card\'s outcomes equal boardingCare',
+  F165: 'cost: the busiest tick (4 marines, 6 defenders, blind fire and a push-off in flight) under 2 ms × k, least of three, a time-only red run again alone (K7); no rifle-pool eviction with 8 aiming; no figure band painted after the brief\'s cut',
+  F166: 'every line a bubble at its speaker (the leader, the AR, Four, the defenders, the intercom), none voiced, none overlapping at 1024 × 768 and 1600 × 900',
+  F167: 'balance (stated before any build; red is a question for the user, never a constant tuned): from the corporal up by T, 20 seeds a sheet, the deck secured on 17 or more and your body down for good on 1 or fewer; the recruit\'s and the private\'s printed',
+  F168: 'seen, never told: FIRING BLIND, RUNNING AWAY, DAZED, COWERING, HANDS UP, DOWN at 0 G: the stage\'s frame, the card\'s pose and the plaque\'s word agree at every drawn tick',
+  F169: 'Four through every hatch on his cue: his stack point within 0.9 m of yours; past the threshold within F25\'s 3 s on the boarding; F17 and F25 met on the Wreck\'s 18 lanes (out of WRECK_OPEN)',
 });
 // (v0.0.23's integration, the stage-0 lead's plan: F97 to F99, the P-12's gauges of the user's fourth note of 2026-11-17, homed
 // from A's and C's merges, counted at the last step; the instructor's sterile walk takes no F number, house-sterile-walk stands as a
@@ -206,7 +249,8 @@ export const GAUGE_WHAT = Object.freeze({
 // (v0.0.24 E: F100 to F123 homed, the round's last merge; the sheet's §0 item 29)
 // (v0.0.25 D: F124 to F137 homed, the round's last merge; its sheet's §7, §8)
 // (v0.0.26 C: F138 to F149 homed, the round's last merge; its sheet's §7, §8)
-export const GAUGE_LAST = 149;
+// (v0.0.27: F150 to F169 homed at E's merge, the round's last, by the integration (stage 0's lead.md); its sheet's §7, §8)
+export const GAUGE_LAST = 169;
 /** The gauge's home (GAUGE_HOMES' row), or null. */
 export const homeOf = (id) => { const n = Number(String(id).replace(/^F/, '')); return GAUGE_HOMES.find(h => n >= h.from && n <= h.to) ?? null; };
 
@@ -575,6 +619,24 @@ export const DONE = Object.freeze([
   // (D: the carried fixes K2 and K6; no gauge of its own but F149's K6 half (tests/breach-done.mjs), held by carried-v026)
   { id: 'QD1', group: 'Q', what: 'T acts on the first tick after a save loaded at a pause: the line settled first where the load left none, the same act, save and play as the game saved (K2; v0.0.25-house-pause played on to room 2\'s stack)', check: test('carried-v026 › K2: T on the first tick'), by: 'v0.0.26 D' },
   { id: 'QD2', group: 'Q', what: 'every line a bubble at its speaker, never the radio box for want of a free place among figures and boards: your #2\'s "Got you." and "Through." at the Wreck\'s scuttle over the hold\'s boards, every bubble that placed before where it was (K6; F149\'s half)', words: W('2026-11-19', 'forget voice synthesis, no voices.'), check: test('carried-v026 › K6: your #2'), by: 'v0.0.26 D' },
+  // ---- R. v0.0.27, "Away the boarding party" and the carried items (its build sheet §1, §8): each role's rows directly below its own
+  // anchor (stage 0 the pins, the ship registry, the K1 predicate, the seams, the deck as data, the saves and the samples; A the
+  // defenders, B live fire and the wound, C the fire team, D the ship and the scene, E the look; the lead raises GAUGE_LAST to 169 at E's
+  // merge); the round's gauges F150 to F169 are tests/collar-done.mjs's until then ----
+  // (v0.0.27 stage 0)
+  { id: 'RS1', group: 'R', what: 'the ship seam a registry (src/data/places/ships.js SHIPS, shipOf): every branch a row\'s data, any ship\'s rule or the Wreck\'s own, no literal of a ship\'s name left outside the registry, its data and the scene\'s entry; the Wreck\'s spec, hatches, plans and scene the snapshot\'s (F150\'s registry half)', check: test('ship-seam › the source scan'), by: 'v0.0.27 stage 0' },
+  { id: 'RS2', group: 'R', what: 'the Patient Mule\'s deck 2 as data, unreachable: the rooms, the hatches (the lock\'s on an x line), the fixtures to the deckhead, the posts and crew spots in the house\'s form through spotCheck, the walls\' kinds as WALLS rows, the people\'s posts and the Civ rank, golden (F151\'s place half)', check: test('hauler-place › the stands'), by: 'v0.0.27 stage 0' },
+  { id: 'RS3', group: 'R', what: 'two saves made by v0.0.26\'s own code (a man dazed in "Bang, then go"; the Wreck\'s deck 6 at a contact) load, gain no key and carry on byte for byte to their cards (F150\'s saves)', check: test('game-upgrade › v0.0.27'), by: 'v0.0.27 stage 0' },
+  { id: 'RS4', group: 'R', what: 'the samples to score: hauler-deck (I, the inside: I-a drawn until scored), waiting on top of the gallery', check: { kind: 'sample', ref: 'hauler-deck' } },
+  { id: 'RS5', group: 'R', what: 'the samples to score: belt-crew (D, the holdouts\' dress: D-c drawn until scored), waiting on top of the gallery', check: { kind: 'sample', ref: 'belt-crew' } },
+  { id: 'RS6', group: 'R', what: 'the samples to score: board-poses (B, blind fire; Z, a man down at 0 G: B-a and Z-a drawn until scored), waiting on top of the gallery', check: { kind: 'sample', ref: 'board-poses' } },
+  { id: 'RS7', group: 'R', what: 'a tick\'s time line red on its first run is run once more and its second run counts (K7): load alone never fails a line the tick meets alone, a real regression red twice; budgets unchanged', check: test('syntax › rules: the runner\'s gates and warm-up'), by: 'v0.0.27 stage 0' },
+  // (E: the look aboard, the sealed suit's one look, the sets' defaults and the page; F165's atlas half, F168's sim half, F165, F166
+  // and F168's page halves)
+  { id: 'RE1', group: 'R', what: 'every marine in the sealed combat suit one look (lookFor leaves the skin, hair and seed out: nothing of the man is drawn), so the four aboard with one weapon and carry take one rifle sheet and the deck\'s aimed looks fit the pool (F165\'s atlas half)', check: test('look-sealed › two marines of different skins'), by: 'v0.0.27 E' },
+  { id: 'RE2', group: 'R', what: 'seen, never told aboard: FIRING BLIND, RUNNING AWAY, DAZED, COWERING, HANDS UP and DOWN at 0 G one map from the stage\'s frame to the card\'s pose and the plaque\'s word; a man down at 0 G hangs from his boots, never seated or lying; the P-12 alone drawn with no R-7; the crew showing their empty hands (F168\'s sim half)', check: test('collar-look › F168 (sim)'), by: 'v0.0.27 E' },
+  { id: 'RE3', group: 'R', what: 'the game draws the boarding\'s scored sets\' defaults pixel for pixel, blind fire and the 0 G down on the stage and the card, each from its one home; the coveralls\' makes and the deck\'s colours the sets\', held by the Belter palette', check: test('samples-board › the game draws the set\'s defaults pixel for pixel'), by: 'v0.0.27 E' },
+  { id: 'RE4', group: 'R', what: 'in the page from GO to the card: every man drawn as the map says, no band sent after GO + 1 s, no rifle sheet evicted (F165, F168\'s page halves); every bubble over its man at 1024 × 768 and 1600 × 900 (F166\'s page half)', check: test('ui-collar › ui-collar: "Away the boarding party" in the page'), by: 'v0.0.27 E' },
 ]);
 
 /** Group C: one row a gauge, F1 to GAUGE_LAST. */
@@ -593,6 +655,9 @@ export const GAUGE_ROUNDS = Object.freeze([
   // here before they are homed, so the round's row is there at its first gauge's merge, as v0.0.25's was not: the case "every gauge's
   // row names its own round" went red at v0.0.25 D's merge for want of it)
   { from: 138, to: 149, v: 'v0.0.26' },
+  // (v0.0.27's stage 0: "Away the boarding party"'s F150 to F169, frozen in tests/collar-done.mjs, homed by the lead at E's merge
+  // (GAUGE_LAST 169); named here before they are homed, as v0.0.26's were)
+  { from: 150, to: 169, v: 'v0.0.27' },
 ]);
 /** A gauge's round (GAUGE_ROUNDS), or null. */
 export const roundOf = (id) => { const n = Number(String(id).replace(/^F/, '')); return GAUGE_ROUNDS.find(r => n >= r.from && n <= r.to)?.v ?? null; };
@@ -678,6 +743,11 @@ export const OPEN_GAUGES = Object.freeze({
   // run of 2026-11-19 (load 2 to 6, not quiet) had zerocqb-two green. Open until the lead's quiet heavy run; never loosened)
   F129: { run: "zerocqb-two, the v0.0.25 integration's full run of 2026-11-19 (JOBS=4, load 2 to 6: not a quiet run); C's handoff before the fix of the review of C and D", value: 'the lanes braced since that fix (the sergeant 3 ticks, the corporal 48, the tier one 21, each with "Got you." and "Through."), zerocqb-two green in the full run; before it no lane braced (your #2\'s stack:point at the trunk halted by your body before his brace beat)', target: 'the brace held from your transit to your plant or 0.2 s after your first round, never absent' },
   F132: { run: "zerocqb-flawless, v0.0.25 C's run of 2026-11-19 (6 sheets × 48213, 1037, 1074)", value: 'F1, F2, F6, F9, F10, F14, F26 met; F7 18 corner faults, F13 15 stops on the tier one against 14, F15 74.6 s against 46, F17 54 of 54 stacks over 1.5 m, F24 10 of 210 stops naming no row, F25 51 of 54 cues late', target: 'as on the house' },
+  // (v0.0.27's integration, homing F150 to F169 at E's merge: D's heavy runs on its final tree (d.md, the fix of D and E's review, JOBS 1,
+  // load 3 to 6), read again in the integration's full run)
+  F157: { run: "collar-nodead's F157 case, D's heavy run on its final tree, 2026-11-19 (80 honest lanes, pirates and smugglers, the private and the sergeant)", value: 'freeze met on every lane (the crew), fight on 2; cover and give never; blind and flee 0 (the men are down before they choose)', target: 'fight, cover, freeze and give each met on at least one lane over 40 honest seeds' },
+  F167: { run: "collar-balance, D's heavy run on its final tree, 2026-11-19 (20 seeds a sheet, by T)", value: 'secured / fell back / down: corporal 10/1/9, sergeant 9/0/11, raider 10/0/10, tier one 13/0/7 (the recruit 8/1/11, the private 10/1/9): your body down for good on 7 to 11 lanes of 20 from the corporal up', target: 'from the corporal up the deck secured on 17 or more and your body down for good on 1 or fewer (red is a question for the user, never a constant tuned)' },
+  F169: { run: "collar-flow's COLLAR_OPEN, D's runs, 2026-11-19 (K3's data rule dropped: it moved nothing)", value: 'Four over a hatch\'s threshold 3.95 to 5.65 s after your cue by the keys (cabin 1 4.85 to 5.3 s on every sheet); 1.95 to 2.25 s from the sergeant up at the bunk room and cabin 2; the Wreck\'s F17 and F25 still in WRECK_OPEN (the cause bundle.js leadGone\'s ship rule and the boots\' pace)', target: 'past the threshold within F25\'s 3 s on the boarding; F17 and F25 met on the Wreck\'s 18 lanes' },
   // (F134 emptied by v0.0.25's docs check: zerocqb-pars' heavy case on the integrated tree, 2026-11-19 (JOBS=3, k 1.00), MET: 12 of 12
   // T lanes GO on 48213, 1037 and 1074, 3 of 3 a sheet (the corporal on 48213 and 1037 and the sergeant on 1037 each one stand missed
   // on his hands, GO); the sim's lanes, so the machine's load does not move it; F134 never left its file's ENFORCED)

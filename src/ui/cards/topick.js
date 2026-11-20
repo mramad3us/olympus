@@ -63,8 +63,10 @@ export const ratedRow = (row) => row.rated === true || RATED_SETS.includes(ROW_S
  * on 2026-11-19, among the waiting rows, and nine waiting sets had no row at all. v0.0.25: the Wreck's two sets (wreck-faces,
  * portrait-faces, made by its stage 0) lead the waiting row, the ones to score first (its build sheet §10). v0.0.26: "Bang, then
  * go"'s set (breach-poses, the role-player dazed and cowering, made by its stage 0) leads it (its build sheet §2 step 7, §10).
+ * v0.0.27: "Away the boarding party"'s three sets (hauler-deck, belt-crew, board-poses, made by its stage 0) lead it (its build sheet
+ * §0 item 27, §10), each drawn at its default until scored.
  */
-export const DRAWN_WAITING = Object.freeze(['breach-poses', 'wreck-faces', 'portrait-faces', 'doll-gear', 'target-view', 'truth-cards', 'portrait-facing', 'portrait-light', 'portrait-suit', 'pistol-stances', 'house-unknown', 'float-look', 'mag-boots', 'void-look']);
+export const DRAWN_WAITING = Object.freeze(['hauler-deck', 'belt-crew', 'board-poses', 'breach-poses', 'wreck-faces', 'portrait-faces', 'doll-gear', 'target-view', 'truth-cards', 'portrait-facing', 'portrait-light', 'portrait-suit', 'pistol-stances', 'house-unknown', 'float-look', 'mag-boots', 'void-look']);
 export const DRAWN_RATED = Object.freeze(['wcard2', 'opfor-look']);
 /** The rows (see the header): { id, title, ids, multi?, words (an id's words), struck? (an id the stage does not draw: why), scored (false: a setting) }. */
 export const ROWS = Object.freeze([

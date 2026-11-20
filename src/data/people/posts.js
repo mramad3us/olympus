@@ -28,4 +28,19 @@ export const POSTS = deepFreeze({
   // the ship's detachment are not drawn yet, so both are kept on the roster's 2/4 (my call))
   'phobos-void:cadre': { site: 'phobos-void', key: 'cadre', what: 'void range cadre', ranks: [['SSgt', 60], ['GySgt', 25], ['Sgt', 15]], mos: '0369', unitId: '2/4', branch: 'marines', outfit: 'combatSuit' },
   'mcrn-testudo:berth-nco': { site: 'mcrn-testudo', key: 'berth-nco', what: 'berthing NCO', ranks: [['Sgt', 60], ['Cpl', 40]], mos: '0311', unitId: '2/4', branch: 'marines', outfit: 'utilities' },
+  // (the boarding round's stage 0, "Away the boarding party" (its build sheet §0 item 32): every person of the scene generated from a post. The
+  // boarding team's #1 and #2, the leader and the automatic rifleman (Corps, the roster's 2/4 as every post); the holdouts and the
+  // hauler's crew, civilians (ranks.js Civ, never named), drawn in the draw's order (A's drawBoarding: holdout-1 the first armed man
+  // drawn, crew-1 the first crewman), so a post is the n-th man of his kind, not a stand; the crew always in coveralls (E's outfit:
+  // art/figures/outfits.js 'beltCoverall', samples/belt-crew's D-c until scored, the mixed crew: the second holdout drawn in the light
+  // vac suit open, every other man in the coverall, its make by his seed))
+  'belt-mule:board-tl': { site: 'belt-mule', key: 'board-tl', what: 'boarding team leader', ranks: [['Cpl', 60], ['Sgt', 40]], mos: '0311', unitId: '2/4', branch: 'marines', outfit: 'combatSuit' },
+  'belt-mule:board-ar': { site: 'belt-mule', key: 'board-ar', what: 'automatic rifleman', ranks: [['LCpl', 70], ['Cpl', 30]], mos: '0311', unitId: '2/4', branch: 'marines', outfit: 'combatSuit' },
+  'belt-mule:holdout-1': { site: 'belt-mule', key: 'holdout-1', what: 'holdout', ranks: [['Civ', 100]], mos: null, unitId: '2/4', branch: 'civilian', outfit: 'beltCoverall' },
+  'belt-mule:holdout-2': { site: 'belt-mule', key: 'holdout-2', what: 'holdout', ranks: [['Civ', 100]], mos: null, unitId: '2/4', branch: 'civilian', outfit: 'vacOpen' },
+  'belt-mule:holdout-3': { site: 'belt-mule', key: 'holdout-3', what: 'holdout', ranks: [['Civ', 100]], mos: null, unitId: '2/4', branch: 'civilian', outfit: 'beltCoverall' },
+  'belt-mule:holdout-4': { site: 'belt-mule', key: 'holdout-4', what: 'holdout', ranks: [['Civ', 100]], mos: null, unitId: '2/4', branch: 'civilian', outfit: 'beltCoverall' },
+  'belt-mule:crew-1': { site: 'belt-mule', key: 'crew-1', what: 'hauler crewman', ranks: [['Civ', 100]], mos: null, unitId: '2/4', branch: 'civilian', outfit: 'beltCoverall' },
+  'belt-mule:crew-2': { site: 'belt-mule', key: 'crew-2', what: 'hauler crewman', ranks: [['Civ', 100]], mos: null, unitId: '2/4', branch: 'civilian', outfit: 'beltCoverall' },
+  'belt-mule:crew-3': { site: 'belt-mule', key: 'crew-3', what: 'hauler crewman', ranks: [['Civ', 100]], mos: null, unitId: '2/4', branch: 'civilian', outfit: 'beltCoverall' },
 });

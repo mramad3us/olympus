@@ -34,7 +34,7 @@
 // newGame. STARTS are the two starts that are not test scenes: the career's barracks
 // and the sandbox's test rooms (the title and ?play= start them; the Tests menu never lists them).
 // v0.0.25's test-zerocqb, "Hold to hold" (its build sheet §1 item 1; ROADMAP §4.2's 0.0.7e): the shoot house's lane on the Wreck at Phobos,
-// its own scenario, `ship: 'wreck'` (the operation record's one field the lane branches on), `tug` (the yard tug's pull, set at GO),
+// its own scenario, `ship` (the operation record's one field the lane branches on, a key of src/data/places/ships.js SHIPS), `tug` (the yard tug's pull, set at GO),
 // `familiar: 'walls'` (the walls briefed, every compartment black until seen) and `menu` (false: played by its URL only, left off the
 // Tests menu by main.js scenes(), until its ship rule is met).
 // v0.0.26's test-breach, "Bang, then go" (its build sheet §1 item 1; ROADMAP §4.2's 0.0.7f): the house's scenario cut to room 1 with
@@ -225,7 +225,7 @@ export const SCENES = deepFreeze({
   // ("Hold to hold" (its build sheet §1 item 1, §3.3; ROADMAP §4.2's 0.0.7e; COMBAT §14.5, §14.8): the shoot house's lane on the
   // Wreck at Phobos (PLACES §5.7), its two decks one authored area of the void site, at the site's own free fall, with your number two on
   // mag boots: the brig's two cells, the trunk head first in his grip, the hold and its store. Its own scenario (game.js specOf refuses one
-  // scenario at two hosts: the house's stands in the Wheel), whose fill is the house's with `ship: 'wreck'` (shoothouse.js testZerocqb);
+  // scenario at two hosts: the house's stands in the Wheel), whose fill is the house's on the Wreck's row of the ships' registry (shoothouse.js testZerocqb);
   // the house's course, so the house's tower, card, pars and bots play it. `tug` the yard tug's pull set at GO (the scene's env carries no
   // profile: one in env is drawn at the fill, its t0 the start): its onset (`atS`) 60 s after GO, the warning 15 s before, 0.2 G for 3 s
   // toward the deck. The window is the build sheet's [60, 150] brought in to the honest tier one's lane less 30 s and never under 60 (§1
@@ -249,6 +249,30 @@ export const SCENES = deepFreeze({
     // (on the Tests menu, last, from the integration of v0.0.25: its ship rule met, zerocqb-nodead (F125) and env-noregress (F124) green
     // in the full run on the merged tree; by URL only (`menu: false`) until then)
     endOn: { fact: 'range', phase: ['clear', 'stopped'] },
+  },
+  // ("Away the boarding party" (v0.0.27, its build sheet §1 D, item 1; ROADMAP §4.2's 0.0.7g; COMBAT §14.1 to §14.6): the first live
+  // fight, deck 2 of the Belt ice hauler Patient Mule coasting at 0 G, you the boarding team's #3 in a fire team of four, through the
+  // mated collar's lock on an override, armed men who choose and some of the crew, live rounds both ways. Its own scenario (game.js specOf:
+  // one host a scenario), the house's fill on the hauler's row of the ships' registry (shoothouse.js testCollar), the house's course, so
+  // the house's tower, card and bots play it. `holdouts` the URL's &holdouts= ('pirates' | 'smugglers'; drawn from the seed when absent).
+  // No par tones on a real deck (`pars` none: the run sheet keeps every time), no other house (`draws` the set), the compartments black
+  // until seen (`familiar: 'walls'`), "Another hauler" (`newSeed`: the end card's second line). On the Tests menu, last, after "Hold to
+  // hold" (the ships together; question 18), from the integration of v0.0.27: its ship rule met, F150, F153, F155 and F165 green in the
+  // full run on the merged tree (F157 and F167 red there, a question for the user with their figures, not the ship rule's); by URL only
+  // (`menu: false`) until then
+  'test-collar': {
+    id: 'test-collar', title: 'Away the boarding party', scenario: 'test-collar', ship: 'hauler',
+    host: { site: 'belt-mule', area: 'mule.crew' }, env: SITE_ENV, hour: 10.0,
+    goal: 'The Belt ice hauler Patient Mule, coasting, its crew struck. Deck 2 did not answer. You are the boarding team\'s number three: through the lock on the override, then the deck. Armed men are aboard, and some of the crew. Secure the deck, or fall back to the lock.',
+    aspects: [['fight', 'the fight: men who choose, cover, fire blind, freeze, flee or give'], ['cost', 'the cost: real wounds both ways, the knock, the tourniquet'],
+      ['team', 'the team: the leader and the AR on the passage, Four with you'], ['ship', 'the ship: the lock, the hatches, the boots, the deckhead'],
+      ['pace', 'the pace: the override, the send, the compartments'], ['feel', 'the feel: the Belter deck, the bubbles, the card']],
+    body: {}, outfit: 'combatSuit', course: 'house', sheets: ['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone'], sheet: 'private',
+    pars: [],
+    draws: ['set'],
+    familiar: 'walls',
+    newSeed: ['Another hauler', 'a new seed, new holdouts'],
+    endOn: { fact: 'range', phase: ['clear', 'fellBack', 'down', 'stopped'] },
   },
 });
 

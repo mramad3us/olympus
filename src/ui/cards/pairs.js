@@ -48,6 +48,7 @@
 import { loadoutPage, loadoutWord } from './loadout.js';
 import { readRuns, bestsOf, bestWords, qualNext, PAR_ORDER } from './house-runs.js';
 import * as SCENES_DATA from '../../data/scenes.js';
+import { SHIPS } from '../../data/places/ships.js';
 // (the named houses and the room sets read by name, so the rows stay v0.0.21's until the rooms' role exports them)
 import * as ASSEMBLE from '../../sim/scenes/assemble.js';
 
@@ -223,7 +224,8 @@ export function pickerPage({ scene, sheets = {}, order = null, onPick, onBack, h
   if (qualBtn) qualBtn.dataset.tier = qTier;
   const body = el('div', { className: 'sheet tests picker' },
     el('h2', { textContent: String(scene?.title ?? 'Pairs').toUpperCase() }),
-    el('p', { className: 'sub', textContent: 'Play it as a sheet: each its own experience, its own hands and eyes. The same targets turn on the same seed whichever you choose.' }),
+    // (a ship's boarding has men, not targets: the same men in the same places on the same seed (the v0.0.27 play review, finding 8))
+    el('p', { className: 'sub', textContent: `Play it as a sheet: each its own experience, its own hands and eyes. ${SHIPS[scene?.ship]?.posts ? 'The same men hold the same deck' : 'The same targets turn'} on the same seed whichever you choose.` }),
     SETUP_LINES[scene?.setup] ? el('p', { className: 'sub setup', textContent: SETUP_LINES[scene.setup] }) : SCENE_LINES[scene?.id] ? el('p', { className: 'sub setup', textContent: SCENE_LINES[scene.id] }) : null,
     el('hr'),
     // (six sheets in two columns on a wide window, so the par, the kit, the house, "Qualify as" and Back fit a 720-px

@@ -33,7 +33,9 @@ export default [
       console.log(`      the Tests menu (${menu.length}): …${menu.slice(-3).join(', ')}; the URL's setup ${url.setup}, tier ${url.tier}`);
       assert(!bad.length, bad.join('; '));
       assert(W.scenario === 'test-zerocqb' && SCENARIOS['test-zerocqb'] && W.ship === 'wreck' && W.course === 'house' && W.host.site === 'phobos-void' && W.host.area === 'phobos.void.wreck' && W.env.preset === 'site', JSON.stringify(W));
-      assert(SCENE_IDS.includes('test-zerocqb') && (W.menu === false ? !menu.includes('test-zerocqb') : menu.at(-1) === 'test-zerocqb'), JSON.stringify(menu));
+      // (re-read at v0.0.27's integration: "Away the boarding party" joins the Tests menu last, after "Hold to hold" (the ships together, its
+      // build sheet §14 item 22), so the Wreck is the last but one, after "Secure for burn", and only the hauler after it)
+      assert(SCENE_IDS.includes('test-zerocqb') && (W.menu === false ? !menu.includes('test-zerocqb') : menu.at(-2) === 'test-zerocqb' && menu.at(-1) === 'test-collar' && menu.at(-3) === 'test-burn'), JSON.stringify(menu));
       assert(['go', 'trunk', 'hold', 'tug'].every(k => SETUPS.includes(k)) && url.setup === 'tug', SETUPS.join());
       assert(W.tug.kind === 'burn' && W.tug.toG === 0.2 && W.tug.warnS === 15 && W.tug.holdS === 3 && W.tug.atS[0] === 60 && W.tug.atS[1] === 60, JSON.stringify(W.tug));
     },

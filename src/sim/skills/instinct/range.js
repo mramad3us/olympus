@@ -306,11 +306,15 @@ export const RANGE_RULES = Object.freeze([
       // (the KD course: nothing during the brief (nothing has been done to be "done"), and no "Hands still" after a
       // command answered as asked, which read as a reprimand nobody earned (the design review's of v0.0.7))
       if (k.kd) return k.cmd === 'brief' ? null : { k, noHumour: true, variant: 'kd' };
+      // (aboard the boarding there is no tower (the v0.0.27 play review, finding 3 f: "Hands still. The tower runs this line." at the fall
+      // back's end), and the leader may be down: the word, whoever gives it)
+      if (k.R.house?.boarding) return { k, noHumour: true, variant: 'board' };
       return { k, noHumour: true };
     },
     act: (ctx) => (ctx.k.choosing && ctx.k.offered('wait') ? 'stop:wait' : null),
     text: { 1: ['Wait for the tower.', 'Nothing happens until the tower says so.', 'Done. Wait for the next command.', 'Hands still. The tower runs this line.'],
-      kd: ['Wait for the tower.', 'Nothing happens until the tower says so.', 'Done. Wait for the next command.', 'Good. Now wait for the tower.'] },
+      kd: ['Wait for the tower.', 'Nothing happens until the tower says so.', 'Done. Wait for the next command.', 'Good. Now wait for the tower.'],
+      board: ['Hold still. Wait for the word.', 'Hands still. Wait for the word.', 'Done. Wait for the word.', 'Wait. Nothing moves till the word.'] },
   },
 ]);
 

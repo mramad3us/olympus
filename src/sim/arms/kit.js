@@ -84,6 +84,13 @@
 // after 'mask' (never SLOTS, which the I card's carrier walk reads), so no shipped kit's items or ids move; wear(state, pid,
 // model) puts one worn thing on. Their magnets are the footing's (src/sim/body/footing.js: the actor's anchor 'boots', locked
 // and released as steps, src/sim/arms/shooting.js bootsRow), and they hold only on a ferrous face (PLACES §2.7).
+// v0.0.27 ("Away the boarding party": its build sheet §1 B, §5; FT§5.1, WEAPONS §8.3): the real fight's kit. 'pc-m3p' is the Corps'
+// carrier with its plates in (`armour` 'carrier': penetrate.js ARMOUR.carrier, plates over 0.55 of the torso, the soft panel over
+// 0.30; 10.4 kg with its two plates, my call), 'rig-b1' a holdout's chest rig (no armour). Four issues: 'boarding-cqb', the
+// marines' ('house-cqb' with the plates in and the mag boots, three HAD-30s of ten frangible, and BOARDING_SIDEARMS' P-12 with two
+// HAD-17s of frangible: no marking round anywhere aboard), 'boarding-pirate' (the R-7 with two HAD-30s of twenty ball in the rig),
+// 'boarding-smuggler' (BOARDING_SIDEARMS' P-12 with two HAD-17s of fifteen ball) and 'boarding-crew' (nothing but the boots); every
+// one with mag boots. issueBoarding(state, pid, id) gives one with its sidearm; the G-11s are the scene's loadout (D's).
 import { nextId, put } from '../../core/ids.js';
 import { q } from '../../core/num.js';
 import { areaOf } from '../places/model.js';
@@ -122,6 +129,10 @@ export const CONTAINERS = Object.freeze({
   'fof-mask': Object.freeze({ type: 'mask', word: 'force-on-force mask', slot: 'mask', massKg: 0.6 }),
   // (the anywhere round's step 5: the mag boots, magnetic overboots worn in their own slot, kit.worn.boots (see the header))
   'mb-1': Object.freeze({ type: 'boots', word: 'mag boots', slot: 'boots', massKg: 2.4 }),
+  // (the boarding (see the header): the same carrier with its plates in (WEAPONS §8.3: 11 mm plates over 0.55 of the torso, the
+  // soft panel over 0.30; penetrate.js ARMOUR.carrier; the doll draws any carrier alike); and the holdouts' chest rig, no armour)
+  'pc-m3p': Object.freeze({ type: 'carrier', word: 'plate carrier', slot: 'carrier', holds: 3, fits: Object.freeze(['pouch']), massKg: 10.4, faces: Object.freeze({ front: 3, left: 2, right: 2, back: 1 }), armour: 'carrier' }),
+  'rig-b1': Object.freeze({ type: 'carrier', word: 'chest rig', slot: 'carrier', holds: 3, fits: Object.freeze(['pouch']), massKg: 0.9 }),
 });
 
 /** The issue templates: worn (slot → model), the carrier's pouches in reach order, the magazines ([family, rounds]) filling the pouches in order. */
@@ -178,7 +189,51 @@ export const KIT_TEMPLATES = Object.freeze({
     mags: Object.freeze([Object.freeze(['had30', 10, 'marking']), Object.freeze(['had30', 10, 'marking']), Object.freeze(['had30', 10, 'marking'])]),
     cond: 0.93, posture: 'lowReady',
   }),
+  // ("Away the boarding party" (see the header): the marines' real issue, 'house-cqb' with the carrier's plates in and the mag
+  // boots, three HAD-30s of ten frangible (the P-12's is BOARDING_SIDEARMS', the G-11s the scene's loadout))
+  'boarding-cqb': Object.freeze({
+    worn: Object.freeze({ suit: 'ces-1', carrier: 'pc-m3p', sling: 'r7', boots: 'mb-1' }),
+    carrier: Object.freeze(['pouch-mag2', 'pouch-mag2', 'pouch-dump']),
+    mags: Object.freeze([Object.freeze(['had30', 10, 'frangible']), Object.freeze(['had30', 10, 'frangible']), Object.freeze(['had30', 10, 'frangible'])]),
+    cond: 0.93, posture: 'lowReady',
+  }),
+  // (the pirates': the R-7 with two HAD-30s of twenty ball in a chest rig, no armour, mag boots (my calls))
+  'boarding-pirate': Object.freeze({
+    worn: Object.freeze({ carrier: 'rig-b1', sling: 'r7', boots: 'mb-1' }),
+    carrier: Object.freeze(['pouch-mag2']),
+    mags: Object.freeze([Object.freeze(['had30', 20, 'ball']), Object.freeze(['had30', 20, 'ball'])]),
+    cond: 0.85, posture: 'lowReady',
+  }),
+  // (the smugglers': no rifle, the P-12 with ball (BOARDING_SIDEARMS'), mag boots)
+  'boarding-smuggler': Object.freeze({
+    worn: Object.freeze({ boots: 'mb-1' }), carrier: Object.freeze([]), mags: Object.freeze([]),
+    cond: 0.9, posture: 'lowReady',
+  }),
+  // (the hauler's own crew: unarmed, mag boots; the coverall is the outfit's, not the kit's)
+  'boarding-crew': Object.freeze({
+    worn: Object.freeze({ boots: 'mb-1' }), carrier: Object.freeze([]), mags: Object.freeze([]),
+    cond: 0.9, posture: 'slungFront',
+  }),
 });
+/**
+ * The boarding's sidearms by issue (v0.0.27; issueSidearm's specs): the marines' P-12 with two HAD-17s of ten frangible, the smugglers'
+ * with two HAD-17s of fifteen ball (my call); the pirates and the crew carry none.
+ */
+export const BOARDING_SIDEARMS = Object.freeze({
+  'boarding-cqb': Object.freeze({ model: 'p12', mags: Object.freeze([Object.freeze(['had17', 10, 'frangible']), Object.freeze(['had17', 10, 'frangible'])]) }),
+  'boarding-smuggler': Object.freeze({ model: 'p12', mags: Object.freeze([Object.freeze(['had17', 15, 'ball']), Object.freeze(['had17', 15, 'ball'])]), cond: 0.9 }),
+});
+/** The boarding's issues (v0.0.27): the marines' and the three of the deck's people, by who they are. */
+export const BOARDING_ISSUES = Object.freeze({ marine: 'boarding-cqb', pirate: 'boarding-pirate', smuggler: 'boarding-smuggler', crew: 'boarding-crew' });
+/**
+ * A boarding issue given (w; v0.0.27): the template materialised, then its sidearm if it has one. Returns materialise's record and
+ * { pistol } (issueSidearm's, or null).
+ */
+export function issueBoarding(state, pid, tmplId, { finish = null } = {}) {
+  if (!tmplId?.startsWith('boarding-')) throw new Error(`kit.issueBoarding(): '${tmplId}' is not a boarding issue`);
+  const out = materialise(state, pid, tmplId, { finish }), side = BOARDING_SIDEARMS[tmplId];
+  return { ...out, pistol: side ? issueSidearm(state, pid, side) : null };
+}
 /** The P-12's issue on the live lane (v0.0.19; kit.js issueSidearm's spec): two HAD-17s of ten marking. */
 export const FOF_SIDEARM = Object.freeze({ model: 'p12', mags: Object.freeze([Object.freeze(['had17', 10, 'marking']), Object.freeze(['had17', 10, 'marking'])]) });
 /** A magazine at your feet is within this of you (m): where a dropped one lands (firearms.js atFeet: 0.25 to 0.45 m ahead) with room to spare. */

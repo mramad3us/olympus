@@ -63,6 +63,17 @@
 //                         body at SEEN from your eye), not yet given up: "He's done. Challenge him.", the Challenge with the bracket
 //                         on him, else the aim onto him; cqb-contact and cqb-rp-fire keep quiet over him meanwhile (a round at him
 //                         stays lawful)
+//   cqb-up        urgent  (v0.0.27, a real fight only: would.js realOf) your stance down after a round and your body no longer down
+//                         (contact.js knockedDown: the knock over): "On your feet.", T the row "Get up" (contact.js 'contact:up';
+//                         the rifle on its sling, its Up first),
+//                         G into the mode out of it; while the knock lasts this line is quiet and T presses nothing (contact.js
+//                         refusesAct refuses every act while your body is down)
+//   cqb-passage   warn    (v0.0.27, "Away the boarding party": the fire team's holders, combat/holders.js) a holder down (his stance
+//                         'down'), so the passage he held is nobody's: "Nobody on the passage. Watch your back." No act: said only while
+//                         time runs (never at a pause, so T and the honest bot never stand on it), at most once a REPEAT_MS, never once
+//                         the fall back is called
+//   cqb-back      urgent  (v0.0.27) the fall back called (R.house.boarding.fallback, the scene's at two of four down): "Back to the lock.",
+//                         T the scene's row "Back to the lock" (team.js FALLBACK_ROW 'move:lock'), wherever it is offered
 //   cqb-rp-search note    (v0.0.26, "Bang, then go" only) after the room's "Clear!", a man accounted for there within contact.js
 //                         SEARCH_M 1.5 m, not yet searched (searchableOf): "Search him if you want the truth now.", Search him;
 //                         farther, its 'walk' variant: "Go to him. Search him if you want the truth now.", the walk up to him
@@ -140,9 +151,10 @@ import { stepsOf, gunOn, inHouse, ASKS, targetOf, LABELS } from '../../arms/shoo
 import { MACROS } from '../../arms/drills.js';
 import { muzzleOf, flagsAt } from '../../arms/carry.js';
 import { stillUp, halfOrLess, fullerAtHand } from '../../arms/specials.js';
-import { sparesOf, believedN } from '../../arms/kit.js';
+import { sparesOf, believedN, handGunOf } from '../../arms/kit.js';
 import { facingOf } from '../../arms/turners.js';
-import { contactNow, lullOf, IDENT_WORDS, searchableOf } from '../../combat/contact.js';
+import { contactNow, lullOf, IDENT_WORDS, searchableOf, knockedDown, lockWalkOf } from '../../combat/contact.js';
+import { realOf } from '../../combat/would.js';
 import { takeInWords } from '../../combat/react.js';
 import { doorNow, lockedOf, twoAway, innerWall, HANDBACK_WORDS, breachOf, kickableOf, onFront, twoChargeOn, usesDevice, variantHere } from '../../combat/bundle.js';
 // (the bodies and the line's rules (cqb-blocked, cqb-two-out, cqb-limit, cqb-pair))
@@ -150,7 +162,7 @@ import { hallLead, HALL_PAIR_M, TWO_OUT_LINE_MS } from '../../combat/bundle.js';
 import { LIMIT_WARN_MS } from '../../arms/carry.js';
 import { inFunnel, pastThreshold } from '../../combat/room.js';
 import { cornerRuleOf } from '../../combat/corner.js';
-import { ownerOf, sideOf } from '../../combat/team.js';
+import { ownerOf, sideOf, FALLBACK_ROW } from '../../combat/team.js';
 // (the room's rule (cqb-mark))
 import { markYoursOf } from '../../combat/bundle.js';
 import { TEAM_TASKS } from '../../combat/drills/enter-and-clear.js';
@@ -160,7 +172,7 @@ import { handDeviceOf, DEVICES } from '../../arms/devices.js';
 import { placedOn } from '../../combat/breach.js';
 import { planFor } from '../../arms/plan.js';
 import { handsPath } from '../../arms/devplan.js';
-import { isLive, upNow, accountedOf, gateWhy, liveStateOf, seenK } from '../../combat/men.js';
+import { isLive, upNow, accountedOf, gateWhy, liveStateOf, seenK, choosesOf } from '../../combat/men.js';
 import { SEEN } from '../../people/perception.js';
 import { rungOf, valueOf } from '../templates.js';
 import { openingState } from '../../places/model.js';
@@ -561,8 +573,11 @@ const uncoveredOf = (k, ms, acc) => liveMen(k).filter(T => gateWhy(k.state, T, m
 const coverAct = (k, T) => (!T ? null : k.S?.pick === T.key ? actIf(k, 'contact:hold') ?? (k.S.aim?.key === T.key ? actIf(k, 'hold') : aimOnto(k, T.key)) : aimOnto(k, T.key));
 // ("Bang, then go"'s lane, the scene's record (R.house.bangGo): its lines and the cower's quiet only there, so the live lane's T is v0.0.25's)
 const bangGoLane = (k) => !!k?.R?.house?.bangGo;
+// (the boarding round's stage 0 (K1): the lines over a cowering or dazed man are the choosing's, on every lane whose men choose (men.js choosesOf:
+// "Bang, then go" and the boarding); the search's (cqb-rp-search) stays the scene's, bangGoLane)
+const choosingLane = (k) => !!k?.state && choosesOf(k.state);
 // (a man of the room you see cowering, not giving up, on "Bang, then go": the bracketed one first)
-const cowerOf = (k, ms) => (bangGoLane(k) ? liveMen(k).filter(T => liveStateOf(k.state, T, ms) === 'cowering' && seenK(k.state, k.me, T, ms) >= SEEN)
+const cowerOf = (k, ms) => (choosingLane(k) ? liveMen(k).filter(T => liveStateOf(k.state, T, ms) === 'cowering' && seenK(k.state, k.me, T, ms) >= SEEN)
   .sort((a, b) => (b.key === k.S?.pick) - (a.key === k.S?.pick) || a.key.localeCompare(b.key))[0] ?? null : null);
 
 /** The DI's close-quarters rules (see the header), most pressing first within a tone. */
@@ -712,7 +727,7 @@ export const CQB_RULES = Object.freeze([
       const k = know(state, me, ms), T = k?.T;
       if (!k?.choosing || k.rung < 2 || !isLive(T) || !upNow(T, ms) || T.face !== 'threat' || !(T.live.fired > 0) || noShotNow(k) || stillUp(state, T.key)) return null;
       // ("Bang, then go": a man you see cowering is no longer on you: cqb-rp-hands' challenge leads)
-      if (bangGoLane(k) && cowerOf(k, ms) === T) return null;
+      if (choosingLane(k) && cowerOf(k, ms) === T) return null;
       // (a man you know (taken in at your last pause or before): never one nobody has seen, firing or not)
       if (!(k.last?.ids ?? []).includes(T.key) && state.mind?.contact?.known?.[T.key] === undefined) return null;
       if (k.R.house?.twoPid && (ownerOf(state, T) ?? 1) !== 1) return null;
@@ -729,7 +744,7 @@ export const CQB_RULES = Object.freeze([
     id: 'cqb-rp-dazed', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'urgent', short: 'Dazed', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms), T = k?.T;
-      if (!k?.choosing || k.rung < 2 || !bangGoLane(k) || !isLive(T) || !upNow(T, ms) || T.face !== 'threat' || liveStateOf(state, T, ms) !== 'dazed' || noShotNow(k) || stillUp(state, T.key)) return null;
+      if (!k?.choosing || k.rung < 2 || !choosingLane(k) || !isLive(T) || !upNow(T, ms) || T.face !== 'threat' || liveStateOf(state, T, ms) !== 'dazed' || noShotNow(k) || stillUp(state, T.key)) return null;
       if (!(k.last?.ids ?? []).includes(T.key) && state.mind?.contact?.known?.[T.key] === undefined) return null;
       if (k.R.house?.twoPid && (ownerOf(state, T) ?? 1) !== 1) return null;
       const onHim = (s) => s.id.startsWith('shot:') && !s.off && (s.target ?? T.key) === T.key;
@@ -738,6 +753,122 @@ export const CQB_RULES = Object.freeze([
     },
     act: () => null,
     text: { 1: ["He's dazed. Now. Pair.", "He can't see. Pair him now.", "Dazed. Two in him, now.", "He's blind. Now."], 2: ["He's dazed. Now.", 'Dazed. Pair.', 'Now. Pair.', "He's dazed."], 3: ['Now.', 'Dazed. Now.', 'Pair.', 'Now. Him.'] },
+  },
+  {
+    // ("Away the boarding party" (its build sheet §1 A; FT§6.4): a man of yours bracketed, up and firing blind over his cover
+    // (men.js liveStateOf 'firing-blind'), from rung 2: "Firing blind. Get on him." and no act, the pair it names left to you, as
+    // cqb-rp-dazed's (tests/bots/house.mjs SHOT_LINES and PAIR_LINES carry it, D's); on a lane whose men choose)
+    id: 'cqb-rp-blind', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'urgent', short: 'Blind', reach: null,
+    when(state, me, ms) {
+      const k = know(state, me, ms), T = k?.T;
+      if (!k?.choosing || k.rung < 2 || !choosingLane(k) || !isLive(T) || !upNow(T, ms) || T.face !== 'threat' || liveStateOf(state, T, ms) !== 'firing-blind' || noShotNow(k) || stillUp(state, T.key)) return null;
+      if (!(k.last?.ids ?? []).includes(T.key) && state.mind?.contact?.known?.[T.key] === undefined) return null;
+      if (k.R.house?.twoPid && (ownerOf(state, T) ?? 1) !== 1) return null;
+      const onHim = (s) => s.id.startsWith('shot:') && !s.off && (s.target ?? T.key) === T.key;
+      const shot = k.steps.find(s => onHim(s) && /^shot:pair(@|$)/.test(s.id)) ?? k.steps.find(onHim);
+      return shot ? { k, tier: k.shotTier, voice: k.voice, row: shot.id } : null;
+    },
+    act: () => null,
+    text: { 1: ['Firing blind. Get on him.', "He's firing blind. Pair him.", "He can't see you. Get on him.", 'Blind fire. Two in him.'], 2: ['Firing blind. Get on him.', 'Blind fire. Pair.', 'Get on him.', 'Firing blind.'], 3: ['Get on him.', 'Blind. Now.', 'Pair.', 'On him.'] },
+  },
+  {
+    // (a man of the room you see running to his refuge (liveStateOf 'running-away'): "He's running. Hold." No act: a round at him
+    // stays lawful (COMBAT §7.11's line), and the line holds the stack, not the trigger; warn, never over a man up and firing)
+    id: 'cqb-rp-flee', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'warn', short: 'Running', reach: null,
+    when(state, me, ms) {
+      const k = know(state, me, ms);
+      if (!k?.choosing || !k.plan || !choosingLane(k)) return null;
+      const T = liveMen(k).find(t => liveStateOf(state, t, ms) === 'running-away' && seenK(state, k.me, t, ms) >= SEEN) ?? null;
+      return T ? { k, tier: k.tier, voice: k.voice, key: T.key } : null;
+    },
+    act: () => null,
+    text: { 1: ["He's running. Hold.", "He's running away. Hold your ground.", 'Running. Hold.', "He's off. Hold."], 2: ["He's running. Hold.", 'Running. Hold.', 'Hold.', "He's running."], 3: ['Hold.', 'Running.', 'Hold it.', 'Let him run.'] },
+  },
+  {
+    // (one of the hauler's crew seen cowering, unarmed, not yet given up (opfor.js's L.unarmed, liveStateOf 'cowering'): "He's
+    // crew. Challenge him.", the Challenge with the bracket on him, else the aim onto him; cqb-rp-hands' cower variant's crew words, its
+    // own line here so it leads over "He's done." on a crewman (my call: the variant as a line under A's anchor))
+    id: 'cqb-rp-crew', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'warn', short: 'Crew', reach: null,
+    when(state, me, ms) {
+      const k = know(state, me, ms);
+      if (!k?.choosing || !k.plan || !choosingLane(k)) return null;
+      // (what you see of him, no gun in his hands (kit.js handGunOf), never the fill's hidden `unarmed` flag (the v0.0.27 code review, finding 5);
+      // an armed man cowering keeps his gun in his hands, so the two agree on every cowering man of the sweep's four lanes, 28,314 ticks)
+      const C = !k.R.house?.boarding ? null : liveMen(k).filter(T => !!T.live && !handGunOf(state, T.live.who) && liveStateOf(state, T, ms) === 'cowering' && seenK(state, k.me, T, ms) >= SEEN)
+        .sort((a, b) => (b.key === k.S?.pick) - (a.key === k.S?.pick) || a.key.localeCompare(b.key))[0] ?? null;
+      if (!C || C.live.chalUntilMs !== undefined) return null;
+      if (k.S?.pick === C.key && k.offered('contact:challenge')) return { k, tier: k.tier, voice: k.voice, key: C.key, variant: 'challenge', words: `crew${k.tier}`, act: 'stop:contact:challenge' };
+      const act = k.S?.pick === C.key ? null : aimOnto(k, C.key);
+      return act ? { k, tier: k.tier, voice: k.voice, key: C.key, variant: 'onto', words: `crewOnto${k.tier}`, act } : null;
+    },
+    act: (ctx) => ctx.act,
+    text: { crew1: ["He's crew. Challenge him.", "He's one of the crew. Challenge him.", 'No weapon. Challenge him.', "Crew. Tell him what to do."], crew2: ["He's crew. Challenge him.", 'Crew. Challenge.', 'Challenge him.', 'No weapon. Challenge.'], crew3: ['Challenge.', 'Crew.', 'Challenge him.', 'Tell him.'],
+      crewOnto1: ["He's crew. On him, then challenge.", 'Crew, no weapon. Get on him.', "He's crew. Cover him first.", 'No weapon. Muzzle on him.'], crewOnto2: ["He's crew. On him.", 'Crew. On him.', 'On him.', 'No weapon.'], crewOnto3: ['On him.', 'Crew.', 'Him.', 'Cover.'] },
+  },
+  {
+    // (a real fight (would.js realOf): your stance down after a round, the knock over (contact.js knockedDown false): "On your feet.",
+    // T the row "Get up" (contact.js 'contact:up'), G into the mode out of it; while the knock lasts nothing (see the header))
+    id: 'cqb-up', voice: 'di', repeatMs: 0, tone: 'urgent', short: 'Get up', reach: null,
+    when(state, me, ms) {
+      if (me?.stance !== 'down' || !realOf(state)) return null;
+      const k = know(state, me, ms);
+      if (!k || knockedDown(state, k.pid, ms)) return null;
+      return { k, tier: k.tier, voice: k.voice, row: 'contact:up' };
+    },
+    // (the boarding round's review: the rifle on its sling, whose panel offers no "Get up": T brings it up first, never a pause with no act)
+    act: (ctx) => actIf(ctx.k, 'contact:up') ?? actIf(ctx.k, 'up') ?? (ctx.k.inMode ? null : 'stop:enter'),
+    text: { 1: ['On your feet.', 'Up. On your feet.', 'Get up. Now.', 'On your feet. Back in it.'], 2: ['On your feet.', 'Up.', 'Get up.', 'Up. Back in it.'], 3: ['Up.', 'On your feet.', 'Get up.', 'Up, now.'] },
+  },
+  {
+    // ("Away the boarding party": a holder down (combat/holders.js, his stance down), so the passage he held is nobody's. Said
+    // while time runs only: it names nothing to press, so it never stands over a pause (the honest bot's "no act" dead end), and comes
+    // back at most once a REPEAT_MS; never once the fall back is called (cqb-back's))
+    id: 'cqb-passage', voice: 'di', tone: 'warn', short: 'Passage', reach: null,
+    when(state, me, ms) {
+      const k = know(state, me, ms), Q = k?.R?.house?.holders;
+      if (!k || k.inMode || !Q?.men?.length || k.R.house.boarding?.fallback) return null;
+      const down = Q.men.some(m => state.actors?.list?.find(a => a.who === m.pid)?.stance === 'down');
+      return down ? { k, tier: k.tier, voice: k.voice } : null;
+    },
+    act: () => null,
+    text: { 1: ['Nobody on the passage. Watch your back.', 'The passage is open behind you. Watch your back.', "Your holder's down. Watch the passage.", 'Nobody holds the passage now. Watch your back.'],
+      2: ['Nobody on the passage. Watch your back.', 'Passage is open. Watch your back.', 'Watch your back. The passage.', 'Nobody on the passage.'],
+      3: ['Watch your back.', 'Passage is open.', 'Nobody on the passage.', 'Your back.'] },
+  },
+  {
+    // ("Away the boarding party": the fall back called (R.house.boarding.fallback, the scene's at two of four down): the scene's
+    // "Back to the lock" row (team.js FALLBACK_ROW, the house's move kind), its act, wherever it is offered)
+    id: 'cqb-back', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'urgent', short: 'Back', reach: null,
+    when(state, me, ms) {
+      const k = know(state, me, ms);
+      if (!k?.R?.house?.boarding?.fallback || !lockWalkOf(state)) return null;
+      // (out of the mode, time running: G for the row (the v0.0.27 play review, finding 3: cqb-walk's "D to your point. G for the drill."
+      // stood over the walk back, and nothing named the lock)
+      if (!k.inMode) return state.time?.doing || Math.hypot(me.v?.[0] ?? 0, me.v?.[1] ?? 0) > 0.05 ? null : { k, tier: k.tier, voice: k.voice, words: 'enter', enter: true };
+      if (!k.choosing || !k.offered(FALLBACK_ROW)) return null;
+      return { k, tier: k.tier, voice: k.voice, row: FALLBACK_ROW };
+    },
+    act: (ctx) => (ctx.enter ? 'stop:enter' : actIf(ctx.k, FALLBACK_ROW)),
+    text: { enter: ['Back to the lock. G, then the row.', 'The lock. G, and back.', 'Fall back: G, the lock.', 'G. Back to the lock.'],
+      1: ['Back to the lock.', 'Fall back. Back to the lock.', 'Out of it. Back to the lock.', 'Back to the lock, now.'],
+      2: ['Back to the lock.', 'The lock. Go.', 'Fall back. The lock.', 'Back to the lock, now.'], 3: ['Back to the lock.', 'The lock.', 'Fall back.', 'Lock. Go.'] },
+  },
+  {
+    // ("Away the boarding party" (the review of D): the passage held by the team (the lane's first leg a hold, GO given, no send
+    // yet, no fall back): your pair holds in the lock until the leader's "Three, Four: cabin one. Go.". In stop motion T takes the panel's
+    // Wait, time running on to the send; out of it nothing to press. Before it T read the held leg as one to enter and leave, "On: X, then
+    // the keys." and "Don't stand there. G, and the next row." in turn, 646 times on the sergeant's 48213 to the fall back; a man of yours
+    // up (the shot lines, urgent) and the passage's own warning lead over it)
+    id: 'cqb-hold', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'note', short: 'Hold', reach: null,
+    when(state, me, ms) {
+      const k = know(state, me, ms), H = k?.R?.house, L0 = H?.rooms?.[0];
+      if (!k || !H?.boarding || H.goAtMs === null || H.end || H.cur !== 0 || H.boarding.fallback || L0?.held || !k.plan?.hold) return null;
+      if (k.inMode && !k.offered('wait')) return null;
+      return { k, tier: k.tier, voice: k.voice, ...(k.inMode ? { row: 'wait' } : {}) };
+    },
+    act: (ctx) => (ctx.k.inMode ? actIf(ctx.k, 'wait') : null),
+    text: { 1: ['Hold in the lock. The leader sends you.', 'Hold here. Wait for the send.', 'In the lock. Hold for the send.', 'Hold. The passage is theirs.'],
+      2: ['Hold in the lock.', 'Hold. Wait for the send.', 'Hold for the send.', 'Hold.'], 3: ['Hold.', 'Wait.', 'Hold for it.', 'In the lock.'] },
   },
   {
     id: 'cqb-contact', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'urgent', short: 'Aim', reach: null,
@@ -749,7 +880,7 @@ export const CQB_RULES = Object.freeze([
       // by the keys were led into a contact 0.15 s before the bang, entered 6.36 s and 3.97 s after it and were faulted 'bang')
       if (bangPending(k, ms)) return null;
       // ("Bang, then go": a man you see cowering is cqb-rp-hands' to challenge, not this line's to shoot)
-      const cower = bangGoLane(k) ? cowerOf(k, ms) : null;
+      const cower = choosingLane(k) ? cowerOf(k, ms) : null;
       const all = upKnown(k, ms).filter(u => u.T !== cower), twoPid = k.R.house?.twoPid ?? null;
       // (with a #2, his corner's men are his: yours first; a man of yours whose hands you have not seen comes before his)
       const up = twoPid ? all.filter(u => (ownerOf(state, u.T) ?? 1) === 1) : all;
@@ -1048,7 +1179,8 @@ export const CQB_RULES = Object.freeze([
     id: 'cqb-funnel', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'warn', short: 'Out of the door', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms);
-      if (!k?.plan?.door || !inFunnel(k.plan, me.x, me.z) || Math.hypot(me.v?.[0] ?? 0, me.v?.[1] ?? 0) > 0.05 || k.S?.doing) return null;
+      // (never once the boarding's fall back is called: "In." over the walk back to the lock (the v0.0.27 play review, finding 3 b))
+      if (!k?.plan?.door || !inFunnel(k.plan, me.x, me.z) || Math.hypot(me.v?.[0] ?? 0, me.v?.[1] ?? 0) > 0.05 || k.S?.doing || k.R?.house?.boarding?.fallback) return null;
       const variant = k.rung >= 2 ? 'enter' : k.inside ? 'point' : 'keys';
       // (carried FH-1: the walk in's keys from where you stand in the doorway, #1's path's (walkWords), the legs in the variant)
       if (variant === 'keys') { const w = walkWords(k.plan, [me.x, me.z]); return { k, variant: `keys|${w.legs}`, words: 'keys', voice: k.voice, keys: w.keys }; }
@@ -1280,7 +1412,8 @@ export const CQB_RULES = Object.freeze([
     id: 'cqb-walk', voice: 'di', repeatMs: CQB_REPEAT_MS, tone: 'note', short: 'Keep moving', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms), H = k?.R.house;
-      if (!k || k.inMode || !H || state.time?.doing || !k.plan) return null;
+      // (never once the boarding's fall back is called: cqb-back has the walk (the v0.0.27 play review, finding 3))
+      if (!k || k.inMode || !H || state.time?.doing || !k.plan || H.boarding?.fallback) return null;
       if (k.inside && H.two?.block) return null;
       // (carried FH-1: on the walk in below rung 2 (the door open, not yet through) the line holds while you walk, its keys
       // re-read along #1's path as you go (walkInKey), with no wait and no stillness test; elsewhere v0.0.21's nudge)

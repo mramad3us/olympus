@@ -58,9 +58,19 @@ const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v 
 /** An NPC's body cues this round: none move (their needs come at 0.0.9). */
 export const NO_CUES = Object.freeze({ wetK: 0, grimeK: 0, sweatK: 0, tiredK: 0, stubbleK: 0, bladderK: 0, hungerK: 0, thirstK: 0, handsK: 0, handsWhy: null });
 
-/** The wear() spec for a person's look in an outfit, under a roof or not, at the hair's drawn step (0 to 3): the same object while the look is unchanged. */
+/**
+ * v0.0.27 (its build sheet item 16, §3.5, SH§9.2; "Away the boarding party"): the sealed combat EVA suit's one look. In the combat
+ * suit (outfit 'combatSuit', the visor down: kit.js 'ces-1') nothing of the man is drawn, neither his skin nor his hair, and his
+ * seed paints no camouflage, so lookFor leaves all three out: every marine in the suit is this one frozen spec, and the four of the
+ * boarding (and the house's pair) with one weapon and carry share one sheet of the atlas instead of one each (the rifle pool's 6 at
+ * 16 px/m held four marines and two armed men; with this, one marine look and four men). Render only: tests/look-sealed holds the
+ * stage's sheets and the doll pixel for pixel equal across skins, hair and seeds.
+ */
+export const SEALED_LOOK = deepFreeze({ outfit: 'combatSuit' });
+/** The wear() spec for a person's look in an outfit, under a roof or not, at the hair's drawn step (0 to 3): the same object while the look is unchanged (the sealed suit's one spec for everyone in it: SEALED_LOOK). */
 export function lookFor(look, outfit = 'utilities', indoors = false, step = 0) {
   if (!look) return null;
+  if (outfit === 'combatSuit') return SEALED_LOOK;
   let m = memo.get(look);
   if (!m) memo.set(look, (m = new Map()));
   const st = Math.max(0, Math.min(3, Math.round(step || 0)));

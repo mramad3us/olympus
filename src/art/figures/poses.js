@@ -131,6 +131,20 @@
 // candidates' rows are the sample's, DAZE_POSES and COWER_POSES, the pick DAZE_POSE and COWER_POSE (a score is one constant).
 // shockFrameOf(gl) names the frame from look.js gunLook's action ('daze' or 'cower', from men.js liveStateOf), dazeSway(frame,
 // ms, still) its sway.
+// v0.0.27 ("Away the boarding party", its build sheet item 16, §3.5, §10; samples/board-poses): A MAN IN A REAL FIGHT, two frames more
+// on the same shelf (BANDS.stanceShock: 13 cells of 32 px, 416 of the stance sheet's 512 at 16 px/m, 624 of 768 at 24, the sheet's
+// size unchanged, never the arms band's 480 of 512: v0.0.26 C's departure 1). 'blind': an irregular firing blind from his cover
+// (gunLook's action 'blind' while men.js liveStateOf reads him 'firing-blind'), down behind it on his knee, the rifle up over it and
+// his head below (B-a until the user scores); 'downFree': a man down in free fall (gunLook's action 'downFree' while he is down and
+// the place's gravity is under FREE_G_MS2), hanging slack from his locked boots where he stood, the arms adrift and the rifle on its
+// sling (Z-a): no floor to fall to, so never the seated or the lying frame at 0 G. The candidates' rows are the sample's (BLIND_POSES,
+// DOWN_FREE_POSES; tests/samples-board holds them equal), the picks BLIND_POSE and DOWN_FREE_POSE. A man down at 0 G with no rifle
+// (the hauler's crew) has no stance sheet: the stage draws him in the float band's float0, the base sheet's slack body (view.js).
+// And a look whose weapon is 'sidearm', the P-12 alone (look.js gunLook's sidearmOnly: the boarding's smugglers carry no rifle), is
+// drawn with the pistol wherever a frame puts a rifle in the hands or names no gun (poseOf: the rig's gun the pistol, the rifle's
+// charging handle and bolt catch the P-12's check), with nothing where a rifle would hang on its sling (slung, in front, at the hip,
+// across the lap) and no R-7 hung under the pistol's arms (noHang): no gun drawn that the man does not carry. A look whose weapon is
+// 'pistol' (the samples' and the goldens' P-12 looks) is drawn as before, the R-7 on its sling.
 // Pure: no DOM, no three.js.
 import { cyclePose, beatPose, bandSpec, cycleAt, cycleOfLook, RUN_FPS } from './walk.js';
 import { HELD_POSES } from './templates.js';
@@ -167,7 +181,7 @@ export const BANDS = Object.freeze({
   // (the P-12's high-ready walk, on the shots' shelf: see the header)
   stancePistol: Object.freeze(range('pistolHighWalk', 4)),
   // (a role-player dazed (with its sway, standing and kneeling) and cowering, on the same shelf: see the header)
-  stanceShock: Object.freeze(['daze0', 'daze1', 'dazeKneel0', 'dazeKneel1', 'cower']),
+  stanceShock: Object.freeze(['daze0', 'daze1', 'dazeKneel0', 'dazeKneel1', 'cower', 'blind', 'downFree']),
   // (a device in the hands, in the slung-in-front carry's stance sheet only: see the header)
   stanceHeld: Object.freeze(Object.keys(HELD_POSES)),
   // (the P-12's stances with the R-7 hanging on its sling, the rifle's pool: see the header)
@@ -220,11 +234,11 @@ export const HELD_BAND = 'stanceHeld', HELD_CARRY = 'front';
 export const SHOCK_BAND = 'stanceShock', SHOCK_CARRY = 'low';
 /** The daze's sway (VIEWS §3.4: the upper body a pixel down and up again, game time; none under "reduce flashes"). */
 export const DAZE_SWAY_HZ = 1.5;
-/** The frame of a role-player in the shock (gunLook's action frame 'daze' or 'cower', from men.js liveStateOf), by his stance: or null. */
+/** The frame of a role-player in the shock (gunLook's action frame 'daze' or 'cower', from men.js liveStateOf), by his stance; v0.0.27, a man firing blind ('blind') or down in free fall ('downFree'): or null. */
 export function shockFrameOf(gl) {
   const act = gl?.action?.frame;
   if (act === 'daze') return gl.stance === 'kneel' ? 'dazeKneel0' : 'daze0';
-  if (act === 'cower') return 'cower';
+  if (act === 'cower' || act === 'blind' || act === 'downFree') return act;
   return null;
 }
 /** A daze frame at its sway's phase at game ms (the second half of each cycle a pixel down); held still, or any other frame, as given. */
@@ -366,12 +380,29 @@ export const COWER_POSES = Object.freeze({
 });
 /** The picks the game draws until the user scores samples/breach-poses (its defaults). */
 export const DAZE_POSE = 'D-a', COWER_POSE = 'C-a';
+// (blind fire and a man down at 0 G, samples/board-poses' candidates' stage rows written outright (held equal by
+// tests/samples-board): the kneel behind cover, and a man slack or curled on his locked boots)
+const BLIND_KNEEL_LEGS = Object.freeze({ r: Object.freeze([1.35, 2.2, 0.1]), l: Object.freeze([1.55, 1.75, 0.12]) });
+const SLACK_LEGS = Object.freeze({ r: Object.freeze([0.22, 0.42, 0.16]), l: Object.freeze([0.12, 0.3, 0.2]) });
+const CURL_LEGS = Object.freeze({ r: Object.freeze([1.7, 2.35, 0.12]), l: Object.freeze([1.7, 2.35, 0.12]) });
+/** Blind fire's candidates (B, COMBAT §7.11's irregular: the rifle over or round his cover, his eyes down): B-a the default, B-b side on round the cover's edge. */
+export const BLIND_POSES = Object.freeze({
+  'B-a': Object.freeze({ stance: 'kneel', lean: 0.42, headDrop: 2, legs: BLIND_KNEEL_LEGS, rig: Object.freeze({ mode: 'high', gun: 'rifle' }), reach: Object.freeze({ r: Object.freeze([0.12, -0.1, 0.42]), l: Object.freeze([0.3, 0.02, 0.48]) }) }),
+  'B-b': Object.freeze({ lean: 0.18, head: 'turn', headDrop: 1, legs: Object.freeze({ r: Object.freeze([0.4, 0.7, 0.1]), l: Object.freeze([0.25, 0.5, 0.08]) }), rig: Object.freeze({ mode: 'low', gun: 'rifle', oneHand: true }), reach: Object.freeze({ l: Object.freeze([0.05, 0.22, 0.05]) }) }),
+});
+/** A man down at 0 G's candidates (Z, hanging from his locked boots): Z-a the default, slack, the arms adrift; Z-b curled. */
+export const DOWN_FREE_POSES = Object.freeze({
+  'Z-a': Object.freeze({ lean: -0.12, headDrop: 2, legs: SLACK_LEGS, rig: Object.freeze({ mode: 'front', gun: 'rifle' }), reach: Object.freeze({ r: Object.freeze([0.18, -0.42, 0.06]), l: Object.freeze([0.2, 0.44, 0.1]) }) }),
+  'Z-b': Object.freeze({ lean: 0.62, headDrop: 2, legs: CURL_LEGS, rig: Object.freeze({ mode: 'front', gun: 'rifle' }), reach: Object.freeze({ r: Object.freeze([0.16, -0.08, -0.08]), l: Object.freeze([0.16, 0.08, -0.08]) }) }),
+});
+/** The picks the game draws until the user scores samples/board-poses (its defaults). */
+export const BLIND_POSE = 'B-a', DOWN_FREE_POSE = 'Z-a';
 /**
  * The shock band's pose of a frame (see the header), as a given pose is composed (compose.js composeFrame's `given`: the sample's
  * own way, so the game's frame is the sample's pixel for pixel), or null: daze0 and daze1 the pick standing, its sway a pixel down;
- * dazeKneel0 and dazeKneel1 its upper body over the kneel's legs; cower the cower's pick.
+ * dazeKneel0 and dazeKneel1 its upper body over the kneel's legs; cower the cower's pick; v0.0.27, blind and downFree their picks.
  */
-export function shockPose(frame, { daze = DAZE_POSE, cower = COWER_POSE } = {}) {
+export function shockPose(frame, { daze = DAZE_POSE, cower = COWER_POSE, blind = BLIND_POSE, downFree = DOWN_FREE_POSE } = {}) {
   const m = /^(daze|dazeKneel)([01])$/.exec(frame ?? '');
   const base = { stance: 'stand', lean: 0, bob: 0, lift: 0, roll: 0 };
   if (m) {
@@ -379,6 +410,9 @@ export function shockPose(frame, { daze = DAZE_POSE, cower = COWER_POSE } = {}) 
     return m[1] === 'dazeKneel' ? { ...base, ...D, stance: KNEEL.stance, legs: KNEEL.legs, bob: Number(m[2]) } : { ...base, ...D, bob: Number(m[2]) };
   }
   if (frame === 'cower') return { ...base, ...(COWER_POSES[cower] ?? COWER_POSES[COWER_POSE]) };
+  // (blind fire and a man down at 0 G, their picks)
+  if (frame === 'blind') return { ...base, ...(BLIND_POSES[blind] ?? BLIND_POSES[BLIND_POSE]) };
+  if (frame === 'downFree') return { ...base, ...(DOWN_FREE_POSES[downFree] ?? DOWN_FREE_POSES[DOWN_FREE_POSE]) };
   return null;
 }
 
@@ -416,10 +450,22 @@ const CARRY_RIG = { low: 'low', high: 'high', slung: 'slung', front: 'front' };
  * (the head down a pixel, the arms' swing halved, a touch more lean).
  */
 export function poseOf(frame, { weapon = null, carry = null, tired = false, cycle = null } = {}) {
-  const p = basePose(frame, { weapon, carry, cycle });
+  const p = weapon === SIDEARM ? sidearmOnly(basePose(frame, { weapon: 'pistol', carry, cycle })) : basePose(frame, { weapon, carry, cycle });
   if (!tired || p.stance !== 'stand' || p.rig?.mode === 'aim') return p;
   const half = (a) => (a ? [a[0] * 0.5, a[1], a[2]] : a);
   return { ...p, lean: p.lean + 0.05, headDrop: (p.headDrop ?? 0) + 1, arms: p.arms === HANG ? p.arms : { r: half(p.arms.r), l: half(p.arms.l) } };
+}
+/** A look's weapon when the P-12 is the man's only gun (v0.0.27, see the header). */
+export const SIDEARM = 'sidearm';
+// (a frame's rig in the P-12-alone look (see the header): every rig names its gun, so compose.js never reads the look's
+// 'sidearm' as one; the rifle's hands' modes drawn with the P-12, the hanging ones with nothing, the R-7 never hung)
+const RIFLE_HUNG = new Set(['front', 'slung', 'hip', 'lap']), PISTOL_FOR = Object.freeze({ charge: 'check', release: 'check', proneRest: 'prone' });
+function sidearmOnly(p) {
+  const r = p.rig;
+  if (!r) return { ...p, noHang: true };
+  if (r.gun === 'pistol') return { ...p, noHang: true };
+  if (RIFLE_HUNG.has(r.mode)) return { ...p, noHang: true, rig: null };
+  return { ...p, noHang: true, rig: { ...r, gun: 'pistol', p12: true, hold: true, mode: PISTOL_FOR[r.mode] ?? r.mode } };
 }
 /** v0.0.12's walk, stroll and run frames (four a cycle) for the walk sample's W0 reference: { legs, arms, lean, lift, rig }. */
 export function legacyPose(gait, k, { weapon = null, carry = null } = {}) {

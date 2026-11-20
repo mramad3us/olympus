@@ -67,10 +67,14 @@
 // with a baseplate for each magazine in them, the dump pouch, the holster and the pistol pouch; the rifle slung front or at the
 // ready, the pistol in the hands; the arms bent onto them; the ear defenders; what the free hand holds). Without gear the doll is
 // drawn as before, to the pixel (doll-gear's digests of v0.0.17's), the rifle in the hand from worn.js's memoised stamp.
+// v0.0.27 ("Away the boarding party", its build sheet item 16; samples/belt-crew): the Belt coverall (outfits.js 'beltCoverall') on
+// the doll as on the figure, one source: the make by the man's seed (outfits.js beltMakeOf), the whole of him in its cloth with no
+// camouflage (kit.plain), the bare head, dark work boots; and two poses (POSE_BENDS: blind fire's kneel behind cover, the rifle up
+// over it, samples/board-poses B-a's card; a man down in free fall, slack from his boots, Z-a's).
 // Pure: it returns a Pixmap (src/art/paint.js words), opaque, the backdrop round the figure.
 import { PX_PER_M } from '../../render/scale.js';
 import { word } from '../paint.js';
-import { SKIN, HAIR, valles, TOWEL, SHOWER_SHOE, cutOf, SIDES_K, COMBAT_SUIT } from '../figures/outfits.js';
+import { SKIN, HAIR, valles, TOWEL, SHOWER_SHOE, cutOf, SIDES_K, COMBAT_SUIT, beltMakeOf } from '../figures/outfits.js';
 import { helmOf, helmFor } from '../figures/helmets.js';
 import { dollHelm, trimDollPlate } from './helmets.js';
 import { rifleAt, gearBends, suitBelt, carrierPouches, dumpPouch, holster, earCups, pistolAt, heldItem, backDevices, sideDevices, handDevice, holdGear, anchorParts, RIFLE_IN_HANDS, PISTOL_IN_HANDS, ANCHOR_LOOKS } from './worn.js';
@@ -819,6 +823,10 @@ export const POSE_BENDS = Object.freeze({
   // low in the firing hand; on his knee the kneel's legs under the same arms (my call): a role-player dazed, as the stage draws him)
   daze: Object.freeze({ drop: 5, legs: Object.freeze({ r: Object.freeze([0.95, 'fit']), l: Object.freeze([0.95, 'fit']) }), arms: Object.freeze({ bendL: Object.freeze([0.5, 15]) }) }),
   dazeKneel: Object.freeze({ drop: 31, legs: Object.freeze({ r: Object.freeze([1, 0]), l: Object.freeze([0.25, 'fit']) }), arms: Object.freeze({ bendL: Object.freeze([0.5, 15]) }) }),
+  // ("Away the boarding party": samples/board-poses' cards until the user scores; blind fire B-a, down on his knee behind
+  // cover, the rifle up over it; a man down at 0 G Z-a, slack from his locked boots, the arms adrift, the rifle on its sling)
+  blind: Object.freeze({ drop: 31, legs: Object.freeze({ r: Object.freeze([1, 0]), l: Object.freeze([0.25, 'fit']) }), arms: Object.freeze({ bendR: Object.freeze([6, -6]), bendL: Object.freeze([2, -9]) }) }),
+  downFree: Object.freeze({ drop: 4, legs: Object.freeze({ r: Object.freeze([0.95, 'fit']), l: Object.freeze([0.95, 'fit']) }), arms: Object.freeze({ bendR: Object.freeze([17, 30]), bendL: Object.freeze([17, 32]) }) }),
 });
 /** The reference rows of the standing figure's anchors: the head's centre and the man-target's A zone's (hitcard.js HEAD_ROW, A_ROW at scale 1). */
 export const HEAD_Y = 16, A_ZONE_Y = 37.6;
@@ -902,7 +910,7 @@ function fromBehind(g, B, kit, Y) {
   if (R && R.place !== 'back' && R.place !== 'front') kit.gear = { ...G, rifle: { ...R, place: RIFLE_IN_HANDS.includes(R.place) ? 'ready' : 'front' } };
   const backed = backParts(g, B, kit, Y);
   kit.gear = G;
-  if (!kit.suit && !bare) camo(g, kit.camoParts, cloth(0x9a6a4a), kit.seed);
+  if (!kit.suit && !bare && !kit.plain) camo(g, kit.camoParts, cloth(0x9a6a4a), kit.seed);
   return { leg0, leg1, hol0, hol1, backed };
 }
 
@@ -955,6 +963,8 @@ export function kitOf(look = {}, marks = {}, body = null) {
   }
   if (outfit === 'pt') Object.assign(kit, { pt: true, top: OXBLOOD, sleeve: OXBLOOD, legs: PT_GREY, boots: RUNNER, bloused: false, rank: false, head: null, bareLegs: true, bareArms: true });
   if (outfit === 'towel') Object.assign(kit, { towel: true, top: kit.skin, sleeve: kit.skin, legs: TOWEL, boots: SHOWER_SHOE, bloused: false, rank: false, head: null, bareLegs: true, bareArms: true });
+  // (the Belt coverall in the man's make, plain cloth (see the header))
+  if (outfit === 'beltCoverall') { const M = beltMakeOf(look.seed ?? 1); Object.assign(kit, { plain: true, top: M.cloth, sleeve: M.cloth, legs: M.cloth, boots: 0x3a3430, rank: false, head: null }); }
   // (the body's cues: VIEWS §4.2, see the header)
   const cue = (k) => Math.max(0, Math.min(1, body?.[k] ?? 0));
   kit.cues = { wet: cue('wetK'), grime: cue('grimeK'), sweat: cue('sweatK'), stubble: cue('stubbleK'), tired: cue('tiredK'), bladder: cue('bladderK'), hunger: cue('hungerK'), hands: cue('handsK'), handsWhy: body?.handsWhy ?? null };
@@ -1050,7 +1060,7 @@ export function doll({ look = {}, sex = 'm', marks = {}, hand = null, wounds: hu
     if (G?.ears) earCups(g, kit);
     // (the anchor the gear names: the rail overhead his left fist holds, or the lanyard to its plate)
     if (G?.anchor) anchorParts(g, kit);
-    if (!kit.suit && !bare) camo(g, kit.camoParts, cloth(0x9a6a4a), kit.seed);
+    if (!kit.suit && !bare && !kit.plain) camo(g, kit.camoParts, cloth(0x9a6a4a), kit.seed);
     // (the body's marks, over the cloth and the skin, before the seams and the ink)
     const C = kit.cues;
     if (C.sweat > 0.05) sweatMarks(g, kit, C.sweat);

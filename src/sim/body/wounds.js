@@ -59,6 +59,8 @@
 // the aid station (EVAC_MIN 12 min) or a head kill; stabilised if after care nothing bleeds over
 // STABLE_BLEED_PM 0.5 %/min, the blood is at 70 or more and no part is out (a tourniquet counts as out:
 // it is the aid station's); else evacuated.
+// v0.0.27 ("Away the boarding party"): no blood on the deck in free fall (under arms/throw.js FREE_G_MS2 0.05 m/s² where the struck
+// man stands): applyHit spills nothing there (globules are not built), so the hauler's deck at 0 G keeps no pool.
 // Pure but applyHit, stepWounds and careOf, which write the record they are given (applyHit the state).
 import { MIN_MS, SEC_MS, HOUR_MS, DAY_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
@@ -68,6 +70,9 @@ import { BODY_TMPL } from '../../data/people/looks.js';
 import { DEFAULT_TMPL } from '../../data/body/templates.js';
 import { valueOf } from '../skills/templates.js';
 import { spatter } from './blood.js';
+import { G0_MS2 } from '../../core/phys.js';
+import { gravityAt } from '../places/env.js';
+import { FREE_G_MS2 } from '../arms/throw.js';
 
 /** What each part takes, in points, before Fitness (tradecraft's PARTS). */
 export const PARTS = Object.freeze({ head: 6, torso: 12, armL: 8, armR: 8, legL: 9, legR: 9 });
@@ -466,7 +471,8 @@ export function applyHit(state, bus, hit) {
   // (the blood where they stood, flung away from the shooter)
   const a = me ? state.actors?.list?.find(x => x.id === state.player?.actor) : state.actors?.list?.find(x => x.who === pid);
   const from = hit.fromId ? state.actors?.list?.find(x => x.who === hit.fromId) : null;
-  if (a && state.places?.live?.area) spatter(state, { area: state.places.live.area, x: a.x, z: a.z, dx: Math.sign(a.x - (from?.x ?? a.x - 1)) || 1, n: at === 'head' ? 8 : 5, who: pid, atMs: ms });
+  // (none in free fall, under arms/throw.js FREE_G_MS2: blood there goes off in globules, not built (FT§19))
+  if (a && state.places?.live?.area && gravityAt(state, null, a.x, a.z).gG * G0_MS2 >= FREE_G_MS2) spatter(state, { area: state.places.live.area, x: a.x, z: a.z, dx: Math.sign(a.x - (from?.x ?? a.x - 1)) || 1, n: at === 'head' ? 8 : 5, who: pid, atMs: ms });
   bus?.emit('wound', { who: pid, part: at, kind: shot ? 'gunshot' : made[0]?.kind ?? 'blunt', name: shot?.name ?? made[0]?.name ?? null, rate: shot?.rate ?? 0, artery: !!shot?.artery, through: !!shot?.through, atMs: ms, down, knockS: knock });
   if (dead) bus?.emit('body-dead', { who: pid, why: rec.dead.why, atMs: rec.dead.ms });
   const who = me ? 'You' : cap(nameOf(p));

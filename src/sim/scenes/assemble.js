@@ -87,7 +87,7 @@ import { X4_PLANS } from '../../data/places/x4-plans.js';
 import { X4_CHUNKS, X4_LANE_CHUNKS, KICK_DC, LEAF, PLACES_PER_ROOM } from '../../data/chunks/x4.js';
 import { OPFOR_SPOTS } from '../../data/places/house-opfor.js';
 import { derivePlan, geoOf } from '../combat/derive.js';
-import { COURSES, WRECK_ROLES } from '../../data/courses.js';
+import { COURSES } from '../../data/courses.js';
 import { opOf } from '../combat/op.js';
 import { registerArea, dropArea, areaOf, openingOf, useGenerated, GEN_MARK } from '../places/model.js';
 import { routed, lineClear, ROUTE_CLS } from '../combat/route.js';
@@ -100,9 +100,9 @@ import { resetCaches as resetLight } from '../places/light.js';
 import { resetCaches as resetGraph } from '../places/graph.js';
 import { sectorOf } from '../combat/room.js';
 import { stream, weighted, int, shuffle } from '../../core/rng.js';
-// ("Hold to hold": the Wreck's authored place, stands, spots and plans (A's data), read here only, so the seam stays the one reader)
-import { WRECK, WRECK_SET_A, WRECK_SPOTS, WRECK_DECKS, wreckDeckAt } from '../../data/places/wreck.js';
-import { WRECK_PLANS } from '../../data/places/wreck-plans.js';
+// ("Hold to hold": the Wreck's authored place, stands, spots and plans; v0.0.27's stage 0: every ship's through its row of the
+// registry (src/data/places/ships.js), read here only, so the seam stays the one reader)
+import { SHIPS, shipOf, shipOfLane, shipOfArea, shipDeckAt } from '../../data/places/ships.js';
 
 /** The assembler's version, written on a drawn lane's places.live.gen (PLACES §9.9: rebuilt on load). */
 export const ASSEMBLE_V = 'assemble@1';
@@ -172,63 +172,75 @@ function drawOf(state) { const d = opOf(state)?.draw; return d?.mode === 'drawn'
 /** The house's code (see the header): 'A' as set. */
 export function houseCodeOf(state) { return drawOf(state)?.code ?? HOUSE_CODE_SET; }
 
-/** The house's spec (see the header): HOUSE1 as set; the Wreck's on a lane whose record says `ship: 'wreck'` (v0.0.25). */
+/** The house's spec (see the header): HOUSE1 as set; a ship's on a lane whose record names one (v0.0.25's Wreck; v0.0.27: the registry's row). */
 export function houseSpecOf(state) {
-  if (opOf(state)?.ship === 'wreck') return wreckSpec();
+  const S = shipOf(opOf(state));
+  if (S) return shipSpec(S.id);
   const d = drawOf(state);
   return (d && assembleHouse(d.code)?.spec) || HOUSE1;
 }
 
-// ---- v0.0.25, "Hold to hold": the Wreck (its build sheet §0 items 2 and 10, §1 item 1, §3.3) ----
+// ---- v0.0.25, "Hold to hold": the Wreck (its build sheet §0 items 2 and 10, §1 item 1, §3.3); v0.0.27: any ship of the registry ----
 //
-// The Wreck at Phobos is the shoot house's lane on a second set of authored data (A's src/data/places/wreck.js and wreck-plans.js),
-// selected by one field of the operation record, `ship: 'wreck'` (absent on every house lane: "absent means the house", so no set or
-// drawn lane reads a byte of it). Its spec is HOUSE1's shape, the fields the lane reads: the area, the lane's letter 'W', the start and
-// your #2's (WRECK_SPOTS), set A's ten stands in the house's form (the leg's number then a letter, two.js legOf's `stand[0]`; each its
-// role's face, a pop-up's `pop`, its `onFace`, its board's centre `y`, its trigger: a no-shoot or the hostage facing from GO, every
-// other turning on its compartment's hatch open and a gap), the lock's inner hatch the cadre comes aboard by at Stop (cadreIn), the
-// card's leg words, the decks, and no hall, catwalk, booth or zone (the house's readers of them take their absence). Built once, frozen.
-let WRECK_SPEC = null;
-/** The Wreck's gap after its compartment's hatch opens, by role (ms; the house's door gaps: COURSES.house.gaps.doorOther). */
-const WRECK_GAP_MS = Object.freeze(COURSES.house.gaps.doorOther);
-/** The Wreck's spec in the house's shape (see above), frozen, the same object every call. */
-export function wreckSpec() {
-  if (WRECK_SPEC) return WRECK_SPEC;
-  const S = WRECK_SPOTS, lane = (stand) => WRECK_SET_A.findIndex(s => s.stand === stand) + 1;
+// The Wreck at Phobos is the shoot house's lane on a second set of authored data (src/data/places/wreck.js and wreck-plans.js),
+// selected by one field of the operation record, `ship` (absent on every house lane: "absent means the house", so no set or drawn lane
+// reads a byte of it); from v0.0.27 that field keys src/data/places/ships.js SHIPS, and a ship's spec is built here from its row. The
+// spec is HOUSE1's shape, the fields the lane reads: the area, the lane's letter, the start and your #2's (the row's spots), its set's
+// stands in the house's form (the leg's number then a letter, two.js legOf's `stand[0]`; each its role's face, a pop-up's `pop`, its
+// `onFace`, its board's centre `y`, its trigger: a no-shoot or the hostage facing from GO, every other turning on its compartment's
+// hatch open and a gap), the chief's way in at Stop where the ship has one (the Wreck's cadreIn), the card's leg words, the decks, and
+// no hall, catwalk, booth or zone (the house's readers of them take their absence). Built once a ship, frozen.
+const SHIP_SPECS = new Map();
+/** A ship's gap after its compartment's hatch opens, by role (ms; the house's door gaps: COURSES.house.gaps.doorOther). */
+const SHIP_GAP_MS = Object.freeze(COURSES.house.gaps.doorOther);
+/** A ship's spec in the house's shape (see above), frozen, the same object every call; throws on an id the registry lacks. */
+export function shipSpec(id) {
+  const had = SHIP_SPECS.get(id);
+  if (had) return had;
+  const SH = shipOf({ ship: id });
+  if (!SH) throw new Error(`assemble: no ship '${id}' (${Object.keys(SHIPS).join(', ')})`);
+  const S = SH.spots, A = areaOf(SH.area) ?? null, lane = (stand) => SH.set.findIndex(s => s.stand === stand) + 1;
   const xz = (p) => (Array.isArray(p) ? { x: p[0], z: p[1] } : { x: p.x, z: p.z, ...(p.face ? { face: p.face } : {}) });
-  const stands = WRECK_SET_A.map(s => {
-    const R = WRECK_ROLES[s.stand];
-    if (!R) throw new Error(`assemble: the Wreck's stand '${s.stand}' has no role (courses.js WRECK_ROLES)`);
+  const stands = SH.set.map(s => {
+    const R = SH.roles[s.stand];
+    if (!R) throw new Error(`assemble: the ship ${id}'s stand '${s.stand}' has no role (its row's roles)`);
     const f = R.face, atGo = R.trigger === 'go';
     const [x, z] = Array.isArray(s.at) ? s.at : [s.x, s.z];
     // (a board's room the leg's (its plan's room, as every house stand's is: the lane's rules read a man of the leg by it), not the part
-    // of the compartment it stands in (the hold's far part, 'wk.d6.hold-far', is the hold's leg: 3b and 3c went unnamed in its pause))
-    const legRoom = WRECK_PLANS.plans[WRECK_PLANS.order[Number(s.stand[0]) - 1]]?.room ?? s.room;
+    // of the compartment it stands in (the hold's far part, 'wk.d6.hold-far', is the hold's leg: 3b and 3c went unnamed in its pause);
+    // a ship whose plans are not authored yet keeps the stand's own room)
+    const legRoom = SH.plans?.plans?.[SH.plans.order[Number(s.stand[0]) - 1]]?.room ?? s.room;
     return { key: `turner:${lane(s.stand)}`, lane: lane(s.stand), stand: s.stand, room: legRoom, x, z, y: s.y, name: s.name ?? R.name, faces: [f],
-      trigger: atGo ? { kind: 'go' } : { kind: 'door', gapMs: [...WRECK_GAP_MS] }, ...(s.onFace && s.onFace !== 'deck' ? { onFace: s.onFace } : {}), ...(s.pop ? { pop: true } : {}),
+      trigger: atGo ? { kind: 'go' } : { kind: 'door', gapMs: [...SHIP_GAP_MS] }, ...(s.onFace && s.onFace !== 'deck' ? { onFace: s.onFace } : {}), ...(s.pop ? { pop: true } : {}),
       ...(Number.isFinite(s.faceRad) ? { faceRad: s.faceRad } : {}), ...(s.slot ? { slot: s.slot } : {}) };
   });
-  const decks = Object.fromEntries(Object.entries(WRECK_DECKS).map(([n, d]) => [n, { origin: [...d.origin] }]));
-  WRECK_SPEC = deepFreeze({
-    area: WRECK.id, lane: 'W', ship: 'wreck', rect: [WRECK.boundsM.x0, WRECK.boundsM.z0, WRECK.boundsM.x1, WRECK.boundsM.z1],
-    start: xz(S.start), two: xz(S.two), cadreIn: { ...xz(S.cadreIn), ...(S.cadreIn?.hatch ? { hatch: S.cadreIn.hatch } : {}) }, stands, decks,
+  const decks = Object.fromEntries(Object.entries(SH.decks).map(([n, d]) => [n, { origin: [...d.origin] }]));
+  const bounds = A?.boundsM ?? null;
+  const spec = deepFreeze({
+    area: SH.area, lane: SH.lane, ship: SH.id, rect: bounds ? [bounds.x0, bounds.z0, bounds.x1, bounds.z1] : null,
+    start: xz(S.start), two: xz(S.two), ...(S.cadreIn ? { cadreIn: { ...xz(S.cadreIn), ...(S.cadreIn.hatch ? { hatch: S.cadreIn.hatch } : {}) } } : {}), stands, decks,
     hall: null, catwalk: null, booth: null, zones: {},
   });
-  return WRECK_SPEC;
+  SHIP_SPECS.set(id, spec);
+  return spec;
 }
-/** Which of the Wreck's decks a point of its plan is on (5 or 6, by the decks' origins: deck 6 lies 60 m east of deck 5). */
-export { wreckDeckAt };
+/** The Wreck's spec (v0.0.25's name, kept for the tests and the bots): the ship's spec of the Wreck's row. */
+export const wreckSpec = () => shipSpec(SHIPS.wreck.id);
+/** Which of a ship's decks a point of its plan is on (ships.js's, the one test of which deck), and the Wreck's (v0.0.25's name: 5 or 6). */
+export { shipDeckAt };
+export const wreckDeckAt = (x) => shipDeckAt(SHIPS.wreck.id, x);
 
 /**
  * The lane's authored layout (see the header): X4_PLANS[layout] as set, null for a layout there is none of. On a lane whose
  * record says R.house.plans 'derived' (the lead's switch, &plans=derived), the same layout with every door's plan derived from its
  * geometry (derivedSetOf); absent, the authored as before.
  */
-export function planSetOf(state, layout = opOf(state)?.lane ?? (opOf(state)?.ship === 'wreck' ? 'W' : HOUSE_CODE_SET)) {
+export function planSetOf(state, layout = opOf(state)?.lane ?? shipOf(opOf(state))?.lane ?? HOUSE_CODE_SET) {
   // (the operation record read once: the seam is read many times a tick)
   const op = opOf(state);
-  // (the Wreck's authored plans, the lane 'W', where the record says `ship: 'wreck'` (or the layout asked is 'W'))
-  if (op?.ship === 'wreck' || layout === 'W') return WRECK_PLANS;
+  // (a ship's authored plans, its lane's letter ('W' the Wreck's), where the record names the ship (or the layout asked is its letter))
+  const SH = shipOf(op) ?? shipOfLane(layout);
+  if (SH) return SH.plans;
   const d = op?.draw?.mode === 'drawn' ? op.draw : null, L = (d && assembleHouse(d.code)?.plans) || (X4_PLANS[layout] ?? null);
   return L && op?.plans === 'derived' ? derivedSetOf(L) : L;
 }
@@ -257,8 +269,9 @@ export function derivedSetOf(L) {
 /** Every authored layout of an area (see the header): X4_PLANS' for the set's area, a drawn area's own plans. */
 export function plansOfArea(areaId) {
   if (typeof areaId === 'string' && areaId.includes(GEN_MARK)) { const L = byArea(areaId); return L ? [L.plans] : []; }
-  // (the Wreck's area holds its one authored plan set (zones.js's funnels of its bulkhead hatches))
-  if (areaId === WRECK.id) return [WRECK_PLANS];
+  // (a ship's area holds its one authored plan set (zones.js's funnels of its bulkhead hatches): the Wreck's; none before its plans are written)
+  const SH = shipOfArea(areaId);
+  if (SH) return SH.plans ? [SH.plans] : [];
   return Object.values(X4_PLANS).filter(L => L.area === areaId);
 }
 

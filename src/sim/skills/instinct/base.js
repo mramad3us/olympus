@@ -8,7 +8,12 @@
 // 'activity:<id>' (the activity of the fixture you stand at); a line that sends you somewhere says
 // where, and T then does nothing. The rules, most pressing first:
 //   wound         by the wound  (0.0.7) the body's wound line in BODY §23.2's order (cues.js woundLine): an artery
-//                         or a hard bleed and shock urgent, a bleed warn, the pain a note; its words are the line
+//                         or a hard bleed and shock urgent, a bleed warn, the pain a note; its words are the line. v0.0.27, on a
+//                         real ledger (combat/would.js realOf: "Away the boarding party"), a limb bleeding hard enough for the
+//                         tourniquet (body/aid.js tourniquetOf, 4 %/min or an artery) leads, urgent, "Bleeding hard from the left
+//                         arm: a tourniquet, now.", and T does it: the row "Tourniquet" in stop motion (combat/contact.js), G into
+//                         the mode out of it, nothing while your body is down (contact.js knockedDown) or busy; with the rifle on
+//                         its sling (no Tourniquet in that panel) T brings it up first
 //   anchor        urgent  (v0.0.24's step 5; AW§4.1 items 4 and 5; COMBAT §14.8) under 0.05 G with a gun up and nothing
 //                         holding the body (footing.js footingOf 'float'), where the place gives an anchor: "Anchor before
 //                         you fire." and T takes the best one (footing.js anchorOffers: the wedge, the boots on steel, the
@@ -86,7 +91,10 @@ import { transPlaying } from '../../time/doing.js';
 import { rangeNow } from '../../scenarios/handling.js';
 import { kdAct } from '../../scenarios/range.js';
 import { opLive, opOf } from '../../combat/op.js';
-import { chooseStep, enterStop } from '../../arms/shooting.js';
+import { chooseStep, enterStop, stepsOf } from '../../arms/shooting.js';
+import { realOf } from '../../combat/would.js';
+import { tourniquetOf } from '../../body/aid.js';
+import { knockedDown, LIMB_WORDS } from '../../combat/contact.js';
 import { stepOfAct } from './range.js';
 import { anchorAction, faceRows } from '../../arms/shooting.js';
 import { hatchOf } from '../../places/hatch.js';
@@ -172,6 +180,21 @@ const fromHead = (state, ms) => {
 // (the player's arrival at the open drill, if not since gone from it)
 const arrivedAt = (state, al) => (state.time.attend ?? []).some(a => a.drill === al.drill && a.dueMs === al.dueMs && !Number.isFinite(a.leftMs));
 
+// (the wound line on a real ledger when a limb wants the tourniquet (body/aid.js tourniquetOf): urgent, its words the hard
+// bleed's by the limb (contact.js LIMB_WORDS, the tourniquet's note's own: the build sheet's "Bleeding hard from the left arm: a
+// tourniquet, now."), T the row "Tourniquet" in stop motion (combat/contact.js realRows), G into the mode out of it, nothing while you
+// are down; v0.0.27's review: where the panel offers no Tourniquet (the rifle on its sling: shooting.js's slung panel) T brings the
+// rifle up ('up'), whose panel offers it, so the urgent line never stands at a pause with no act)
+function tourniquetLine(state, k, ms) {
+  const inj = tourniquetOf(state.people?.[k.pid]?.body, ms);
+  if (!inj) return null;
+  const said = `Bleeding hard from the ${LIMB_WORDS[inj.part] ?? 'wound'}: a tourniquet, now.`;
+  if (knockedDown(state, k.pid, ms) || k.busy) return { k, tone: 'urgent', said, act: null };
+  const S = state.stop, choosing = S?.mode === 'stop' && S.phase === 'choose' && !S.reflex;
+  const rows = choosing ? stepsOf(state, ms) : [], row = rows.find(r => r.id === 'contact:tourniquet' && !r.off) ?? rows.find(r => r.id === 'up' && !r.off);
+  return { k, tone: 'urgent', said, act: row ? `stop:${row.id}` : !S || S.mode !== 'stop' ? 'stop:enter' : null };
+}
+
 /** The DI's rules (see the header), most pressing first. */
 export const BASE_RULES = Object.freeze([
   {
@@ -179,8 +202,12 @@ export const BASE_RULES = Object.freeze([
     id: 'wound', voice: 'di', tone: (ctx) => ctx.tone, short: 'Wound', reach: null,
     when(state, me, ms) {
       const k = know(state, me, ms), w = k.body ? woundLine(k.body, ms) : null;
-      return w ? { k, tone: w.tone, said: w.text } : null;
+      if (!w) return null;
+      // (a real fight: a limb that wants the tourniquet says so and T takes it (see the header))
+      const tq = realOf(state) ? tourniquetLine(state, k, ms) : null;
+      return tq ?? { k, tone: w.tone, said: w.text };
     },
+    act: (ctx) => ctx.act ?? null,
     text: { 1: ['{said}'] },
   },
   {

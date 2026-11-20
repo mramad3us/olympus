@@ -119,7 +119,27 @@ export const SETUPS = Object.freeze(['hot', 'bench', 'mixed', 'confirm', 's200',
   's1', 's2', 's3', 's4', 's5',
   // (test-zerocqb's, "Hold to hold" (scenarios/shoothouse.js WRECK_SETUPS, with 'go'): stacked on the trunk with both cells
   // cleared, on the hold's deckhead after the transit, at the yard tug's warning)
-  'trunk', 'hold', 'tug']);
+  'trunk', 'hold', 'tug',
+  // (test-collar's, "Away the boarding party" (scenarios/shoothouse.js COLLAR_SETUPS, with 'go': the lock cycled): stacked on
+  // cabin 2's hatch with the passage held and cabin 1 and the bunk room cleared, the fall back called)
+  'cabin2', 'fallback']);
+/**
+ * "Away the boarding party"'s holdouts by the URL (&holdouts=: v0.0.27): a type, pirates or smugglers (the seed's draw of it), or a whole
+ * code, the armed stands then the crew's in the draw's order ('pirates:1a,3a,3b,4b/2c,2d': opfor.js parseBoarding reads and checks it);
+ * the form only here; else null, drawn from the seed.
+ */
+export const HOLDOUTS_URL = /^(pirates|smugglers)(:[1-4][a-d](,[1-4][a-d])*\/([1-4][a-d](,[1-4][a-d])*)?)?$/;
+/**
+ * The page's word on a &holdouts= not played as asked (v0.0.27; the review of D: '&holdouts=vikings' and 'pirates:1a,9z/2c' played the
+ * seed's draw with no word, where &env, &loadout and &layout say theirs): asked, the URL's as written (readParams' holdoutsAsked); held, the
+ * form kept (readParams' holdouts, or null); stands, opfor.js parseBoarding (the page's), which a whole code must pass with its stands,
+ * else its type alone is played. The toast's words, or null when it is played as asked or none was given.
+ */
+export function holdoutsNote(asked, held, stands = null) {
+  if (!asked) return null;
+  const whole = !!held && held.includes(':');
+  return held && (!whole || !stands || stands(held)?.armed) ? null : `No holdouts '${asked}': ${held ? `the ${held.split(':')[0]} drawn from the seed` : 'drawn from the seed'}.`;
+}
 /** test-shoothouse's pars by the URL (&par=: the build sheet 0.0.12 §4's PAR_MS names); else null, the sheet's own (PAR_OF_TIER). */
 export const PARS_URL = Object.freeze(['basic', 'advanced', 'operator']);
 /** test-shoothouse's role-players by the URL (&opfor=: 0.0.19, "Stack and clear, live"): 'none', 'live', or 'live:' and two cards (fight, give, hide); else null, none. */
@@ -166,7 +186,7 @@ export const HOUSE_LIGHTS_URL = Object.freeze(['a', 'b', 'c']);
 /** test-pairs' sheets by the URL (&tier=: the build sheet 0.0.8 §2.6; the corporal by the URL only): else null, the scene's private. */
 export const TIERS_URL = Object.freeze(['recruit', 'private', 'cpl', 'sgt', 'raider', 'tierone']);
 
-/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, grav, loadout, opfor, breach, draw, house, doors, rooms, layout, plans, panel, cycle, sound, shot, look, houseLight }. */
+/** The test parameters of a URL's query: { play, seed, hour, mode, debug, mood, fog, nostore, perf, bench, area, at, face, setup, tier, par, flashes, env, grav, loadout, opfor, breach, holdouts, holdoutsAsked, draw, house, doors, rooms, layout, plans, panel, cycle, sound, shot, look, houseLight }. */
 export function readParams(search = globalThis.location?.search ?? '') {
   const q = new URLSearchParams(search);
   const num = (k) => (q.has(k) && q.get(k) !== '' && Number.isFinite(Number(q.get(k))) ? Number(q.get(k)) : null);
@@ -203,6 +223,10 @@ export function readParams(search = globalThis.location?.search ?? '') {
     opfor: OPFOR_URL.test(q.get('opfor') ?? '') ? q.get('opfor') : null,
     // ("Bang, then go"'s draw, the form only (shoothouse.js parseBreach reads it); '' and a malformed one null: the scene's own)
     breach: q.get('breach') && BREACH_URL.test(String(q.get('breach')).toLowerCase()) ? String(q.get('breach')).toLowerCase() : null,
+    // ("Away the boarding party"'s holdouts, the form only (shoothouse.js testShoothouse reads it); else null, drawn)
+    holdouts: HOLDOUTS_URL.test(String(q.get('holdouts') ?? '').toLowerCase()) ? String(q.get('holdouts')).toLowerCase() : null,
+    // (the &holdouts= as written, for the page's toast when it is not played as asked (holdoutsNote))
+    holdoutsAsked: q.get('holdouts') ? String(q.get('holdouts')).slice(0, 40) : null,
     // (the drawn house, read by the fill (shoothouse.js drawnCodeFor): the form only, here)
     draw: DRAWS_URL.includes(q.get('draw')) ? q.get('draw') : null,
     house: HOUSE_URL.test(q.get('house') ?? '') ? q.get('house') : null,
@@ -264,10 +288,12 @@ export function houseChoice({ draw = null, house = null, rooms = null, layout = 
  * words, or none. `loadout` is the URL's (null or a code); a scene without `ship` drops nothing here (houseChoice is its).
  */
 export const SHIP_DROPPED = 'The Wreck is shot as set, with the standard kit.';
-export function shipChoice(rec, { draw = null, house = null, rooms = null, layout = null, opfor = null, loadout = null } = {}) {
+// (the boarding round's stage 0: `words` is the ship's own toast, its row's src/data/places/ships.js SHIPS[ship].dropped, which the page passes
+// (core reads no data: TECH §2.2's matrix); absent, the Wreck's, SHIP_DROPPED, its row's to the letter (tests/ship-seam.test.mjs))
+export function shipChoice(rec, { draw = null, house = null, rooms = null, layout = null, opfor = null, loadout = null, words = null } = {}) {
   if (!rec?.ship) return { dropped: [] };
   const asked = !!(draw || house || rooms || layout || (opfor && opfor !== 'none') || (loadout && loadout !== 'standard'));
-  return { dropped: asked ? [SHIP_DROPPED] : [] };
+  return { dropped: asked ? [words ?? SHIP_DROPPED] : [] };
 }
 
 /**
@@ -288,6 +314,13 @@ export function breachChoice(rec, { draw = null, house = null, rooms = null, lay
  * Wreck drops what its scene does not take. `rec` is the URL's scene (null for a bare scenario). Returns { breach, dropped }.
  */
 export const BREACH_ONLY = '&breach is Bang, then go\'s.';
+/** The toast of a &holdouts= on a scene that boards nobody (v0.0.27's code review, finding 8: dropped with no word). */
+export const HOLDOUTS_ONLY = '&holdouts is Away the boarding party\'s.';
+/** A &holdouts= kept only on a boarded ship's scene (boarded: the caller's, from its SHIPS row: core reads no data), else dropped with HOLDOUTS_ONLY. */
+export function holdoutsOnly(asked, holdouts, boarded) {
+  if (!asked && !holdouts) return { holdouts: null, dropped: [] };
+  return boarded ? { holdouts: holdouts ?? null, dropped: [] } : { holdouts: null, dropped: [HOLDOUTS_ONLY] };
+}
 export function breachOnly(rec, breach = null) {
   if (!breach) return { breach: null, dropped: [] };
   return rec?.breach ? { breach, dropped: [] } : { breach: null, dropped: [BREACH_ONLY] };

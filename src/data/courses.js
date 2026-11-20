@@ -830,7 +830,7 @@ export const BURN_T = deepFreeze({
 
 /**
  * v0.0.25, "Hold to hold" (its build sheet §1 items 1, 11 and 13; ROADMAP §4.2's 0.0.7e; COMBAT §14.5, §14.8): the Wreck's sequence,
- * SEQ_HOUSE command for command (handling.js seqOf reads it where the house record carries `ship: 'wreck'`), its readinesses the
+ * SEQ_HOUSE command for command (handling.js seqOf reads it, as the Wreck's row of src/data/places/ships.js, where the house record names the Wreck), its readinesses the
  * house's (MAKE READY's houseStart wants the boots locked too: shoothouse.js houseWant), its words the cadre's in the Shed's gallery:
  * every line a text bubble at the 1MC speaker of your compartment (the user, 2026-11-19: "forget voice synthesis, no voices."), never a
  * sound that speaks. No live words: the Wreck has turners and pop-ups only (0.0.7g brings role-players in boots).
@@ -893,7 +893,113 @@ export const WRECK_ROLES = deepFreeze({
   '4a': { face: 'armoured', trigger: 'door', name: 'S1' }, '4b': { face: 'hostage', trigger: 'go', name: 'S2' },
 });
 /** Words for a deck's number. */
-export const DECK_WORDS = deepFreeze({ 5: 'five', 6: 'six' });
+export const DECK_WORDS = deepFreeze({ 2: 'two', 5: 'five', 6: 'six' });
+/**
+ * v0.0.27's stage 0, "Away the boarding party" (its build sheet §0 item 31, §3.0): the Patient Mule's stands' roles, one a stand of
+ * src/data/places/hauler.js HAULER_POSTS and HAULER_CREW, in the house's form (the leg's number then a letter: 1 the passage, 2 cabin 1,
+ * 3 the bunk room, 4 cabin 2), each its face (an armed man 'threat', a crewman 'noshoot'), its trigger (an armed man turning on his
+ * compartment's hatch, a crewman facing from GO) and its name on the card; shoothouse.js standsOf throws on a stand with none. The
+ * scene's men are live men, never boards (A's fill makes a man of every drawn stand and keeps no other). D owns this table after stage 0.
+ */
+export const HAULER_ROLES = deepFreeze({
+  '1a': { face: 'threat', trigger: 'door', name: 'the man at the locker' },
+  '2a': { face: 'threat', trigger: 'door', name: 'the man in cabin 1' },
+  '2c': { face: 'noshoot', trigger: 'go', name: 'a crewman in cabin 1' }, '2d': { face: 'noshoot', trigger: 'go', name: 'a crewman in cabin 1' },
+  '3a': { face: 'threat', trigger: 'door', name: 'the man between the berths' }, '3b': { face: 'threat', trigger: 'door', name: 'the man by the head' },
+  '3c': { face: 'noshoot', trigger: 'go', name: 'a crewman in the bunk room' }, '3d': { face: 'noshoot', trigger: 'go', name: 'a crewman in the bunk room' },
+  '4a': { face: 'threat', trigger: 'door', name: 'the man by the column' }, '4b': { face: 'threat', trigger: 'door', name: 'the man on the deckhead' },
+  '4c': { face: 'noshoot', trigger: 'go', name: 'a crewman in cabin 2' },
+});
+
+// v0.0.27, "Away the boarding party" (its build sheet §1 D, items 1, 2, 4, 14, 15; COMBAT §14.1 to §14.6; SH§5, SH§6, FT§6.3): the Patient
+// Mule's sequence, the leader's words and the compartments' words. A real op, not a lane: chambered at the muster (the fill), so no LOAD,
+// MAKE READY, UNLOAD or SHOW CLEAR, no hot wash in a booth; the brief, the override, the standby, GO and the leader's one after-action
+// line in the lock. Every line a text bubble at its speaker, the boarding team's #1 (the lane's chief aboard: shoothouse.js testShoothouse's
+// ship branch), never a voice (the user, 2026-11-19: "forget voice synthesis, no voices.").
+/** The override's DC (COMBAT §14.3, row 1: 10 + 3 × TL, the hauler's TL 1). */
+export const OVERRIDE_DC = 13;
+/**
+ * The hauler's sequence (see the section's head; handling.js seqOf reads it as its row of src/data/places/ships.js): the brief (the
+ * leader's first two bubbles), the override (its readiness 'override': the lock cycled, shoothouse.js collarTick), Standby, GO (laneDone:
+ * the deck secured, fallen back from, you down or the due), the end (the leader's after-action line by the end, `sayEnd`). Its indices
+ * are not SEQ_HOUSE's: the scene's readers find a command by id in the lane's own sequence (shoothouse.js cmdIndexOf).
+ */
+export const SEQ_COLLAR = deepFreeze([
+  { id: 'brief', ready: 'always', say: ['Patient Mule, Belt ice hauler. The crew struck to the hail and are on deck one. Deck two did not answer: armed men, and some of the crew. The crew are not targets.',
+    'The Patient Mule, an ice hauler out of the Belt. Her crew struck to the hail and mustered on deck one. Deck two never answered: armed men, and some of her crew. The crew are not targets.'],
+    sayAgain: ['Deck two again. Armed men and some of the crew. The crew are not targets.', 'Same deck, same rules. The crew are not targets.'] },
+  { id: 'override', ready: 'override', short: 'Four, override.', say: ['Four, override.', 'Four, the panel. Override.'] },
+  { id: 'standby', ready: 'goArm', say: ['Stand by.', 'Stand by. On my GO.'] },
+  { id: 'go', ready: 'laneDone', say: ['GO!', 'Go, go, go!'] },
+  { id: 'end', ready: 'never', say: ['Deck two is ours. Hold the lock for the corpsman.', 'That is deck two. Weapons tight, hold the lock for the corpsman.'],
+    sayEnd: { clear: ['Deck two is ours. Hold the lock for the corpsman.', 'That is deck two. Weapons tight, hold the lock for the corpsman.'],
+      other: ['Lock dogged. The corpsman is coming through.', 'We are out. Hold the lock for the corpsman.'],
+      // (you down for good in the deck: the corpsman sent to you, never "We are out." over you lying in the passage (the review of D))
+      down: ['Three is down. Corpsman forward, now.', 'Man down, it is Three. Corpsman, forward.'] } },
+]);
+/**
+ * The leader's words (shoothouse.js reads a key here first where the house record names the hauler, as the Wreck's WRECK_CHIEF): the
+ * brief's beside-you line and the gravity (free fall named), the void's four faults (as the Wreck's: a round fired floating, the open
+ * middle, hanging in the hatch, feet aft), a deck's "clear!", the send to each compartment ({room}: the leg's `said`), the deck secured,
+ * the fall back, the hull holed, the override's lockout (Four's), the lane's stall and its time, a man ruled out at his compartment's
+ * "Clear!", and the hot wash's lines (never said aboard: no wash). Each ≥ 2 phrasings, picked by hash; text bubbles, never a voice.
+ */
+export const COLLAR_LEADER = deepFreeze({
+  brief: ['Frangible. Feet on the plate.', 'Frangible only. Boots on the plate.'],
+  zero: ['Zero G aboard: your boots hold you, nothing else.', 'She is coasting. Nothing holds you but your boots.'],
+  float: ['Anchor before you fire!', 'You fired floating! Boots down first.'],
+  open: ['Get on a face! Hold to hold.', 'Off the open middle! Boots on the plate.'],
+  hatch: ["Don't hang in the hatch!", 'Out of the hatch! You are a target in it.'],
+  aft: ['Feet on the plate!', 'Boots down! On the plate.'],
+  deck: ['Deck {n} clear!', 'Deck {n} clear!'],
+  send: ['Three, Four: {room}. Go.', 'Three, Four, {room}. Go.'],
+  // (the send by Four where the leader and the AR are down (shoothouse.js leaderSays): his to you, Three)
+  sendTwo: ['Three, with me: {room}. Go.', 'Three, on me, {room}. Go.'],
+  secure: ['Deck secure.', 'Deck two secure.'],
+  fallback: ['Fall back to the lock!', 'Back to the lock! Fall back!'],
+  hull: ["Hull's holed. Keep going.", "That one holed the hull. Keep going."],
+  lockout: ["Panel's locked me out. Again.", 'Locked out. Going again.'],
+  stall: ['Move. Get on with it.', 'Move. The deck is not cleared standing still.'],
+  time: ['Leave it. Next.', 'Time. Next compartment.'],
+  laneTime: ['Time. Back to the lock.', 'That is the time. Out.'],
+  // (a man down or with his hands up ruled out at his compartment's "Clear!": a real man, never told to sit down as a role-player is)
+  out: ['Down and covered. Leave him for the corpsman.', 'He is done. Leave him for the corpsman.'],
+  // (men ruled out with their hands up and none down: they stay where they are, nobody's casualty (the v0.0.27 play review, finding 5))
+  outHands: ['Hands up and covered. He stays there.', 'He has given up. Leave him where he is.'],
+  wash: ['After action, here in the lock.', 'In the lock: what went right, what went wrong.'],
+  one: {
+    float: ['You fired floating. Boots, then the trigger.', 'A round from nothing pushes you off the line. Boots first.'],
+    open: ['You hung in the open middle. A face in reach, always.', 'Nothing in reach is nothing to stop you. Hold to hold.'],
+    hatch: ['You hung in the hatch. Through it, then look.', 'The hatch is where they shoot you. Through and onto a face.'],
+    aft: ['Your boots came off the plate. Keep them down.', 'Boots on the plate, every step.'],
+    // (the boarding's own (shoothouse.js oneThing, the v0.0.27 play review, finding 6): no range verdict aboard, the deck's lesson)
+    clean: ['The deck is ours, by the drill. That is the job.', 'Secured by the drill. That is how it is done.'],
+    fellBack: ['Two of us down, so we came out. Win the first fight and the rest follows.', 'We fell back with our wounded. Fewer seconds in their sight next time.'],
+    down: ['You went down in there. Every second in a hatch is a second in their sight.', 'Down. Plates stop rounds, not all of them: off the line, fast.'],
+    protected: ['A round at a man who could not fight. Down, hands up or unarmed: never.', 'You fired on a man out of the fight. Look before the trigger.'],
+    bang: ['Late on the bang. Go in while they are blind.', 'The bang buys you seconds. Spend them going in.'],
+  },
+});
+/**
+ * The boarding's card words (shoothouse.js collarCardOf and collarRowsOf): the hull's kind and the deck after the ship's name, the end's
+ * word before its time ("SECURED 3:12", "FELL BACK 2:40", "YOU WERE DOWN 1:55", "NOT SECURED: TIME 10:00"), the run sheet's place, the
+ * fire team's labels by number (team.js fireTeamOf's n: a label, never a slot) and the men's states.
+ */
+export const COLLAR_CARD = deepFreeze({
+  ship: 'BELT ICE HAULER', deck: 'DECK 2', place: 'THE PATIENT MULE · DECK 2',
+  ends: { clear: 'SECURED', fellBack: 'FELL BACK', down: 'YOU WERE DOWN', time: 'NOT SECURED: TIME', passed: 'NOT SECURED', dry: 'NOT SECURED: DRY' },
+  team: { 1: 'THE LEADER', 2: 'THE AR', 3: 'YOU', 4: 'FOUR' },
+  states: { down: 'DOWN', hands: 'GAVE UP', out: 'DOWN', flee: 'FLED', fled: 'FLED', up: 'STILL UP' },
+  // (the corpsman's outcomes (aid.js boardingCare's, B's))
+  care: { stable: 'STABLE', aidStation: 'TO THE AID STATION', diedOfWounds: 'DIED OF WOUNDS', killed: 'KILLED OUTRIGHT' },
+});
+/** The Patient Mule's legs' words (the card's row word, what the leader says of it, its entry, its deck), in the lane's order (hauler-plans.js HAULER_ORDER). */
+export const HAULER_LEGS = deepFreeze([
+  { word: 'THE PASSAGE', said: 'the passage', entry: 'lock hatch', deck: 2 },
+  { word: 'CABIN 1', said: 'cabin one', entry: 'bulkhead hatch', deck: 2 },
+  { word: 'THE BUNK ROOM', said: 'the bunk room', entry: 'bulkhead hatch', deck: 2 },
+  { word: 'CABIN 2', said: 'cabin two', entry: 'bulkhead hatch', deck: 2 },
+]);
 
 export const VERDICT_WHY = deepFreeze({
   setup: 'a lane set up is no lane', casualty: 'a casualty', hostage: 'the hostage', noshoot: 'a no-shoot', stopped: 'the safety stop', muzzle: 'your muzzle',

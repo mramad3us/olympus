@@ -45,7 +45,7 @@ const V0010 = Object.freeze({
   'barracks|48213': [23480400000, 'melas.echo.1', 52.075, 3.3, 'down', '09eaa02234bb43'],
 });
 /** v0.0.24's two void scenes ("Anchor before you fire", "Secure for burn") and v0.0.25's Wreck ("Hold to hold"): off Mars, with no v0.0.10 start. */
-const VOID_SCENES = Object.freeze(['test-anchors', 'test-burn', 'test-zerocqb']);
+const VOID_SCENES = Object.freeze(['test-anchors', 'test-burn', 'test-zerocqb', 'test-collar']);
 const startOf = (s) => { const a = playerActor(s); return [s.clock.ms === s.meta.createdMs ? s.clock.ms : `${s.clock.ms}≠${s.meta.createdMs}`, s.places.live.area, a.x, a.z, a.face, digest(toJSON(s))]; };
 const throws = (fn) => { try { fn(); return null; } catch (e) { return e.message; } };
 
@@ -92,7 +92,11 @@ export default [
       assert(SCENES['test-breach'].scenario === 'test-shoothouse' && JSON.stringify(SCENES['test-breach'].host) === JSON.stringify(SCENES['test-shoothouse'].host) && SCENES['test-breach'].hour === SCENES['test-shoothouse'].hour, 'the scene of room 1');
       // (v0.0.25: "Hold to hold", the Wreck at Phobos in its site's own environment, its own scenario, after "Secure for burn" in the menu's order)
       assert(SCENES['test-zerocqb'].host.site === 'phobos-void' && SCENES['test-zerocqb'].host.area === 'phobos.void.wreck' && SCENES['test-zerocqb'].env.preset === 'site' && SCENES['test-zerocqb'].scenario === 'test-zerocqb', 'the Wreck\'s scene');
-      assert(JSON.stringify(SCENE_IDS) === JSON.stringify(built.map(x => x.id)) && SCENE_IDS.at(-1) === 'test-zerocqb' && SCENE_IDS.at(-2) === 'test-burn' && SCENE_IDS.at(-3) === 'test-anchors' && SCENE_IDS.at(-4) === 'test-breach' && SCENE_IDS.at(-5) === 'test-shoothouse-live' && SCENE_IDS.at(-6) === 'test-shoothouse', SCENE_IDS.join());
+      // (v0.0.27: "Away the boarding party", the Patient Mule coasting at 0 G in its site's own environment, its own scenario, last, after "Hold
+      // to hold" (the ships together: its build sheet §14 item 22, question 18); on the Tests menu since v0.0.27's integration met its ship
+      // rule (F150, F153, F155 and F165 green))
+      assert(SCENES['test-collar'].host.site === 'belt-mule' && SCENES['test-collar'].host.area === 'mule.crew' && SCENES['test-collar'].env.preset === 'site' && SCENES['test-collar'].scenario === 'test-collar' && SCENES['test-collar'].ship === 'hauler' && SCENES['test-collar'].menu !== false, 'the hauler\'s scene');
+      assert(JSON.stringify(SCENE_IDS) === JSON.stringify(built.map(x => x.id)) && SCENE_IDS.at(-1) === 'test-collar' && SCENE_IDS.at(-2) === 'test-zerocqb' && SCENE_IDS.at(-3) === 'test-burn' && SCENE_IDS.at(-4) === 'test-anchors' && SCENE_IDS.at(-5) === 'test-breach' && SCENE_IDS.at(-6) === 'test-shoothouse-live' && SCENE_IDS.at(-7) === 'test-shoothouse', SCENE_IDS.join());
       assert(Object.values(STARTS).every(x => x.env.preset === 'site') && STARTS.sandbox.host.site === 'test' && STARTS.barracks.host.site === 'melas', JSON.stringify(STARTS));
       console.log(`      the Tests menu: ${SCENE_IDS.join(', ')}; stubs: ${Object.values(SCENES).filter(x => x.built === false).map(x => x.id).join(', ')}`);
     },

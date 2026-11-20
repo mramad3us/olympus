@@ -28,11 +28,20 @@
 // door (bundle.js passes beyondM DEEP_BEYOND_M 2.0) lands at least that far past the door's line, a failed one too (my call: the
 // arm through the opening carries a deep throw in; a short throw landing in the door's mouth beside the stack, 112 kPa on #1 round
 // the jamb, and the stack's "Grenade short!" to answer it, are a question for the user, not this round's).
+// v0.0.27 ("Away the boarding party": its build sheet item 13, FT§9; COMBAT §11.1, §14.5): **the landing in free fall**. Under
+// FREE_G_MS2 (0.05 m/s², the flight's own g) nothing pulls the grenade down, so it does not stop where it was aimed: it flies straight
+// on along the throw's line (the aim and its error as above give the heading) to the first face it meets (route.js clipped against the
+// walls, the standing fittings and the leaves closed, as the walker's circle meets them), then rebounds back along the line at
+// FREE_BOUNCE 0.3 of its speed for the fuse it has left (fuseLeftMs less the flight to the face), at most FREE_ROLL_MAX_M 1.5 m, never
+// through a wall and never back over the door's line it was thrown through (BEYOND_M into the room at least: "nothing rolls under a
+// door"). So a G-11 thrown through a hatch at 0 G bangs in the compartment it went into, against its far side or within 1.5 m of it,
+// where v0.0.26's roll of U(0.5, 2) × √(G0 / 0.05) carried it 7 to 28 m. At FREE_G_MS2 and above the roll is as built, its draws in
+// their order (the Wheel's, Mars's, Well A's and the burn's landings to the byte).
 // Pure.
 import { stream, next, range } from '../../core/rng.js';
 import { G0_MS2 } from '../../core/phys.js';
 import { spinBiasCm } from '../places/spin.js';
-import { lineClear, clipped } from '../combat/route.js';
+import { lineClear, clipped, routeGridOf } from '../combat/route.js';
 import { fuseBelieved } from './devices.js';
 
 /** The ceiling's keep for a lob's top (m), the fuse's keep for its flight (ms), free fall below FREE_G_MS2 thrown straight at FREE_THROW_MS (m/s); the release's height (m). */
@@ -43,6 +52,10 @@ export const THROW_V_MAX = 20, THROW_V0 = 14, THROW_V_PER = 0.25, SUIT_THROW_K =
 export const SLIP_M = 0.4, SLIP_KEEP_M = 0.2, BEYOND_M = 0.3;
 /** A frag's or a concussion's deep throw through a door lands at least this far past its line, a failure too (m; v0.0.19, my call: see the header). */
 export const DEEP_BEYOND_M = 2.0;
+/** In free fall (v0.0.27; COMBAT §11.1's restitution): the rebound off the first face, a share of the throw's speed, and its most (m). */
+export const FREE_BOUNCE = 0.3, FREE_ROLL_MAX_M = 1.5;
+/** The free flight's reach along its line where no face meets it sooner (m: beyond any compartment), and the grenade's keep off the face it meets (m: its body, my call). */
+export const FREE_REACH_M = 30, FREE_FACE_KEEP_M = 0.1;
 
 /** The thrower's top speed (m/s) for a Fitness, suited or not (see the header). */
 export const throwVMax = (fitness, suited = false) => Math.min(THROW_V_MAX, THROW_V0 + THROW_V_PER * (fitness ?? 10)) * (suited ? SUIT_THROW_K : 1);
@@ -108,6 +121,8 @@ export function throwLand(state, pid, solve, { itemId = 'g', ok = true, margin =
   let to = [aimX + rx * side + solve.ux * along + Math.cos(ang) * errM, aimZ + rz * side + solve.uz * along + Math.sin(ang) * errM];
   // (through a door, never back over its line: the error turned about it, BEYOND_M into the room at least)
   if (door && across(to) * door.side < beyondM) to = setAcross(to, door.side * Math.max(Math.abs(across(to)), beyondM));
+  // (in free fall, straight on to the first face and back off it (see the header))
+  if (F.g < FREE_G_MS2) return freeLand(state, solve, { from, to, aimX, aimZ, area, door, beyondM, across, setAcross, itemId });
   let wall = false;
   if (area && !lineClear(state, from, to, { area })) { to = clipped(state, from, to, { area }); wall = true; }
   // (the roll on: along the throw's heading, U(0.5, 2) × √(G0 / g) m, never through a wall)
@@ -117,6 +132,46 @@ export function throwLand(state, pid, solve, { itemId = 'g', ok = true, margin =
   // (v0.0.19: a deep throw's floor never nearer the door's line than its beyondM, a wall's clip and the roll counted)
   if (door && beyondM > BEYOND_M && across(end) * door.side < beyondM) end = setAcross(end, door.side * beyondM);
   return { x: r3(end[0]), z: r3(end[1]), aimX: r3(aimX), aimZ: r3(aimZ), offM: r3(Math.hypot(to[0] - aimX, to[1] - aimZ)), wall, rollM: r3(Math.hypot(end[0] - to[0], end[1] - to[1])), atFeet: false };
+}
+
+// (the free-fall landing (see the header): the heading from the hand through `to`, the first face along it, the rebound back
+// along it for the fuse left, never through a wall nor back over the door's line)
+function freeLand(state, solve, { from, to, aimX, aimZ, area, door, beyondM, across, setAcross, itemId }) {
+  const hx = to[0] - from[0], hz = to[1] - from[1], hn = Math.hypot(hx, hz) || 1, ux = hx / hn, uz = hz / hn;
+  const hit = area ? faceAlong(state, area, from, ux, uz) : null, flownM = hit ? Math.max(0, hit.t - FREE_FACE_KEEP_M) : FREE_REACH_M;
+  const face = [from[0] + ux * flownM, from[1] + uz * flownM], vMs = Math.max(solve.vMs ?? FREE_THROW_MS, 1e-6);
+  const leftMs = Math.max(0, Math.min(fuseLeftMs(state, itemId), 1e9) - flownM / vMs * 1000);
+  const backM = Math.min(FREE_ROLL_MAX_M, FREE_BOUNCE * vMs * leftMs / 1000);
+  let end = [face[0] - ux * backM, face[1] - uz * backM];
+  if (area && !lineClear(state, face, end, { area })) end = clipped(state, face, end, { area });
+  // (never back over the door's line it went through: BEYOND_M (or the deep throw's) into the room at least)
+  if (door && across(end) * door.side < beyondM) end = setAcross(end, door.side * beyondM);
+  return { x: r3(end[0]), z: r3(end[1]), aimX: r3(aimX), aimZ: r3(aimZ), offM: r3(Math.hypot(to[0] - aimX, to[1] - aimZ)), wall: !!hit, rollM: r3(Math.hypot(end[0] - face[0], end[1] - face[1])), atFeet: false, faceAt: [r3(face[0]), r3(face[1])], free: true };
+}
+/**
+ * The first face along a line in plan (v0.0.27): from [x, z] along the unit heading (ux, uz), the nearest of the rects a walker collides
+ * with (route.js routeGridOf's blockers: the walls and the standing fittings, each `tag` 'wall' or its fixture's id) and the leaves
+ * closed now (`tag` 'leaf:<opening>'), a rect the start stands in left out (a hand or a muzzle past a jamb), within reachM; exactly, with
+ * no radius (Liang and Barsky's clip, as route.js lineClear). Returns { t (m along the line), rect, tag } or null. Shared with
+ * combat/holes.js (a missed round's face).
+ */
+export function faceAlong(state, area, from, ux, uz, reachM = FREE_REACH_M) {
+  const G = routeGridOf(state, area);
+  if (!G) return null;
+  let best = null;
+  const test = (r, tag) => {
+    if (from[0] >= r.x0 && from[0] <= r.x1 && from[1] >= r.z0 && from[1] <= r.z1) return;
+    let t0 = 0, t1 = reachM;
+    for (const [p, q0] of [[-ux, from[0] - r.x0], [ux, r.x1 - from[0]], [-uz, from[1] - r.z0], [uz, r.z1 - from[1]]]) {
+      if (p === 0) { if (q0 < 0) return; continue; }
+      const t = q0 / p;
+      if (p < 0) { if (t > t1) return; if (t > t0) t0 = t; } else { if (t < t0) return; if (t < t1) t1 = t; }
+    }
+    if (t0 <= t1 && (!best || t0 < best.t)) best = { t: t0, rect: r, tag };
+  };
+  for (const b of G.blockers ?? []) test(b, b.tag ?? 'wall');
+  for (const l of G.leaves ?? []) if (l.closed) test(l.rect, `leaf:${l.id}`);
+  return best;
 }
 
 /** A deep aim stays this far off the room's walls (m; my call: kit2 §2.3's (29.0, 8.8) in room 1, the roll on carrying it deeper still). */

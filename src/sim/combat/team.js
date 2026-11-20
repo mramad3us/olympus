@@ -25,7 +25,21 @@
 // TEAM_WORDS is the team's words, one entry an id: { words, by (1 you, 2 your number two, 0 either), answer? (the mate's
 // call that answers it), close? (the caller's that closes it) }. bundle.js TWO_SAY and SAY and sidearm.js CALLS are read from
 // it (tests/team.test.mjs holds them equal), never the other way round. Pure but takeOtherSide, which writes the swap.
+//
+// v0.0.27, "Away the boarding party" (its build sheet §1 C, §3.3, items 4, 14; FT§6): **the fire team of four** (COMBAT §7.1). fireTeamOf
+// is the four where the scene has holders (R.house.holders, combat/holders.js): #1 the team leader ('tl') and #2 the automatic rifleman
+// ('ar'), who hold the passage, then your pair, #3 you ('r') and #4 your buddy ('buddy'), your #2 as built; elsewhere your pair alone, as
+// #3 and #4. The `n` is a label for the words and the card only (TEAM_LABELS, labelOf: "Four" for your #2 aboard), never a slot nor
+// membersOf's role: the pair's roles stay membersOf's (you 1, your #2 2), which the plans' slots, the sides and twoOwns read, so no reader
+// of a slot meets a 3 or a 4. The holders' own words are TEAM_WORDS' `hold:` ids (by 'tl', 'ar' or 'h' either). **One plan a tick**
+// (planTurn; the ship lens's tick means, SH§9.1 (c)): of the NPC marines (the two holders and your #2), at most one plans a row on a tick,
+// the turn going to the one who has waited longest (round-robin by n where two have waited as long), the others carrying their plan to
+// the next tick, so a contact's busiest tick is never paid three times at once; R.house.holders.turn = { ms, pid, wait, last, n } is its
+// record (saved), written only where the scene has holders: with none every ask is granted, so no lane without holders moves.
+// FALLBACK_ROW names the scene's "Back to the lock" row (the house's `move` kind), which the instinct's line does. Pure but
+// takeOtherSide and planTurn, which write the swap and the turn.
 import { playerId } from '../../core/ids.js';
+import { TICK_MS } from '../../core/clock.js';
 import { frameOf, cornerRuleOf } from './corner.js';
 import { doorOfRoom, pastThreshold } from './room.js';
 import { opOf } from './op.js';
@@ -91,7 +105,20 @@ export const TEAM_WORDS = Object.freeze({
   moving: W('Moving!', 1),
   move: W('Move!', 2),
   contact: W('{face}, {place}!', 2),
+
+  // (the holders' own (combat/holders.js; by 'tl' the team leader, 'ar' the automatic rifleman, 'h' either): both set at their
+  // posts, the leader's; a man taken in, the leader's "Contact forward!", the AR's "Contact!"; a holder down, his "I'm hit!" (the
+  // house's casualty words, courses.js opfor.hit's first). Their stoppage, "Line!" and "Up." are the ids above)
+  'hold:set': W('Set.', 'tl'),
+  'hold:forward': W('Contact forward!', 'tl'),
+  'hold:contact': W('Contact!', 'ar'),
+  'hold:hit': W("I'm hit!", 'h'),
 });
+
+/** The fire team's labels by n (FT§6.1; the card's and the words'): the team leader, the AR, you, Four. */
+export const TEAM_LABELS = Object.freeze({ 1: 'the team leader', 2: 'the AR', 3: 'you', 4: 'Four' });
+/** The scene's "Back to the lock" row (the build sheet item 14: the house's `move` kind, the scene's to offer); the instinct's line does it. */
+export const FALLBACK_ROW = 'move:lock';
 
 // (the house's record, read from the session, never by importing the scenario)
 const houseOf = (state) => opOf(state);
@@ -101,6 +128,46 @@ const other = (s) => (s === 1 ? 2 : s === 2 ? 1 : s);
 export function membersOf(state) {
   const H = houseOf(state), Wr = H?.two ?? null, two = Wr?.pid ?? H?.twoPid ?? null;
   return [{ role: 1, pid: playerId(state), rec: null }, ...(two ? [{ role: 2, pid: two, rec: Wr }] : [])];
+}
+/**
+ * The fire team of four (v0.0.27, its build sheet §3.3; FT§6): [{ pid, n, role, holder }], n 1 to 4 a label for the words and the card
+ * only (#1 the team leader 'tl', #2 the automatic rifleman 'ar', #3 you 'r', #4 your buddy 'buddy'), holder whether he holds the passage
+ * (the leader and the AR, R.house.holders' men, in n's order). Never a slot nor membersOf's role (see the header). Without holders your
+ * pair alone, as #3 and #4 (v0.0.27's stage 0 stub, so every reader of it off the boarding reads what it read).
+ */
+export function fireTeamOf(state) {
+  const pair = membersOf(state).map(m => ({ pid: m.pid, n: m.role === 1 ? 3 : 4, role: m.role === 1 ? 'r' : 'buddy', holder: false }));
+  const Q = houseOf(state)?.holders?.men ?? null;
+  if (!Q?.length) return pair;
+  return [...[...Q].sort((a, b) => a.n - b.n).map(m => ({ pid: m.pid, n: m.n, role: m.n === 1 ? 'tl' : 'ar', holder: true })), ...pair];
+}
+/** A person's label in the fire team (TEAM_LABELS by n: "Four" for your #2 aboard), or null where he is none of it; without holders your #2 is "your number two". */
+export function labelOf(state, pid) {
+  const m = fireTeamOf(state).find(x => x.pid === pid);
+  if (!m) return null;
+  return m.n === 4 && !houseOf(state)?.holders ? 'your number two' : TEAM_LABELS[m.n];
+}
+/**
+ * Whether an NPC marine may plan a row on this tick (see the header): granted at once where the scene has no holders. Else the tick's one
+ * plan goes, at its first ask, to the marine who has waited longest (wait[pid], the ms of his first refused ask; ties by n), the asker
+ * himself where nobody waits longer; refused, his ask is kept until granted, and dropped once a tick passes without it (last[pid], his
+ * last ask's ms). Writes R.house.holders.turn = { ms, pid, wait, last, n (the plans granted) }.
+ */
+export function planTurn(state, pid, ms = state.clock.ms) {
+  const Q = houseOf(state)?.holders;
+  if (!Q) return true;
+  const T = (Q.turn ??= { ms: null, pid: null, wait: {}, last: {}, n: 0 });
+  if (T.ms !== ms) {
+    const nOf = (p) => fireTeamOf(state).find(x => x.pid === p)?.n ?? 9;
+    for (const p of Object.keys(T.wait)) if (!(T.last[p] >= ms - TICK_MS)) delete T.wait[p];
+    const mine = T.wait[pid] ?? ms;
+    const older = Object.entries(T.wait).filter(([p, w]) => p !== pid && (w < mine || (w === mine && nOf(p) < nOf(pid)))).sort((x, y) => x[1] - y[1] || nOf(x[0]) - nOf(y[0]));
+    T.ms = ms; T.pid = older.length ? older[0][0] : pid;
+  }
+  T.last[pid] = ms;
+  if (T.pid === pid) { delete T.wait[pid]; T.n += 1; return true; }
+  T.wait[pid] ??= ms;
+  return false;
 }
 /** A member by person: { role, rec } or null. */
 export function memberOf(state, pid) {

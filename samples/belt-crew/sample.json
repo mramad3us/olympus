@@ -1,0 +1,18 @@
+{
+ "title": "The holdouts: the dress of the armed men aboard the Patient Mule, on the deck and on the deckhead",
+ "about": "v0.0.27, \"Away the boarding party\", draws pirates or smugglers from the seed, and some of the hauler's own crew, unarmed. One dress serves both kinds of holdout; the crew always wear coveralls. Every picture is the game's own code: the figure composed at the stage's 16 px/m by the figure engine, shaded and snapped to the palette as the stage draws it, on the hauler's deck plate and three times its size. The first row is a holdout aimed (the R-7 at the shoulder) toward you, away, side on to the right and to the left, on the deck; the second the same on the deckhead, turned as the stage turns a body there; the third the candidate's three men side by side, then one of the crew, unarmed, in his coveralls. The coverall is the game's own Belter coverall, one piece in three makes by the man (blue-grey with the union's red band, rust, faded olive), the head bare; the light vac suit unsealed is the game's \"Light vac suit, helmet off\", the helmet clipped at the pack. The game builds the default until you score; the pick is the holdouts' outfit (src/art/figures/outfits.js).",
+ "open": {"default": ["D-c"], "since": "2026-11-19", "decides": "how the holdouts aboard the Patient Mule are dressed (the hauler's crew always in coveralls) in Away the boarding party", "builtIn": "v0.0.27"},
+ "pixel": true,
+ "groups": [
+  {
+   "id": "D",
+   "title": "D: the dress (four facings on the deck and on the deckhead, aimed; the three men; one of the crew)",
+   "about": "A holdout aimed in four facings on the deck, the same on the deckhead, then the candidate's three men toward you and one of the hauler's crew in coveralls.",
+   "views": [
+    { "id": "D-a", "name": "D-a: coveralls, three makes", "query": "d=D-a", "pixel": "428x466" },
+    { "id": "D-b", "name": "D-b: the light vac suit unsealed, the helmet at the pack", "query": "d=D-b", "pixel": "428x466" },
+    { "id": "D-c", "name": "D-c: the mixed crew, two in coveralls and one in the vac suit (the default)", "query": "d=D-c", "pixel": "428x466" }
+   ]
+  }
+ ]
+}

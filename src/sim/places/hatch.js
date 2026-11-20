@@ -31,15 +31,15 @@
 //   deckAt(area, x, z)  the deck a point of a decked area lies on (its `decks`' rect, the walls' thickness round it counted), else null.
 // Pure but for the state it is given and the bus.
 import { areaOf, openingOf, openingState, openingArea, openingDelta } from './model.js';
-import { WRECK_TRUNK } from '../../data/places/wreck.js';
+import { SHIPS } from '../../data/places/ships.js';
 import { brokenOf } from '../combat/op.js';
 
 /** A body takes the trunk within this of its end's centre on his deck, metres (the scuttle's 0.4 m and a stack's reach at its coaming; my call). */
 export const HATCH_REACH_M = 1.2;
 /** The trunk's states, and its template's. */
 export const TRUNK_STATES = Object.freeze(['dogged', 'shut', 'open']);
-/** The deck hatches by id (this round, the Wreck's trunk). */
-export const DECK_HATCHES = Object.freeze({ [WRECK_TRUNK.id]: WRECK_TRUNK });
+/** The deck hatches by id: every ship's trunks (src/data/places/ships.js SHIPS, the registry's `trunks`: the Wreck's one; v0.0.27's stage 0). */
+export const DECK_HATCHES = Object.freeze(Object.fromEntries(Object.values(SHIPS).flatMap(S => S.trunks).map(T => [T.id, T])));
 // (the faces of a compartment's bulkheads by which edge of its rect a line lies on: the area's frame is the deck's, x starboard, z ventral)
 const FACE_OF_EDGE = Object.freeze({ x0: 'port', x1: 'starboard', z0: 'dorsal', z1: 'ventral' });
 /** The walls' thickness round a deck counted on it (plan.js OUTER_T_M 0.3 and a margin), metres. */

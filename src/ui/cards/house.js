@@ -35,9 +35,12 @@
 // SERGEANT · ROOM 1 · THE BANG ISSUED · THE DOOR WAS HELD"), and under the room's row the window's (breachRows: THE WINDOW, a line a man,
 // THEIR CHOICES), every figure shoothouse.js bangWindowOf's; the end card's "Again with a new seed" is the scene's "Another door"
 // (scenes.js newSeed), and its "Again" keeps the draw's words (main.js openHouseEnd).
+// v0.0.27 ("Away the boarding party", its build sheet §1 D, item 1): the run sheet's title the ship's place (rs.place, "THE PATIENT MULE · DECK
+// 2"), its line the boarding's (shoothouse.js collarCardOf: the end and its time, no par, no verdict), and under the compartments' rows the
+// boarding's own (boardingRows: OURS, THEIRS, THE CREW, the rounds and holes, THEIR CHOICES), every figure the scene's record's.
 
 // (the rooms' role's laneWordOf read by name, so the paper is v0.0.21's until it is exported)
-import { WRECK_LEGS } from '../../data/courses.js';
+import { shipOf } from '../../data/places/ships.js';
 import * as ASSEMBLE from '../../sim/scenes/assemble.js';
 import { gearOf } from '../../sim/arms/gear.js';
 import { seenKey, standSeen } from '../../sim/people/seen.js';
@@ -108,6 +111,8 @@ export const FAULT_MARKS = Object.freeze([
   'BEFORE YOURS',
   // (one of your number two's rounds held MASK_FAULT_MS by you on his line (shoothouse.js FAULT_PAPER.masked))
   'MASKED',
+  // (the boarding: a round at a man down, with his hands up or unarmed (shoothouse.js PROTECTED_CARD))
+  'A ROUND AT A MAN',
 ]);
 /** Whether a mark is a fault (red on the paper). */
 export const isFault = (mark) => FAULT_MARKS.some(f => String(mark).toUpperCase().includes(f));
@@ -120,6 +125,15 @@ export function breachRows(rs) {
   const B = rs?.breach;
   if (!B) return [];
   return [B.window, ...(B.men ?? []), B.choices].filter(Boolean).map(words => { const i = words.indexOf(': '); return { words, head: i > 0 ? words.slice(0, i) : words, marks: i > 0 ? words.slice(i + 2).split(' · ') : [] }; });
+}
+/**
+ * "Away the boarding party"'s rows of the run sheet (v0.0.27; shoothouse.js runSheetOf's boarding, its words from the scene's own record):
+ * OURS, THEIRS, THE CREW, the rounds and holes, THEIR CHOICES, each as breachRows' { words, head, marks }; [] on every other lane.
+ */
+export function boardingRows(rs) {
+  const B = rs?.boarding;
+  if (!B) return [];
+  return (B.rows ?? []).filter(Boolean).map(words => { const i = words.indexOf(': '); return { words, head: i > 0 ? words.slice(0, i) : words, marks: i > 0 ? words.slice(i + 2).split(' · ') : [] }; });
 }
 /** A run sheet row's parts: { head, marks: [{ text, fault }] } from its words ("ROOM 1 · 7.40 S · …": the head is the room and its time). */
 export function rowParts(words) {
@@ -145,11 +159,11 @@ export function runSheetEl(rs, { doc = globalThis.document, bars = null, lane = 
   });
   const would = Array.isArray(rs.would) ? rs.would : [];
   // ("Bang, then go": the window's rows under the room's (breachRows: THE WINDOW or THE DOOR, a line a man, THEIR CHOICES)
-  const breach = breachRows(rs);
+  const breach = [...breachRows(rs), ...boardingRows(rs)];
   // (a named house's letter where the card says NEW LAYOUT)
   const card0 = typeof rs.card === 'string' ? rs.card : rs.card?.words ?? rs.card?.text ?? null, card = lane && card0 ? card0.replace(/\bNEW LAYOUT\b/, `LANE ${lane}`) : card0, one = typeof rs.one === 'string' ? rs.one : rs.one?.text ?? null;
   const body = el('div', { className: 'runsheet' },
-    el('div', { className: 'rs-title' }, el('span', { textContent: 'RUN SHEET' }), el('span', { className: 'rs-lane', textContent: place ?? (rs.breach ? 'ROOM 1 · THE WHEEL · HOUSE 1' : lane ? `LANE ${lane} · THE WHEEL · HOUSE 1` : rs.lane ? `LANE ${rs.lane}` : 'THE WHEEL · HOUSE 1') })),
+    el('div', { className: 'rs-title' }, el('span', { textContent: 'RUN SHEET' }), el('span', { className: 'rs-lane', textContent: place ?? rs.place ?? (rs.breach ? 'ROOM 1 · THE WHEEL · HOUSE 1' : lane ? `LANE ${lane} · THE WHEEL · HOUSE 1` : rs.lane ? `LANE ${rs.lane}` : 'THE WHEEL · HOUSE 1') })),
     rs.breach?.head ? el('p', { className: 'rs-card rs-breach', textContent: rs.breach.head }) : null,
     card ? el('p', { className: 'rs-card', textContent: card }) : null,
     ...rows,
@@ -257,7 +271,8 @@ export function houseAspects(hn, { fmt = two } = {}) {
   const shots = (sh) => {
     const z = ZONE_WORDS.filter(([k]) => Number(sh?.zones?.[k]) > 0).map(([k, word]) => `${sh.zones[k]} ${word}`);
     const dm = sh?.dummy, dummy = dm && Number.isFinite(dm.clickAtMs) ? (Number.isFinite(dm.clearedAtMs) ? `the dummy cleared in ${two(dm.clearedAtMs - dm.clickAtMs)} s` : 'the dummy not cleared') : null;
-    return [`${sh?.rounds ?? 0} rounds`, z.join(', ') || 'no hits', sh?.two ? `your number two ${sh.two.fired ?? 0} fired, ${sh.two.hits ?? 0} hit` : null, dummy].filter(Boolean).join(' · ');
+    // (no paper aboard the boarding (sh.paper false): its zones are never read, so nothing is said of them (the v0.0.27 play review, finding 6))
+    return [`${sh?.rounds ?? 0} rounds`, z.join(', ') || (sh?.paper === false ? null : 'no hits'), sh?.two ? `your number two ${sh.two.fired ?? 0} fired, ${sh.two.hits ?? 0} hit` : null, dummy].filter(Boolean).join(' · ');
   };
   // (the team (the TEAM row's numbers and his rounds), the panel (the keys: presses by hand and by a row, the panel's layout)
   // and the feel (what was played: the walk, the look; the sound's pick is the page's, scoreLine's played))
@@ -344,7 +359,7 @@ export function truthRows(state) {
       subject = { kind: 'board', key: `${rec.face}|${F.holds ?? T.holds}|truth`, face: F.face ?? T.face, holds: F.holds ?? T.holds, rec };
     }
     const belief = { face: F.read?.face ?? null, holds: F.read?.holds ?? null };
-    out.push({ key: T.key, stand: T.stand, leg, ...(H.ship === 'wreck' && WRECK_LEGS[leg] ? { legWord: WRECK_LEGS[leg].word } : {}), firstMs: Number.isFinite(F.ms) ? F.ms - goAt : null, live, subject, belief, words: `READ ${READ_WORDS[belief.holds] ?? String(belief.holds ?? '-').toUpperCase()}` });
+    out.push({ key: T.key, stand: T.stand, leg, ...(shipOf(H)?.legs?.[leg] ? { legWord: shipOf(H).legs[leg].word } : {}), firstMs: Number.isFinite(F.ms) ? F.ms - goAt : null, live, subject, belief, words: `READ ${READ_WORDS[belief.holds] ?? String(belief.holds ?? '-').toUpperCase()}` });
   }
   return out.sort((a, b) => (a.firstMs ?? Infinity) - (b.firstMs ?? Infinity) || a.leg - b.leg);
 }

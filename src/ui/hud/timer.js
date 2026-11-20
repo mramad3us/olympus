@@ -154,7 +154,7 @@ export function drawTimer(g, m, s = 1) {
     putC(x, y + 2, t, z.k === 'noshoot' || z.k === 'miss' ? RED_C : INKC);
     x += tw + 10;
   }
-  if (!m.zones.length) putC(L, y + 2, 'NO HITS', FAINT);
+  if (!m.zones.length && m.paper !== false) putC(L, y + 2, 'NO HITS', FAINT);
 }
 
 /** The paper in parent: { el, update(model | null, { ui, dpr }) → its words, text }. */
@@ -256,7 +256,8 @@ export function laneModel(hn, nowMs = 0) {
   // (the strip while the lane runs (off the room): the room now, its time and par, the man to answer and his par's time left)
   const strip = done ? null : [cur ? `${roomWord(cur.r, cur.i)} ${tenth(cur.r.ms)}` : `GO ${tenth(t)}`, cur && Number.isFinite(cur.r.parMs) ? `PAR ${tenth(cur.r.parMs)}` : null,
     parRow ? (parRow.mark === 'late' ? `${parRow.stand ? `${String(parRow.stand).toUpperCase()} ` : ''}HE FIRED FIRST` : `${parRow.stand ? `${String(parRow.stand).toUpperCase()} ` : ''}${parRow.value}`) : null].filter(Boolean).join(' · ');
-  return { title: 'LANE TIMER', head, rows, zones, text, h, strip, numbers: { timerMs: t } };
+  // (aboard the boarding no paper zone is read off a man: `paper` false, and no "NO HITS" (the v0.0.27 play review, finding 6))
+  return { title: 'LANE TIMER', head, rows, zones, text, h, strip, numbers: { timerMs: t }, ...(hn.boarding ? { paper: false } : {}) };
 }
 /** The strip's height and its letters' scale (CSS px at --ui 1; my calls: one line of the 3 × 5 alphabet at ×2 with its margins). */
 export const STRIP_H = 22;

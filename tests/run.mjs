@@ -65,6 +65,9 @@
 // (machine().k, as the CPU-time ceilings are: 19 s in the foreground is about 70 s there), so a run
 // does not fail on the band alone while the user plays. A run that fails on time alone is still run
 // again on a quiet machine before anything is changed, since the machine is shared.
+// v0.0.27's stage 0 (K7): a case marked `timeLine: true` (the tick files' quick cases: house-tick-budget, house-live-perf,
+// breach-tick, zerocqb-tick) red on its first run is run once more at once and its second run counts (runFile): load alone
+// made them red at a budget they meet alone; a real regression is red twice. Budgets, runs and warm runs unchanged.
 // From v0.0.21 (the build sheet v0.0.21 §1 item 26; the perf lens P5; TECH §13.7) the minute is the full pool's: the wall
 // limit is QUICK_LIMIT_S × max(1, QUICK_JOBS_REF 7 / JOBS) (a pool of 2, the build's roles, or of 3 while the user plays,
 // needs 7/2 or 7/3 of the time for the same work), printed with its parts. The guard that does not move with the neighbours
@@ -215,21 +218,28 @@ async function runFile(file, log) {
     if ((quick && t.heavy) || skip.some(k => full.includes(k))) { r.left++; continue; }
     if (t.gate && !GATES) { r.left++; r.gates.push(full); continue; }
     const limitMs = t.timeoutMs ?? defaultTimeoutMs;
+    const once = async () => {
+      let timer;
+      try {
+        await Promise.race([
+          Promise.resolve().then(() => t.fn()),
+          new Promise((_, reject) => { timer = setTimeout(() => { r.timedOut++; reject(new Error(`timed out after ${limitMs} ms`)); }, limitMs); }),
+        ]);
+        return null;
+      } catch (e) { return e; } finally { clearTimeout(timer); }
+    };
     const t0 = performance.now();
-    let timer;
-    try {
-      await Promise.race([
-        Promise.resolve().then(() => t.fn()),
-        new Promise((_, reject) => { timer = setTimeout(() => { r.timedOut++; reject(new Error(`timed out after ${limitMs} ms`)); }, limitMs); }),
-      ]);
-      r.pass++;
-      log(`  ✓ ${full} (${(performance.now() - t0).toFixed(0)} ms)`);
-    } catch (e) {
-      r.fail++;
-      log(`  ✗ ${full}\n      ${first(e)}`);
-    } finally {
-      clearTimeout(timer);
+    let err = await once();
+    // (v0.0.27's stage 0, K7: a case marked timeLine (a tick's measured line, the least of its runs against a budget × k) red on its
+    // first run is run once more at once, its file's turn still its own (the tick files run first and alone), and its second run
+    // counts: on a shared machine a time line went red on load alone (breach-tick's 2.22 ms at load 5, 1.84 alone, v0.0.26's
+    // integration); a real regression is red twice. Its budget, its runs and its warm run are its own, untouched; never a time-out)
+    if (err && t.timeLine && !/timed out after/.test(String(err?.message))) {
+      log(`      (a time line red on its first run, run again: ${String(err?.message ?? err).split('\n')[0].slice(0, 160)})`);
+      err = await once();
     }
+    if (!err) { r.pass++; log(`  ✓ ${full} (${(performance.now() - t0).toFixed(0)} ms)`); }
+    else { r.fail++; log(`  ✗ ${full}\n      ${first(err)}`); }
   }
   r.ms = Math.round(performance.now() - f0); cpuDone();
   // (v0.0.21: a quick file over its CPU budget × the run's factor reads the machine's factor again now, helpers.mjs machineNow: on

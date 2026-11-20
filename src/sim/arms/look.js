@@ -92,6 +92,19 @@
 // flash-blind, not down or giving: the sim's block, so the stage sees the window close) and 'cower' while it reads him 'cowering'
 // (frozen), over any sub-step of his hands; the stage draws poses.js shockFrameOf of it and the Seen record reads the same action
 // (seen.js frameOfSeen), so the stage's frame, the card's pose and the plaque's word are one map. Every other actor's look as before.
+// v0.0.27 (its build sheet item 16, §3.5; "Away the boarding party"): two more rows of the same map (LIVE_FRAMES): 'blind' while
+// liveStateOf reads a live man 'firing-blind' (an irregular's blind fire from his cover); and 'downFree', anyone down in free fall
+// (a live man liveStateOf reads 'down', or an actor whose body's stance is 'down': body/domain.js woundsFast's, a marine's knock)
+// where the place's gravity is under throw.js FREE_G_MS2: hanging from his locked boots, never the seat or the lying frame at 0 G.
+// RUNNING AWAY has no action frame (he is drawn by his run). At FREE_G_MS2 and over every look as before. And a man whose only gun
+// is the P-12 (the boarding's smugglers: no long gun in his hands or on his sling) is `sidearmOnly`, his carry the pistol's posture
+// (low, high, aimed), so the stage draws the pistol he holds and no R-7 hanging on a sling he does not wear (poses.js poseOf).
+// boardLook(state, ms) is the boarding's own for the stage (the sheet's item 12 and §9's acceptance; null off the boarding): the dust
+// puffed where a round met a face (R.house.boarding.holes, combat/holes.js missFace's record at its x, y, z: every miss meets one
+// face, the marines' frangible dust, the defenders' ball a hole or a dent, both drawn as a puff for DUST_PUFF_MS and no hole after,
+// my call) and the lock's override
+// panel's lamp (amber while the inner hatch is dogged, combat/bundle.js lockedOf; red while the panel has locked the override out,
+// the collar's record; green once the dogs are off): the stage draws it live over the panel the batch drew once.
 import { hash01 } from '../../core/hash.js';
 import { q } from '../../core/num.js';
 import { ACTIONS, gunField, finishOf } from './firearms.js';
@@ -112,11 +125,15 @@ import { gearAnchorOf, anchorHoldOf } from '../body/footing.js';
 import { stressLook } from '../scenarios/stress.js';
 import { houseLook, handsOf, houseOf } from '../scenarios/shoothouse.js';
 import { liveStateOf } from '../combat/men.js';
+import { realOf } from '../combat/would.js';
 import { devicesLook } from '../combat/burst.js';
 import { devicesView } from './devlook.js';
 import { DEVICES, handDeviceOf, devicesOf, liveDevices } from './devices.js';
 import { KD_RANGE, KD_STAKE_DX_M, KD_STAKE_DZ_M } from '../../data/places/range.js';
 import { gravityAt } from '../places/env.js';
+import { areaOf } from '../places/model.js';
+import { lockedOf } from '../combat/bundle.js';
+import { FREE_G_MS2 } from './throw.js';
 import { G0_MS2 } from '../../core/phys.js';
 import { GAIT_G } from '../../data/body/needs.js';
 
@@ -246,6 +263,35 @@ function placeOf(state, pid, key) {
   return a ? { x: a.x, z: a.z } : null;
 }
 
+/** A live man's state (men.js liveStateOf) to the action frame the stage draws him in (see the header): one map with seen.js's pose and the plaque's word. */
+export const LIVE_FRAMES = Object.freeze({ dazed: 'daze', cowering: 'cower', 'firing-blind': 'blind' });
+/** Whether a body is down in free fall (see the header): down (the live man's state, else the actor's stance) where the place's gravity is under FREE_G_MS2. */
+export function downFreeOf(state, actor, ls = null) {
+  if (ls !== 'down' && actor?.stance !== 'down') return false;
+  return gravityAt(state, null, actor.x ?? 0, actor.z ?? 0).gMs2 < FREE_G_MS2;
+}
+
+/** A round's puff on the face it met lasts this long (game ms; see the header). */
+export const DUST_PUFF_MS = 300;
+// (a hole's point on its face: holes.js's record { x, y, z } (B's))
+const holeAt = (h) => (Number.isFinite(h?.x) && Number.isFinite(h?.z) ? { x: h.x, z: h.z, y: Number.isFinite(h.y) ? h.y : 1.2 } : null);
+/** The boarding's look for the stage (see the header): { dust: [{ x, y, z, kind, atMs }], panel: { x, y, z, face, lit } | null }, or null off the boarding. */
+export function boardLook(state, ms = state?.clock?.ms ?? 0) {
+  const B = state?.armoury?.range?.house?.boarding;
+  if (!B) return null;
+  const dust = [];
+  for (const h of B.holes ?? []) {
+    if (!(ms - h.atMs >= 0 && ms - h.atMs < DUST_PUFF_MS)) continue;
+    const p = holeAt(h);
+    if (p) dust.push({ ...p, kind: h.kind === 'hole' ? 'hole' : 'dust', atMs: h.atMs });
+  }
+  const area = areaOf(state.places?.live?.area), f = area?.fixtures?.find(x => x.kind === 'lockPanel') ?? null;
+  const hatch = f ? area.openings?.find(o => o.lock && o.rooms?.includes(f.room)) ?? null : null;
+  const out = B.collar?.lockedOutUntilMs > ms ? 'red' : null;
+  const panel = f ? { x: f.x, y: f.y ?? 1.4, z: f.z, face: f.face ?? 'down', lit: hatch && lockedOf(state, hatch.id) ? out ?? 'amber' : 'green' } : null;
+  return { dust, panel };
+}
+
 /** The rifle on a figure (see the header), or null when the person carries none. */
 export function gunLook(state, actor, ms = state?.clock?.ms ?? 0) {
   const pid = actor?.who, c = pid ? carryOf(state, pid, actor) : null;
@@ -265,15 +311,19 @@ export function gunLook(state, actor, ms = state?.clock?.ms ?? 0) {
   const m = muzzleOf(state, pid, actor);
   // (the rework's R6: the P-12 out, the rifle drawn hanging on its sling, its own look (a look already painted: no sheet made
   // mid-lane), the pistol in hand on the record for the drawing to come (VIEWS §3.10's transition frames, R8))
-  const long = isLong(modelOf(gun)), rifle = long ? gun : state.items?.[state.people?.[pid]?.kit?.worn?.sling] ?? gun;
+  const slung = state.items?.[state.people?.[pid]?.kit?.worn?.sling] ?? null, long = isLong(modelOf(gun)), rifle = long ? gun : slung ?? gun;
+  // (the P-12 his only gun (see the header))
+  const sidearmOnly = !long && !(slung && isLong(modelOf(slung)));
   // (the P-12's tower admin under way, the pistol holstered: drawn in the hands (ADMIN_FRAMES))
   const ap = long && ADMIN_FRAMES[step?.action] ? state.items?.[state.people?.[pid]?.kit?.worn?.holster] : null, admin = ap && !isLong(modelOf(ap)) ? ap : null;
   const af = admin ? ADMIN_FRAMES[step.action] : null;
   // (a role-player dazed or cowering (see the header): that frame over his hands' sub-step)
   const live = sess?.course === 'house' ? (sess.turners ?? []).find(t => t.live?.who === pid) ?? null : null, ls = live ? liveStateOf(state, live, ms) : null;
-  const shock = ls === 'dazed' ? 'daze' : ls === 'cowering' ? 'cower' : null;
+  // (blind fire, and a man down at 0 G (see the header))
+  const shock = LIVE_FRAMES[ls] ?? (downFreeOf(state, actor, ls) ? 'downFree' : null);
   return {
-    model: rifle.model, carry: long && !admin ? CARRY_RIGS[c.posture] ?? 'front' : 'front', stance: actor.stance ?? 'stand',
+    model: rifle.model, carry: (long && !admin) || sidearmOnly ? CARRY_RIGS[c.posture] ?? 'front' : 'front', stance: actor.stance ?? 'stand',
+    ...(sidearmOnly ? { sidearmOnly: true } : {}),
     ...(admin ? { pistol: { model: admin.model, posture: 'lowReady' } } : long ? {} : { pistol: { model: gun.model, posture: c.posture } }),
     aim: aimAt ? { x: aimAt.x, z: aimAt.z, ms: s?.aim?.settledMs ?? G?.aimAtMs ?? null } : null, shotMs,
     action: shock ? { frame: shock, k: 0 } : step ? { frame: af ? af[Math.min(af.length - 1, Math.max(0, Math.floor((step.k ?? 0) * af.length)))] : frameAt(step.action, step.k ?? 0), k: step.k ?? 0 } : null,
@@ -384,12 +434,14 @@ function withLive(h, state, ms) {
     return { key: T.key, who: T.live.who, st, frame, rifle: c ? 'hands' : near ? 'floor' : 'none' };
   });
   // (the paint's puff where a marking round struck, the stack's on a role-player, a role-player's on a marine: the strike's game time)
+  // (never on the one rule's 'real' (would.js realOf: the boarding's live rounds both ways): a real round is a wound, never paint; the
+  // v0.0.27 code review, finding 2: every hit aboard was drawn as a pink or blue paint puff, the only mark it left at 0 G)
   const paint = [];
-  for (const T of men) {
+  if (!realOf(state)) for (const T of men) {
     const a = actor(T.live.who);
     for (const hit of T.hits ?? []) if (Number.isFinite(hit.atMs) && ms - hit.atMs >= 0 && ms - hit.atMs < PAINT_PUFF_MS && hit.zone) paint.push({ x: a?.x ?? T.x, z: a?.z ?? T.z, y: PAINT_Y_M[hit.part === 'head' ? 'head' : 'torso'], atMs: hit.atMs, by: 'team' });
   }
-  for (const x of R?.house?.live?.struck ?? []) {
+  if (!realOf(state)) for (const x of R?.house?.live?.struck ?? []) {
     const a = actor(x.who);
     if (a && Number.isFinite(x.atMs) && ms - x.atMs >= 0 && ms - x.atMs < PAINT_PUFF_MS) paint.push({ x: a.x, z: a.z, y: PAINT_Y_M[x.part === 'head' ? 'head' : 'torso'], atMs: x.atMs, by: 'rp' });
   }

@@ -36,6 +36,8 @@
 // the start, your #2's place, the cadre's way in, the 1MC speakers and the deck plaques. Frozen literals (the hub, 2026-11-05: the
 // world is handcrafted); no seed.
 
+import { hatch as shipHatch, HATCH_W_M, COAMING_M, HATCH_DOGS } from './ship-parts.js';
+
 const deepFreeze = (o) => { for (const v of Object.values(o)) if (v && typeof v === 'object') deepFreeze(v); return Object.freeze(o); };
 const r2 = (v) => Math.round(v * 100) / 100;
 
@@ -45,8 +47,8 @@ export const WRECK_ID = 'phobos.void.wreck', WRECK_CODE = 'wk';
 export const WRECK_DECK_M = Object.freeze([9.2, 7.2]), WRECK_CEILING_M = 2.2, WRECK_PITCH_M = 2.8;
 /** A board on a bulkhead stands its centre this far out from the face, metres (a man standing on it: the play lens §8). */
 export const BOARD_OFF_FACE_M = 0.9;
-/** A bulkhead hatch: its width, its coaming and its dogs (the play lens §5). */
-export const HATCH_W_M = 0.8, COAMING_M = 0.3, HATCH_DOGS = 4;
+/** A bulkhead hatch: its width, its coaming and its dogs (the play lens §5; v0.0.27: ship-parts.js's, every ship's builder). */
+export { HATCH_W_M, COAMING_M, HATCH_DOGS };
 /** The trunk's scuttle, metres across (PC§2.3). */
 export const TRUNK_DIA_M = 0.8;
 
@@ -57,11 +59,8 @@ export const WRECK_DECKS = deepFreeze({
 });
 // (a deck's point or rect moved into the area's plan)
 const at = (n, x, z) => [r2(x + WRECK_DECKS[n].origin[0]), r2(z + WRECK_DECKS[n].origin[1])];
-/** The deck (5 or 6) a plan x lies on: the nearer deck's origin (the one test of which deck, scenes/assemble.js, combat/two.js and bundle.js; v0.0.25's fixer). */
-export function wreckDeckAt(x) {
-  const o5 = WRECK_DECKS[5].origin[0], o6 = WRECK_DECKS[6].origin[0];
-  return Math.abs(x - o6) < Math.abs(x - o5) ? 6 : 5;
-}
+// (the deck a plan x lies on is src/data/places/ships.js shipDeckAt's, the one test of which deck on any ship: v0.0.25's fixer kept one,
+// this module's wreckDeckAt, and v0.0.27's stage 0 moved it to the registry, scenes/assemble.js wreckDeckAt the Wreck's alias)
 const rectAt = (n, [x0, z0, x1, z1]) => [...at(n, x0, z0), ...at(n, x1, z1)];
 
 // (the floor: the void's plate in 1.5 m panels with the rule's pad-eyes, as Well A's; a darker plate in the brig)
@@ -91,13 +90,11 @@ const ROOMS = [
  * offered false where the cadre dogged it for good, or (the lock's) dogged until he comes aboard through it at Stop (drawn, never
  * offered: the lane's planner leaves it alone).
  */
+// (the boarding round's stage 0: the record is ship-parts.js hatch's, every ship's builder, called with the Wreck's deck frame moved into the
+// area's plan here and no axis (a z line), so each of the eight is the object it was, key for key)
 function hatch(n, key, zAt, mid, rooms, hinge, { offered = true } = {}) {
   const [a] = at(n, mid - HATCH_W_M / 2, 0), [b] = at(n, mid + HATCH_W_M / 2, 0), [, z] = at(n, 0, zAt);
-  return {
-    id: `o:${WRECK_CODE}:d${n}:${key}`, kind: 'door', leaf: 'hatch', openS: 0.5, closeS: 0.5,
-    axis: 'x', at: z, a, b, rooms: rooms.map(k => roomId(n, k)), state: 'closed', swing: { hinge, into: 1 },
-    lock: true, dogs: HATCH_DOGS, coamingM: COAMING_M, ...(offered ? {} : { offered: false }),
-  };
+  return shipHatch(`o:${WRECK_CODE}:d${n}:${key}`, z, [a, b], rooms.map(k => roomId(n, k)), { hinge, coamingM: COAMING_M, dogs: HATCH_DOGS, offered });
 }
 
 /** The bulkhead hatches (see the header): the brig's six cells', the store's and the lock's inner hatch. */

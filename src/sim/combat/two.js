@@ -59,8 +59,18 @@
 // burn's warning (places/gravity.js bracePending) standing on the deckhead, he says "Feet aft." and changes his face to the deck (the
 // drill's `onface` beat, his doing halted for it), once a warning. His boots stay with yours (twoBoots) but for your transit and face
 // changes (his grip holds you there, on his own locked boots) and his own (his beats set them).
+// v0.0.27, "Away the boarding party" (its build sheet §1 C, §3.3, items 8, 9, 14; FT§6, FT§7.1): **Four**, your #2 as built in the fire team of
+// four (team.js fireTeamOf, "Four" in the words), on the one rule made real (would.js realOf: the round is the wound, the body's own). Your
+// stance down (the knock, BODY's) is your rifle down (youDown: he covers you, "Covering!", your sector his until you are up). His own
+// (twoHurt, at the head of his tick, on 'real' only): his stance down, "I'm hit!" once a fall, his doing halted ('down'), nothing of his
+// begins; his knock over and a limb bleeding hard (B's aid.js tourniquetOf), his tourniquet, aid.js TQ_MS, nothing else meanwhile, then
+// aid.js applyTourniquet (the holders' rule, combat/holders.js). The scene's fall back called (R.house.boarding.fallback): able, he walks
+// back to his place in the lock (twoBack: the routing grid's way, the mag walk, his doing halted, nothing fired meanwhile). A man with his
+// hands up, down or unarmed (holdsFireOn, the holders' rule too) is never planned on and his row is cut at the next round. His row
+// waits its turn where the scene has holders (team.js planTurn: one NPC marine's plan a tick); with none every ask is granted, so no lane
+// without holders moves.
 import { q } from '../../core/num.js';
-import { wreckDeckAt } from '../../data/places/wreck.js';
+import { shipOf, shipDeckAt } from '../../data/places/ships.js';
 import { stream } from '../../core/rng.js';
 import { playerId, playerActor } from '../../core/ids.js';
 import { pastThreshold, coveredNow, lanePlanOf } from './room.js';
@@ -90,7 +100,10 @@ import { halfOrLess } from '../arms/kit.js';
 import { advanceList, moveAt } from './stepper.js';
 import { routed } from './route.js';
 import { placeGaits } from '../body/motion.js';
-import { ownerOf, sideOf, TEAM_WORDS } from './team.js';
+import { ownerOf, sideOf, TEAM_WORDS, planTurn } from './team.js';
+import { realOf } from './would.js';
+import { downOf, hasWounds } from '../body/wounds.js';
+import { tourniquetOf, applyTourniquet, TQ_MS } from '../body/aid.js';
 import { seenK, drawnOn, aimedOn } from './men.js';
 import { move, pouchFor, handGunOf, wear } from '../arms/kit.js';
 import { bootsOf, bootsLocked, setAnchor, TRUNK_REACH_M } from '../body/footing.js';
@@ -355,6 +368,8 @@ export const twoSees = (state, a, T, now, f = facingOf(T, now)) => f >= SEEN && 
 // (the #2's sightings, take-in, identification and row on slot 2's stands (see the header))
 export function twoTick(state, bus, R, H, a, now) {
   const W = H.two;
+  // (on the one rule made real, his own body first: down, his tourniquet, the fall back's walk (twoHurt, twoBack))
+  if (realOf(state) && (twoHurt(state, bus, H, W, a, now) || twoBack(state, bus, H, W, a, now))) return;
   // (his mag boots with yours, before his eyes (twoBoots, at the file's end): nothing without boots of yours)
   twoBoots(state, bus, H, now);
   // (his grip at a deck hatch let go, his feet aft under a burn's warning (voidTick; see the header))
@@ -407,6 +422,8 @@ export function twoTick(state, bus, R, H, a, now) {
   const c = W.contact, T = R.turners.find(x => x.key === c.key);
   if (now < c.untilMs) return;
   if (!T || T.stoppedAtMs !== null || facingOf(T, now) < SEEN) { W.contact = null; return; }
+  // (his identification and his row wait their turn where the scene has holders (team.js planTurn); granted at once elsewhere)
+  if (!planTurn(state, H.twoPid, now)) return;
   // (what he can tell at his pause: an Awareness check against IDENT_DC0 + range / IDENT_PER_M; failed, he looks again after CHALLENGE_MS)
   const rangeM = Math.hypot(T.x - a.x, T.z - a.z), roller = rollerOf(state, H.twoPid, { ms: now });
   const roll = check(stream(state.meta.seed, 'house:two-ident', T.key, now), { skill: 'awareness', value: roller.value('awareness'), dc: IDENT_DC0 + Math.round(rangeM / IDENT_PER_M), mods: roller.mods('awareness', { ms: now }), pressure: 'evaluated', by: H.twoPid });
@@ -422,7 +439,7 @@ export function twoTick(state, bus, R, H, a, now) {
     return;
   }
   W.ident[T.key] = T.face === 'noshoot' ? T.holds : T.holds ?? 'rifle';
-  if (!isThreat(T)) { c.held = true; W.contact = null; return; }
+  if (!isThreat(T) || (realOf(state) && holdsFireOn(state, T))) { c.held = true; W.contact = null; return; }
   twoPlan(state, R, H, a, T, now);
 }
 
@@ -561,6 +578,95 @@ function calloutTick(state, bus, R, H, a, now, L, P) {
   }
 }
 
+// ---- v0.0.27: Four hit, his tourniquet, the fall back (see the header) ----
+
+/**
+ * Whether a marine of the fire team must hold his fire on a man now (v0.0.27, FT§5.4, COMBAT §7.10, F155: your #2 and the holders, on the
+ * one rule made real): his hands up or giving (T.face 'noshoot', st 'hands' or a give under way), down, ruled out, stopped, or no gun in
+ * his hands (the hauler's crew, opfor.js's L.unarmed; a man whose rifle is on the floor). The truth now, read at every round, so neither
+ * ever fires one (a player's fault is judged on the man's own record: opfor.js protectedOf, PROTECTED_AFTER_MS after a fall or a give). Returns 'hands' | 'down' | 'unarmed', or null (a stand too).
+ */
+export function holdsFireOn(state, T) {
+  const L = T?.live;
+  if (!L) return null;
+  if (L.st === 'down' || L.st === 'out' || (T.stoppedAtMs !== null && T.stoppedAtMs !== undefined)) return 'down';
+  if (actorOf(state, L.who)?.stance === 'down') return 'down';
+  if (L.st === 'hands' || L.give || T.face === 'noshoot') return 'hands';
+  if (L.unarmed || !gunOn(state, L.who) || L.rifleId) return 'unarmed';
+  return null;
+}
+
+// (his body (on 'real' only): his stance down, "I'm hit!" once a fall, everything of his dropped and his doing halted; his tourniquet his
+// knock over and a limb bleeding hard; up again, his own once more. Returns whether he does nothing else this tick)
+function twoHurt(state, bus, H, W, a, now) {
+  const rec = state.people[W.pid]?.body;
+  if (a.stance === 'down') {
+    if (W.hurt?.downAtMs === undefined) {
+      W.hurt = { ...(W.hurt ?? {}), downAtMs: now, falls: (W.hurt?.falls ?? 0) + 1 };
+      W.eng = null; W.contact = null; delete W.masked;
+      if (W.doing && !W.doing.halt) haltDoing(state, bus, W.doing, 'down', null, now);
+      const k = state.people[W.pid]?.kit;
+      if (k?.carry) { k.carry.posture = 'lowReady'; k.carry.finger = 'off'; }
+      sayTwo(bus, W, 'hold:hit', TEAM_WORDS['hold:hit'].words);
+    }
+    if (W.aid) twoAidTick(state, bus, W, now); else twoAidStart(state, W, rec, now);
+    return true;
+  }
+  if (W.hurt?.downAtMs !== undefined) delete W.hurt.downAtMs;
+  if (W.aid) { twoAidTick(state, bus, W, now); return true; }
+  return twoAidStart(state, W, rec, now);
+}
+// (his tourniquet begun: his knock over (wounds.js downOf, the knock counted) and a limb bleeding hard (aid.js tourniquetOf))
+function twoAidStart(state, W, rec, now) {
+  if (!hasWounds(rec) || downOf(rec, now).down) return false;
+  const inj = tourniquetOf(rec, now);
+  if (!inj) return false;
+  W.aid = { i: rec.injuries.indexOf(inj), part: inj.part, fromMs: now, untilMs: whole(now + TQ_MS) };
+  W.eng = null; W.contact = null;
+  const k = state.people[W.pid]?.kit;
+  if (k?.carry) { k.carry.posture = 'lowReady'; k.carry.finger = 'off'; }
+  return true;
+}
+// (his tourniquet run: knocked down again it is cut (begun again once he can); done, aid.js applyTourniquet on that injury)
+function twoAidTick(state, bus, W, now) {
+  const rec = state.people[W.pid]?.body;
+  if (!rec || downOf(rec, now).down) { delete W.aid; return; }
+  if (now < W.aid.untilMs) return;
+  const inj = rec.injuries?.[W.aid.i] ?? null;
+  if (inj && !inj.cared) applyTourniquet(rec, inj, now);
+  bus?.emit('house', { phase: 'tourniquet', who: W.pid, n: 4, part: W.aid.part, fromMs: W.aid.fromMs, atMs: now });
+  delete W.aid;
+}
+// (the scene's fall back called (R.house.boarding.fallback): able, his doing halted, his walk back to his place in the lock (the ship's
+// spots.two, the four's start), the routing grid's way, the mag walk; there, he waits. Returns whether he does nothing else this tick)
+function twoBack(state, bus, H, W, a, now) {
+  if (!H.boarding?.fallback) return false;
+  const B = W.back;
+  if (B?.in) return true;
+  if (!B) {
+    const to = shipOf(H)?.spots?.two ?? null;
+    if (!to) return false;
+    W.eng = null; W.contact = null; delete W.masked; delete W.cover; delete W.coverOwed;
+    // (his doing halted and let go at once: his slot is not run while the fall back holds (shoothouse.js houseActors), so a beat of it
+    // left running would never end; before, his own slot started his stack-up again at your stack every few seconds, "Ready." each
+    // time, and his walk back waited on it for the whole 60 s (the fixer of v0.0.27's play review, finding 3))
+    if (W.doing && !W.doing.halt) haltDoing(state, bus, W.doing, 'stop', null, now);
+    W.doing = null;
+    const pts = [[a.x, a.z], [to.x, to.z]], path = (routed(state, pts) ?? pts).map(p => [q(p[0], 1e-4), q(p[1], 1e-4)]);
+    const len = pathLen(path), legs = bodyLegsOf(state, W.pid, a.x, a.z), vMs = a.anchor === 'boots' ? MAG_BOOTS.WALK_MS : placeGaits(state).walkMs;
+    const prof = profileOf(len, vMs, legs.pushMs2, legs.brakeMs2, { v0: 0, v1: 0 });
+    W.back = { fromMs: now, untilMs: now + Math.round(prof.T * 1000), path, prof };
+    const k = state.people[W.pid]?.kit;
+    if (k?.carry) { k.carry.posture = 'lowReady'; k.carry.finger = 'off'; }
+    a.gait = 'walk';
+    return true;
+  }
+  const p = moveAt(B, now);
+  a.x = p.x; a.z = p.z; a.headRad = p.headRad; a.face = faceOfHead(p.headRad);
+  if (p.done) { B.in = now; a.gait = 'idle'; }
+  return true;
+}
+
 // ---- your number two covering you (COMBAT §25.19.6) ----
 
 /** His "Up." after your rifle is back, once nobody he is on and no window of yours is open, this long after (ms; COMBAT §25.19.9's UP_WAIT_MS). */
@@ -568,6 +674,8 @@ export const UP_WAIT_MS = 400;
 // (your rifle down: the reflex card on a click, its drill under way (IMMEDIATE or REMEDIAL ACTION; R6's Gun down and Off the line
 // by their step's name), or a stoppage you believe in it, on the lane in a room you have entered)
 function youDown(state, H) {
+  // (your stance down on the one rule made real (BODY's knock, a collapse: domain.js woundsFast), wherever you are: you cannot fight)
+  if (realOf(state) && playerActor(state)?.stance === 'down') return true;
   const S = state.stop, L = curLeg(H);
   if (!L || (L.state !== 'entered' && L.state !== 'open')) return false;
   if (S?.reflex) return true;
@@ -693,6 +801,8 @@ function twoFire(state, bus, R, H, a, now) {
   const W = H.two, E = W.eng, T = R.turners.find(x => x.key === E.key), gunId = gunOn(state, H.twoPid);
   // (never a round through you (maskHold))
   if (maskHold(state, bus, R, H, a, T, now)) return;
+  // (on the one rule made real, a man he must not shoot (holdsFireOn: hands up, down, unarmed) gets no round more: the row cut)
+  if (realOf(state) && T && E.rounds.some(r => !r.done && r.atMs <= now) && holdsFireOn(state, T)) { W.eng = null; W.contact = null; twoStandDown(state, H); return; }
   for (const r of E.rounds) {
     if (r.done || r.atMs > now) continue;
     // (his natural 1 mastered is caught as yours is (SKILLS §5.1: "for everyone"): the round and those after it late by the catch)
@@ -1194,7 +1304,8 @@ export function twoBoots(state, bus, H, now = state.clock.ms) {
   // (C's lane, v0.0.25: nor across a deck hatch: you through the trunk on its coaming's hold, 60 m off in the plan, he let his boots go on
   // deck 5, floated, and never reached his stack; his own transit and plant are his beats')
   const me0 = playerActor(state), him = actorOf(state, W.pid);
-  if (me0 && him && H?.ship === 'wreck' && wreckDeckAt(me0.x) !== wreckDeckAt(him.x)) { delete W.boots; return; }
+  const ship = shipOf(H);
+  if (me0 && him && ship && shipDeckAt(ship.id, me0.x) !== shipDeckAt(ship.id, him.x)) { delete W.boots; return; }
   if (!bootsOf(state, W.pid)) wear(state, W.pid, 'mb-1');
   const mine = bootsLocked(state, you), his = bootsLocked(state, W.pid), want = mine ? 'lock' : 'release';
   if (mine === his) { delete W.boots; return; }

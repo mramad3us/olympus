@@ -48,6 +48,15 @@
 // (contact.js identify), the instinct, opfor.js opforLook's frame and the card read it, so the daze is drawn and named exactly
 // while the sim's block says so, on every live lane (one rule: a shocked man read AIMING was wrong on "Stack and clear, live" too).
 // None of it writes anything on a lane with no live man: every writer is reached only through a record with `live`.
+//
+// v0.0.27, "Away the boarding party" (its build sheet items 6, 7, §1 A; FT§4, FT§5.2, FT§5.5): LIVE_STATE gains 'firing-blind' (st
+// 'blind', an irregular's blind fire over his cover) and 'running-away' (st 'flee', his flight to his refuge), the plaque's FIRING BLIND
+// and RUNNING AWAY; incoming's near misses and coverTick's marines are the fire team (team.js fireTeamOf: you and your #2 everywhere, the
+// leader and the AR too aboard); its strike is rated with the scene's bus (would.js wouldHave's), and on 'real' (would.js realOf: the
+// round's own load on the marine's own body) it writes no 'paint' fact and no casualty: bodyDown(state, pid, ms) is then the one reader
+// of a man down, the wound model's downOf on his own body, the knock included, or his stance 'down' (body/domain.js woundsFast's).
+// A defender's round that strikes nobody aboard meets its face here (holes.js missFace: the boarding's holes and counts, the hull's
+// line, the ball's grit), as houseShot does for the marines' (the v0.0.27 code review, finding 1: his misses reached no wall).
 // Pure but remember, forget, incoming and coverTick, which write the memories, the house's record and the pools.
 import { q } from '../../core/num.js';
 import { playerActor, playerId } from '../../core/ids.js';
@@ -57,9 +66,11 @@ import { facingOf, turnersOf } from '../arms/turners.js';
 import { muzzleOf, angleDiff } from '../arms/carry.js';
 import { addSupp, inputPts, startled, blockOf, SUBSONIC_ZERO_M, CRACK_ZERO_M } from './supp.js';
 import { SECTOR_HALF_DEG } from './react.js';
-import { membersOf } from './team.js';
-import { wouldHave, strikeOf, fatalOf, COUNT_DOWN } from './would.js';
-import { opOf, sessionOf } from './op.js';
+import { membersOf, fireTeamOf } from './team.js';
+import { wouldHave, strikeOf, fatalOf, realOf, COUNT_DOWN } from './would.js';
+import { opOf, sessionOf, houseRec } from './op.js';
+import { missFace } from './holes.js';
+import { downOf } from '../body/wounds.js';
 
 /** A live man out of a viewer's sight this long is forgotten for the take-in (ms); his exposure's side points off his centre (m); a cover held this long counts (ms); a casualty's beat before the card (ms). My calls. */
 export const MAN_MEMORY_MS = 3000, EXPOSE_OFF_M = 0.2, COVER_MS = 500, CASUALTY_MS = 2000;
@@ -74,7 +85,19 @@ export const LINE_M = 30;
 /** A marine's target point's height by his stance (m: the torso's centre; a stand's face is 1.35). */
 export const MARINE_Y = Object.freeze({ stand: 1.35, kneel: 0.9, crouch: 0.9, prone: 0.25 });
 /** What a live man is doing, in the identification's words (COMBAT §7.11's state words, the plaque's): by T.live.st. */
-export const LIVE_STATE = Object.freeze({ wait: 'looking', turn: 'looking', aim: 'aiming', fire: 'aiming', move: 'running', cover: 'aiming', freeze: 'cowering', hands: 'hands', down: 'down', out: 'down' });
+export const LIVE_STATE = Object.freeze({ wait: 'looking', turn: 'looking', aim: 'aiming', fire: 'aiming', move: 'running', cover: 'aiming', freeze: 'cowering', hands: 'hands', down: 'down', out: 'down',
+  // ("Away the boarding party": an irregular's blind fire from cover and his flight to his refuge (opfor.js blindTick, startFlee))
+  blind: 'firing-blind', flee: 'running-away' });
+
+/**
+ * Whether the live men on this lane choose (v0.0.27's stage 0, its build sheet §0 item 18; CA K1): v0.0.26 gated its new behaviours on
+ * "Bang, then go"'s record (R.house.bangGo) so "Stack and clear, live" kept its pins; the boarding (R.house.boarding, "Away the boarding
+ * party") is the second lane whose defenders choose, so the gates that are the choosing's, not the scene's, read this one predicate: the
+ * re-aim after the shock and the aim from the facing he turned from (opfor.js), the read that follows sight (contact.js contactLook), and
+ * T's lines over a cowering or dazed man (instinct/cqb.js). The scene's own (the window, the held door, the search, its card) stay on
+ * bangGo. The live lane stays false (house-live-pin holds).
+ */
+export const choosesOf = (state) => { const H = houseRec(state); return !!(H?.bangGo || H?.boarding); };
 
 /**
  * Whether a person is shocked at ms (COMBAT §7.11 step 2; the role-players' "starts nothing"): startled (supp.js startled), or his
@@ -177,9 +200,13 @@ export function struckOn(state, who) {
 /**
  * A role-player's round at a marine (see the header): { who (the marine aimed at), by (the role-player's turner key), shot
  * (resolveShot's record), atMs }. The near misses, the strike, the drawn eyes and the casualty. Returns { hit, down }.
+ * v0.0.27 ("Away the boarding party", its build sheet item 7, §0 item 1; FT§5.2, FT§5.5): the near misses over the fire team
+ * (team.js fireTeamOf: you and your #2 on every lane, the leader and the AR too aboard), the strike rated with the scene's bus
+ * (would.js wouldHave's bus: on 'real' the round's own load on the marine's own body, the knock and the blood); on 'real' no paint
+ * fact and no casualty's beat: the marine is down while his body is (bodyDown), and nothing ends the lane but the scene's own ends.
  */
 export function incoming(state, bus, { who, by, shot, atMs = shot?.atMs ?? state.clock.ms }) {
-  const R = sessionOf(state), H = R?.house, L = H?.live ?? null;
+  const R = sessionOf(state), H = R?.house, L = H?.live ?? null, real = realOf(state);
   if (!shot?.fired) return { hit: false, down: false };
   const hit = !!shot.hole?.at && shot.zone !== null && shot.zone !== undefined;
   const victim = actorOf(state, who), m = shot.muzzle ?? null;
@@ -187,11 +214,11 @@ export function incoming(state, bus, { who, by, shot, atMs = shot?.atMs ?? state
   const ux = d > 1e-6 ? dx / d : Math.cos(shot.dirRad ?? 0), uz = d > 1e-6 ? dz / d : Math.sin(shot.dirRad ?? 0);
   const kind = shot.load === 'marking' ? 'subsonic' : 'crack', zeroM = kind === 'subsonic' ? SUBSONIC_ZERO_M : CRACK_ZERO_M;
   const drawn = [];
-  for (const { pid } of membersOf(state)) {
+  for (const { pid } of fireTeamOf(state)) {
     const a = actorOf(state, pid);
     if (!a) continue;
     if (hit && pid === who) {
-      addSupp(state, bus, pid, { id: `${shot.id}`, kind: 'hit', pts: inputPts('hit'), why: 'paint', atMs });
+      addSupp(state, bus, pid, { id: `${shot.id}`, kind: 'hit', pts: inputPts('hit'), why: real ? 'a round in you' : 'paint', atMs });
       drawn.push(pid);
       continue;
     }
@@ -205,10 +232,14 @@ export function incoming(state, bus, { who, by, shot, atMs = shot?.atMs ?? state
     if (pid === playerId(state)) { const c = contactOf(state); if (c?.known?.[by] === undefined) noteContact(state, {}).drawn = { key: by, atMs }; }
     else if (H?.two?.pid === pid && H.two.known?.[by] === undefined) H.two.drawn = { key: by, atMs };
   }
-  if (!hit) return { hit: false, down: false };
+  // (the boarding round's code review, finding 1: aboard the boarding his miss meets the first face on its line, a hole or dust (holes.js missFace),
+  // as houseShot sends the marines'; before, no defender's round reached a wall: THEIRS 0, the hull never holed, no grit drawn)
+  if (!hit) { if (H?.boarding) missFace(state, shot, bus); return { hit: false, down: false }; }
   if (L) (L.struck ??= []).push({ who, by, shotId: shot.id, part: shot.part ?? 'torso', zone: shot.zone, at: shot.hole.at, atMs });
   // (the strike rated on its tick, the one rule (would.js); the fact carries its verdict for the hud and the hot wash)
-  const would = L ? wouldHave(state, strikeOf(state, { ...shot, atMs }, { on: who, by })) : null;
+  const would = L ? wouldHave(state, strikeOf(state, { ...shot, atMs }, { on: who, by }), bus) : null;
+  // (on 'real' the round is the wound, never paint: no 'paint' fact, no casualty; down is his own body's)
+  if (real) return { hit: true, down: bodyDown(state, who, atMs), would };
   bus?.emit('house', { phase: 'paint', who, by, shotId: shot.id, part: shot.part ?? 'torso', zone: shot.zone, atMs, would: would ? (would.fatal ? 'fatal' : would.why === 'stopped' ? 'stopped' : 'wound') : null });
   const fatal = L ? fatalOf(state, who) : null, down = !!fatal;
   if (down && L && !L.casualty) {
@@ -216,6 +247,18 @@ export function incoming(state, bus, { who, by, shot, atMs = shot?.atMs ?? state
     bus?.emit('house', { phase: 'casualty', who, by, atMs, endAtMs: L.casualty.endAtMs, why: fatal.why });
   }
   return { hit: true, down, would };
+}
+
+/**
+ * Whether a person's own body keeps him down at ms (v0.0.27, "Away the boarding party": FT§5.2, down is the body's for everyone on
+ * 'real'): the wound model's downOf (the knock included) on his body, or his stance 'down' (body/domain.js woundsFast's: held while
+ * downOf says so, and for a man not the player while he waits for the corpsman, bleeding or shot in a leg or the torso). Read before
+ * the body's layer of the same tick has run, downOf covers the strike's own tick; once the knock is over the stance carries it.
+ */
+export function bodyDown(state, pid, ms = state.clock.ms) {
+  const rec = state.people?.[pid]?.body;
+  if (rec && downOf(rec, ms).down) return true;
+  return actorOf(state, pid)?.stance === 'down';
 }
 
 /** Whether a marine has a man covered at ms (see the header): his rifle in his hands, its yaw within SECTOR_HALF_DEG of the man, the man seen. */
@@ -230,7 +273,7 @@ export function coverTick(state, T, ms = state.clock.ms) {
   if (!T?.live) return null;
   const L = T.live, now = L.cover && aimedOn(state, L.cover.pid, T, ms) ? L.cover.pid : null;
   if (now) return coveringOf(state, T, ms);
-  const pid = membersOf(state).map(m => m.pid).find(p => aimedOn(state, p, T, ms)) ?? null;
+  const pid = fireTeamOf(state).map(m => m.pid).find(p => aimedOn(state, p, T, ms)) ?? null;
   if (pid) L.cover = { pid, fromMs: ms }; else delete L.cover;
   return coveringOf(state, T, ms);
 }

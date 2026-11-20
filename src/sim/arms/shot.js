@@ -108,7 +108,8 @@
 // like a turner's (target kind 'marine', combat/men.js marineTarget: the hole by manHole, past him under SEEN of what the
 // role-player sees of him); a round at a live man is past him when the shooter's own eye sees him under SEEN at the round
 // (men.js seenK, his exposure: a man who ducked behind the wing wall is not there to be hit), and a man on his dash is
-// MOVING_MAN_V −2 harder (modsOf, 'a moving man'). A stand's shot is as built.
+// MOVING_MAN_V −2 harder (modsOf, 'a moving man'). A stand's shot is as built. v0.0.27 ("Away the boarding party"): an irregular's
+// blind fire over his cover (opfor.js blindTick, resolveShot's `blind`) is BLIND_FIRE_MOD −10 on its roll ('firing blind'; DF§5).
 // v0.0.24, the anywhere round's step 5 (ROADMAP; WEAPONS §7.3, §7.8; CONTRACTS §21), footing holds the recoil (the user, 2026-11-08: "Try
 // keeping rifles looking like rifles even zero G stuff, let's say we use footing to hold recoil"): anchorOf(state, pid) reads
 // the footing (src/sim/body/footing.js footingOf) as WEAPONS §7.8's row (ANCHORS: planted, light, magBoots, handhold, braced,
@@ -146,11 +147,16 @@ import { spinOf, spinBiasCm } from '../places/spin.js';
 import { contactOf } from '../people/mind.js';
 import { turnerOf } from './turners.js';
 import { seenK, movingNow, MOVING_MAN_V } from '../combat/men.js';
+import { realOf } from '../combat/would.js';
+// (a real round's words on a man, by the paper's zone it is rolled on (see resolveShot's man branch): the body's, never the card's)
+const REAL_WORDS = Object.freeze({ A: 'in the chest', C: 'in the body', head: 'in the head', miss: 'past him' });
 import { footingOf } from '../body/footing.js';
 import { FOOTING } from '../../data/body/needs.js';
 
 /** The shot's base DC (tradecraft's SHOT.dc). */
 export const SHOT_DC0 = 6;
+/** Blind fire's modifier on each round (v0.0.27, "Away the boarding party": an irregular's rifle up over his cover and his head below it, no aim; DF§5, COMBAT §7.11). */
+export const BLIND_FIRE_MOD = -10;
 /** The part aimed at (tradecraft's PART_DC; a thing lying about +4: WEAPONS §7.2). */
 export const PART_DC = Object.freeze({ torso: 0, head: 6, legs: 3, thing: 4 });
 /** The shooter's position (WEAPONS §7.3, my call): standing 0, kneeling +2, prone +4; and the words. */
@@ -276,7 +282,7 @@ export function heldOf(state, pid, ms = state.clock.ms, key = null) {
  * key, kind, x, z, dM, paper? }. follow: the follow-up's place after the first (a tap). The same list
  * makes the plaque's odds and the roll.
  */
-export function modsOf(state, pid, { gunId, target, part = 'torso', tempo = 'normal', follow = 0, climbK = 1, ms = state.clock.ms, held = null, moving = null }) {
+export function modsOf(state, pid, { gunId, target, part = 'torso', tempo = 'normal', follow = 0, climbK = 1, ms = state.clock.ms, held = null, moving = null, blind = false }) {
   const me = meOf(state, pid), M = gunModel(state, gunId), roller = rollerOf(state, pid, { ms });
   const mrk = roller.value('marksmanship'), stance = me?.stance ?? 'stand', out = [];
   if (POSITION[stance]) out.push({ why: POSITION_WORD[stance], v: POSITION[stance], src: 'task' });
@@ -284,6 +290,8 @@ export function modsOf(state, pid, { gunId, target, part = 'torso', tempo = 'nor
   if (moving?.v) out.push({ why: moving.why ?? 'moving', v: moving.v, src: 'task' });
   // (v0.0.19: a live man on his dash (see the header))
   if (target?.live && movingNow(turnerOf(state, target.key), ms)) out.push({ why: 'a moving man', v: MOVING_MAN_V, src: 'task' });
+  // ("Away the boarding party": an irregular's blind fire, his rifle up over his cover and his head below it (opfor.js blindTick; DF§5))
+  if (blind) out.push({ why: 'firing blind', v: BLIND_FIRE_MOD, src: 'task' });
   // (held: a gunner's own held aim, { v } (src/sim/arms/gunner.js): the stop's aim is the player's)
   const h = held ? { aimed: true, v: held.v } : heldOf(state, pid, ms, target?.key ?? null);
   if (h.aimed && h.v) out.push({ why: h.v > 0 ? 'the aim held' : 'still coming down from the last', v: h.v, src: 'task' });
@@ -558,7 +566,7 @@ export const shotIdNext = (state) => `sh${state.meta?.next?.sh ?? 1}`;
  * (the pull and its recovery when it fired, the press alone when it clicked) and the shot record
  * { id, who, gun, atMs, fired, why, stoppage, set, muzzle, dirRad, target, lane, hole, brass, roll, logSeq, recoverMs }.
  */
-export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', tempo = 'normal', follow = 0, climbK = 1, held = null, hold = undefined, log = true, atMs = state.clock.ms, row = null, moving = null, foreseen = null }) {
+export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', tempo = 'normal', follow = 0, climbK = 1, held = null, hold = undefined, log = true, atMs = state.clock.ms, row = null, moving = null, foreseen = null, blind = false }) {
   const gun = state.items[gunId], mag = gun.mag ? state.items[gun.mag] : null, M = MODELS[gun.model ?? 'r7'];
   const ms = atMs, roller = rollerOf(state, pid, { ms }), wh = roller.value('weapons');
   const id = nextId(state, 'sh');
@@ -573,7 +581,7 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
   let roll = null, hole = null, brass = null, entry = null, stepMs, recMs = 0, poi = null, after = '', fl = null, man = null, kick = null;
   if (f.fired) {
     const { dc, parts } = dcOf({ model: gun.model ?? 'r7', rangeM: target?.dM ?? 25, part, paper: target?.paper ?? null });
-    const mods = modsOf(state, pid, { gunId, target, part, tempo: 'normal', follow, climbK, ms, held, moving });
+    const mods = modsOf(state, pid, { gunId, target, part, tempo: 'normal', follow, climbK, ms, held, moving, blind });
     roll = check(r, { skill: 'marksmanship', value: roller.value('marksmanship'), dc, mods, tempo, pressure: 'evaluated', procedure: false, by: pid, dcParts: parts, foreseen: !!foreseen });
     // (the round as it flies, for every shot: the hud's crack and strike, the far window's delay)
     const fp = poiOf(state, pid, gunId, target ?? { dM: 25 }, { ms, hold, load: f.load ?? 'ball' });
@@ -618,6 +626,9 @@ export function resolveShot(state, bus, { pid, gunId, target, part = 'torso', te
       // (an armoured face's verdict: down only there, the head plate's; a paper threat's sensor is the scene's)
       if (target.face === 'armoured') { const st = h.at ? steelOf(state, { id, part, roll, flight: fl, load: f.load ?? 'ball', model: gun.model ?? 'r7' }, target) : null;
         Object.assign(man, { ring: !!st?.ring, through: !!st?.through, down: !!st?.down }); }
+      // (on the one rule's 'real' (the boarding's live rounds: would.js realOf) a man is no paper: his body's words, never a zone or a berm
+      // (the v0.0.27 play review, finding 6: "Marksmanship 7 against 6 · in the C zone." on a live pirate aboard)
+      if (realOf(state) && target.face !== 'armoured') h.word = REAL_WORDS[h.zone ?? 'miss'] ?? h.word;
       hole = { at: h.at, zone: h.zone, word: h.word };
       roll.verb = man.ring ? (part === 'head' ? (man.down ? 'on the head plate: it rings and falls.' : 'on the head plate: it rings.') : 'on the plate: it rings.')
         : man.through ? 'through the plate.' : `${h.word}.`;

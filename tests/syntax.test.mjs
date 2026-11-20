@@ -121,7 +121,15 @@ function regexMayStart(out) {
   if (/[\w$]/.test(out[k])) { let s = k; while (s >= 0 && /[\w$]/.test(out[s])) s--; return KEYWORDS.has(out.slice(s + 1, k + 1)); }
   return !/[)\]"'`]/.test(out[k]);
 }
+// (a module's code with its comments and strings blanked, kept by its text: a dozen rules read every module's, and the scan is the file's
+// largest cost (v0.0.27's carried stage: the file sat at its 3 s quick line); the text is the key, so an edited module is scanned afresh)
+const CODE_ONLY = new Map();
 export function codeOnly(src) {
+  let got = CODE_ONLY.get(src);
+  if (got === undefined) { got = codeOnlyOf(src); CODE_ONLY.set(src, got); }
+  return got;
+}
+function codeOnlyOf(src) {
   let out = '', i = 0;
   const n = src.length, modes = ['code'], braces = [0];
   while (i < n) {
@@ -801,11 +809,17 @@ export default [
     },
   },
   {
-    name: 'rules: the live lane\'s one seam (the build sheet v0.0.22 §0 item 16, §2 step 4): no code of src names OPFOR_SPOTS[ outside opfor.js spotOf, nor RP_STANDS outside spotOf, rpStandsOf, parseOpfor and opforCode (the URL\'s grammar), house-opfor.js\'s declarations and the import; v0.0.26 (its build sheet §1 A): BREACH_SPOTS[ outside spotOf, nor BREACH_STANDS outside rpStandsOf, likewise',
+    name: 'rules: the live lane\'s one seam (the build sheet v0.0.22 §0 item 16, §2 step 4): no code of src names OPFOR_SPOTS[ outside opfor.js spotOf, nor RP_STANDS outside spotOf, rpStandsOf, parseOpfor and opforCode (the URL\'s grammar), house-opfor.js\'s declarations and the import; v0.0.26 (its build sheet §1 A): BREACH_SPOTS[ outside spotOf, nor BREACH_STANDS outside rpStandsOf, likewise; v0.0.27 (its build sheet §1 stage 0): HAULER_POSTS and HAULER_CREW named only in hauler.js and ships.js\'s SHIPS row, and read in opfor.js only as a ship\'s .posts and .crew in spotOf and rpStandsOf',
     fn() {
       const HOME = 'src/sim/scenarios/opfor.js', DATA = 'src/data/places/house-opfor.js';
       const RULES = [{ re: /\bOPFOR_SPOTS\s*\[/g, ok: ['spotOf'] }, { re: /\bRP_STANDS\b/g, ok: ['spotOf', 'rpStandsOf', 'parseOpfor', 'opforCode'] },
-        { re: /\bBREACH_SPOTS\s*\[/g, ok: ['spotOf'] }, { re: /\bBREACH_STANDS\b/g, ok: ['rpStandsOf'] }];
+        { re: /\bBREACH_SPOTS\s*\[/g, ok: ['spotOf'] }, { re: /\bBREACH_STANDS\b/g, ok: ['rpStandsOf'] },
+        // (v0.0.27's stage 0: the hauler's posts and crew spots by name nowhere in opfor.js (read through the ship's row), and the row's
+        // .posts and .crew read in opfor.js by spotOf and rpStandsOf alone (the member rule checks opfor.js only: `home`)
+        { re: /\bHAULER_POSTS\b/g, ok: [], hauler: true }, { re: /\bHAULER_CREW\b/g, ok: [], hauler: true },
+        { re: /(?:\?\.|\.)(?:posts|crew)\b/g, ok: ['spotOf', 'rpStandsOf'], home: true }];
+      // (where the hauler's two may be named: its data, and the registry's SHIPS row)
+      const haulerHome = (r, owner) => r === 'src/data/places/hauler.js' || (r === 'src/data/places/ships.js' && owner === 'SHIPS');
       // (the top-level declaration a place in the code lies in: the last `function name(` or `const name =` at a line's start before
       // it, `import` for an import statement, the module's name for its data)
       const ownerAt = (code, at) => {
@@ -815,15 +829,15 @@ export default [
         for (const m of head.matchAll(/^(?:export\s+)?(?:async\s+)?(?:function\s*\*?\s*([A-Za-z_$][\w$]*)|(?:const|let|var)\s+([A-Za-z_$][\w$]*))/gm)) name = m[1] ?? m[2];
         return name;
       };
-      const hitsIn = (src) => { const code = codeOnly(src), out = []; for (const R of RULES) for (const m of code.matchAll(R.re)) out.push({ what: m[0].replace(/\s+/g, ''), owner: ownerAt(code, m.index), ok: R.ok }); return out; };
+      const hitsIn = (src, { home = true } = {}) => { const code = codeOnly(src), out = []; for (const R of RULES) { if (R.home && !home) continue; for (const m of code.matchAll(R.re)) out.push({ what: m[0].replace(/\s+/g, ''), owner: ownerAt(code, m.index), ok: R.ok, hauler: !!R.hauler }); } return out; };
       const bad = [], seen = {};
       for (const f of srcFiles()) {
         const r = rel(f), src = readFileSync(f, 'utf8');
         // (only a module whose text names either is read as code)
-        if (!src.includes('OPFOR_SPOTS') && !src.includes('RP_STANDS') && !src.includes('BREACH_SPOTS') && !src.includes('BREACH_STANDS')) continue;
-        for (const h of hitsIn(src)) {
+        if (!src.includes('OPFOR_SPOTS') && !src.includes('RP_STANDS') && !src.includes('BREACH_SPOTS') && !src.includes('BREACH_STANDS') && !src.includes('HAULER_POSTS') && !src.includes('HAULER_CREW') && r !== HOME) continue;
+        for (const h of hitsIn(src, { home: r === HOME })) {
           seen[r] = (seen[r] ?? 0) + 1;
-          if (r === DATA || h.owner === 'import') continue;
+          if (r === DATA || h.owner === 'import' || (h.hauler && haulerHome(r, h.owner))) continue;
           if (r !== HOME || !h.ok.includes(h.owner)) bad.push(`${r}: ${h.what} in ${h.owner ?? 'the module'}`);
         }
       }
@@ -833,8 +847,14 @@ export default [
       // (v0.0.26: the scene's table by the same rule, and its probe: a read of BREACH_SPOTS[ in hear and of BREACH_STANDS in fillOpfor refused)
       const probe2 = hitsIn("import { BREACH_SPOTS, BREACH_STANDS } from 'x';\nexport function spotOf(state, T) { return BREACH_SPOTS[T.stand]; }\nexport function rpStandsOf(state) { return BREACH_STANDS; }\nfunction hear(state, T) { const S = BREACH_SPOTS[T.stand]; }\nfunction fillOpfor(state) { for (const s of BREACH_STANDS) {} }")
         .filter(h => h.owner !== 'import' && !h.ok.includes(h.owner)).length;
-      console.log(`      named in ${Object.entries(seen).map(([f, n]) => `${f} (${n})`).join(', ')}; in opfor.js's code: ${owners.join(', ')}; out of place ${bad.length}${bad.length ? `: ${bad.join('; ')}` : ''}; the probe ${probe}/2, the scene's ${probe2}/2`);
-      assert(probe === 2 && probe2 === 2 && !bad.length && owners.some(o => o === 'OPFOR_SPOTS[ spotOf') && owners.some(o => o === 'RP_STANDS rpStandsOf') && owners.some(o => o === 'BREACH_SPOTS[ spotOf') && owners.some(o => o === 'BREACH_STANDS rpStandsOf'), JSON.stringify({ bad, owners, probe, probe2 }));
+      // (v0.0.27: the hauler's, and its probe: HAULER_POSTS named in hear and a ship's .crew read in fillOpfor refused, the two reads in
+      // spotOf and rpStandsOf kept; HAULER_CREW named in a sim module refused, and in ships.js's SHIPS row kept)
+      const probe3 = hitsIn("export function spotOf(state, T) { return shipOf(H)?.posts?.find(p => p.stand === T.stand); }\nexport function rpStandsOf(state) { const S = shipOf(H); return [...S.posts, ...S.crew]; }\nfunction hear(state, T) { const P = HAULER_POSTS[0]; }\nfunction fillOpfor(state) { return shipOf(H).crew; }")
+        .filter(h => h.owner !== 'import' && !h.ok.includes(h.owner)).length;
+      const probe4 = [['src/sim/combat/men.js', 'function f() { return HAULER_CREW; }'], ['src/data/places/ships.js', 'export const SHIPS = { hauler: { crew: HAULER_CREW } };']]
+        .flatMap(([r, t]) => hitsIn(t, { home: false }).filter(h => h.hauler && !haulerHome(r, h.owner))).length;
+      console.log(`      named in ${Object.entries(seen).map(([f, n]) => `${f} (${n})`).join(', ')}; in opfor.js's code: ${owners.join(', ')}; out of place ${bad.length}${bad.length ? `: ${bad.join('; ')}` : ''}; the probe ${probe}/2, the scene's ${probe2}/2, the hauler's ${probe3}/2 and ${probe4}/1`);
+      assert(probe === 2 && probe2 === 2 && probe3 === 2 && probe4 === 1 && !bad.length && owners.some(o => o === 'OPFOR_SPOTS[ spotOf') && owners.some(o => o === 'RP_STANDS rpStandsOf') && owners.some(o => o === 'BREACH_SPOTS[ spotOf') && owners.some(o => o === 'BREACH_STANDS rpStandsOf'), JSON.stringify({ bad, owners, probe, probe2 }));
     },
   },
   {
@@ -848,11 +868,15 @@ export default [
     },
   },
   {
-    name: 'rules: the runner\'s gates and warm-up (the build sheet v0.0.25 §2 step 4): tests/run.mjs parses, reads GATES and WARM from the environment and warms a worker with its WARM_LANES; every test marked gate: true is heavy, and they are the drawn and eight-room sweeps\' four',
+    name: 'rules: the runner\'s gates and warm-up (the build sheet v0.0.25 §2 step 4): tests/run.mjs parses, reads GATES and WARM from the environment and warms a worker with its WARM_LANES; every test marked gate: true is heavy, and they are the drawn and eight-room sweeps\' four; v0.0.27 (K7): a time line red once is run again, the four tick files\' quick cases marked',
     fn() {
       execFileSync(process.execPath, ['--check', path.join(root, 'tests/run.mjs')], { stdio: ['ignore', 'pipe', 'pipe'] });
       const src = readFileSync(path.join(root, 'tests/run.mjs'), 'utf8');
-      const has = { gates: /const GATES = process\.env\.GATES === '1'/.test(src), warm: /const WARM = process\.env\.WARM !== '0'/.test(src), lanes: /const WARM_LANES = /.test(src), skip: /if \(t\.gate && !GATES\)/.test(src), warmUp: /async function warmUp\(/.test(src) };
+      // (v0.0.27's stage 0, K7: a time line red on its first run is run once more and its second run counts, and the four tick files'
+      // quick cases are marked timeLine)
+      const marked = ['house-tick-budget', 'house-live-perf', 'breach-tick', 'zerocqb-tick'].filter(f => /\n {4}timeLine: true,/.test(readFileSync(path.join(root, 'tests', `${f}.test.mjs`), 'utf8')));
+      const has = { gates: /const GATES = process\.env\.GATES === '1'/.test(src), warm: /const WARM = process\.env\.WARM !== '0'/.test(src), lanes: /const WARM_LANES = /.test(src), skip: /if \(t\.gate && !GATES\)/.test(src), warmUp: /async function warmUp\(/.test(src),
+        timeLine: /if \(err && t\.timeLine && /.test(src) && /err = await once\(\);\n/.test(src) && marked.length === 4 };
       // (each test object marked gate: true, found by its marker, with the heavy flag in the same object before it)
       const gates = [];
       for (const f of readdirSync(path.join(root, 'tests')).filter(x => x.endsWith('.test.mjs') && x !== 'syntax.test.mjs')) {

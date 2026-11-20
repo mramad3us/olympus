@@ -127,6 +127,18 @@
 // carries on byte for byte from a save made 300 ticks on, and reaches its card on the tick the same lane played straight from GO
 // does (V025_PAUSE_TICK 3082, clear; V025_LIVE_TICK 2822, the casualty). They are "Bang, then go"'s held saves (F147): every merge,
 // D to C, keeps them byte for byte, but the live one if the DAZED read moves it (F147's named exception, re-recorded with its cause).
+// v0.0.27's stage 0 (its build sheet §1 stage 0, §2 step 8, a heavy case as v0.0.26's): two saves made by v0.0.26's own code (the
+// integrated snapshot, tree a49eac55, v0.0.26 untagged; the maker .run/v027/lead-figures/scripts/make-saves.mjs), stamped 0.0.26:
+// "Bang, then go" (breach 'bang,held') as the private by the keys with the bang (tests/breach-lanes.mjs breachBot 'auto') on 48213 from
+// GO at his first contact's pause with a man DAZED (tick 238, room 1, the pick 1a, both men dazed), and the Wreck as the sergeant by T
+// on 48213 from GO at his first contact's pause on deck 6 (tick 945, the hold, the pick 3b on the deckhead). Each loads with nothing
+// written, carries on byte for byte from a save made 300 ticks on, and reaches its card on the tick the same lane played straight from
+// GO does (V026_DAZED_TICK 3462 on the tag, 3562 on the snapshot: below; V026_DECK6_TICK 3861, clear). They are "Away the boarding party"'s held saves (F150): every
+// merge, B to E, keeps them byte for byte, the Wreck's but by K3's named re-record (D's: your #2's hatch stack points).
+// (the integration on v0.0.26's tag, 2026-11-19: V026_DAZED_TICK 3562 → 3462, the cause v0.0.26's fixer after the snapshot, bundle.js
+// doorNow offering no door past room 1 on "Bang, then go" (no room 2 after the searches: 100 ticks sooner, as breach-pin's private
+// bang,held cell 4542 → 4442); checked with that hunk alone undone, 3562 again. The save still loads byte for byte and reaches its card
+// on the straight lane's tick; V026_DECK6_TICK unmoved)
 import { readFileSync } from 'node:fs';
 import { gunzipSync } from 'node:zlib';
 import path from 'node:path';
@@ -159,6 +171,8 @@ import { botOf } from './flawless.mjs';
 import { instinctNow } from '../src/sim/skills/instinct.js';
 import { anchorsBot } from './bots/void.mjs';
 import { anchorsNow } from '../src/sim/scenarios/anchors.js';
+import { breachBot } from './breach-lanes.mjs';
+import { liveStateOf } from '../src/sim/combat/men.js';
 // (v0.0.22's C: the two v0.0.21 saves' end ticks under v0.0.22's rules (see their case), recorded on C's tree)
 const SAVE_TICKS = Object.freeze({ showclear: 4562, paint: 3362 });
 /** v0.0.24's stage 0: the keys private on 48213 from setup 'go' to his card, the tick on v0.0.23's snapshot (the room 2 save's lane). */
@@ -175,6 +189,8 @@ const V024_ANCHORS_TICK = 2354;
 const V025_ANCHORS_STRAIGHT_TICK = 2782;
 /** v0.0.26's stage 0: the sergeant by T on 48213 from GO to his card, and the live lane's private by the keys, the ticks on v0.0.25's snapshot (10b699aa). */
 const V025_PAUSE_TICK = 3082, V025_LIVE_TICK = 2822;
+/** v0.0.27's stage 0: "Bang, then go"'s private by the keys with the bang, and the Wreck's sergeant by T, from GO to the card, the ticks on v0.0.26's snapshot (a49eac55). */
+const V026_DAZED_TICK = 3462, V026_DECK6_TICK = 3861;
 
 const LON = SITES.melas.lonEDeg, MIN_TICKS = 20 * 60;
 // (v0.0.21, the build sheet §1 item 25, §0 item 17: a house save from before v0.0.20's pars gains them on load, the stands' books,
@@ -824,6 +840,33 @@ export default [
         const f = createGame({ scenario: 'test-shoothouse', seed: 48213, setup: 'go', ...c.straight }); runHouse(f, c.bot(), { maxMs: 30 * 60_000 });
         const done = (st) => !!st.armoury.range.house.end;
         console.log(`      ${name}: tick ${old.clock.tick}, the pick ${S0.pick} in ${T0.room}${T0.live ? ` (live, read ${old.mind.contact.last.state[T0.key]})` : ''}, ${json.length} bytes; saved again at once ${saved === json ? 'byte for byte (no key gained)' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; ${g.errors.length} errors; a save at 300 carried on ${carried ? 'byte for byte' : 'DIFFERENTLY'}; to the card ${done(s)} (${s.armoury.range.house.end?.why ?? 'none'}) at tick ${s.clock.tick}, the lane straight ${done(f.state)} at ${f.state.clock.tick} (the snapshot's ${c.tick})`);
+        assert(saved === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried, JSON.stringify({ same: saved === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 2), carried }));
+        assert(done(s) && done(f.state) && s.clock.tick === f.state.clock.tick && s.clock.tick === c.tick, JSON.stringify({ tick: s.clock.tick, straight: f.state.clock.tick, want: c.tick }));
+      }
+    },
+  },
+  {
+    name: 'v0.0.27 (its build sheet §2 step 8): two saves made by v0.0.26\'s own code load with nothing written, gain no key and carry on byte for byte: "Bang, then go"\'s private by the keys at his first contact\'s pause with a man dazed, and the Wreck\'s sergeant by T at his first contact\'s pause on deck 6, each to its card on its lane\'s tick from GO',
+    heavy: true,
+    timeoutMs: 300_000,
+    fn() {
+      const CASES = {
+        'v0.0.26-breach-dazed': { scenario: 'test-shoothouse', straight: { tier: 'private', breach: 'bang,held' }, bot: () => breachBot('auto', { tier: 'private', seed: 48213, code: 'bang,held' }), tick: V026_DAZED_TICK,
+          at: (st, T) => T?.room === 'w4.r1' && st.armoury.range.turners.some(x => x.live && liveStateOf(st, x, st.clock.ms) === 'dazed') },
+        'v0.0.26-zerocqb-deck6': { scenario: 'test-zerocqb', straight: { tier: 'sgt' }, bot: () => houseHonestBot(), tick: V026_DECK6_TICK, at: (st, T) => String(T?.room).startsWith('wk.d6.') },
+      };
+      for (const [name, c] of Object.entries(CASES)) {
+        const json = read(name), old = JSON.parse(json), H0 = old.armoury.range.house, S0 = old.stop, T0 = S0?.pick ? old.armoury.range.turners.find(t => t.key === S0.pick) : null;
+        assert(old.meta.version === '0.0.26' && old.meta.seed === 48213 && old.meta.scenario === c.scenario && H0.tier === c.straight.tier, `${name}: ${old.meta.version} ${old.meta.seed} ${old.meta.scenario} ${H0.tier}`);
+        assert(S0?.mode === 'stop' && S0.phase === 'choose' && S0.via === 'contact' && c.at(old, T0), JSON.stringify({ via: S0?.via, room: T0?.room }));
+        const g = createGame({ scenario: c.scenario, seed: 48213 }), s = g.load(json), saved = g.save(), ids = checkIds(JSON.parse(saved), g.sim.domains), b = c.bot();
+        g.step(300, b); const mid = g.save(); g.step(300, b); const end = g.save();
+        const h = createGame({ scenario: c.scenario, seed: 48213 }); h.load(mid); h.step(300, c.bot());
+        const carried = h.save() === end;
+        runHouse(g, b, { maxMs: 30 * 60_000 });
+        const f = createGame({ scenario: c.scenario, seed: 48213, setup: 'go', ...c.straight }); runHouse(f, c.bot(), { maxMs: 30 * 60_000 });
+        const done = (st) => !!st.armoury.range.house.end;
+        console.log(`      ${name}: tick ${old.clock.tick}, the pick ${S0.pick} (${T0.stand}) in ${T0.room}, ${json.length} bytes; saved again at once ${saved === json ? 'byte for byte (no key gained)' : 'DIFFERENT'}, ids ${ids.invalid.length} invalid, ${ids.dangling.length} dangling; ${g.errors.length} errors; a save at 300 carried on ${carried ? 'byte for byte' : 'DIFFERENTLY'}; to the card ${done(s)} (${s.armoury.range.house.end?.why ?? 'none'}) at tick ${s.clock.tick}, the lane straight ${done(f.state)} at ${f.state.clock.tick} (the snapshot's ${c.tick})`);
         assert(saved === json && !ids.invalid.length && !ids.dangling.length && !g.errors.length && !h.errors.length && carried, JSON.stringify({ same: saved === json, invalid: ids.invalid.slice(0, 3), dangling: ids.dangling.slice(0, 3), errors: g.errors.slice(0, 2), carried }));
         assert(done(s) && done(f.state) && s.clock.tick === f.state.clock.tick && s.clock.tick === c.tick, JSON.stringify({ tick: s.clock.tick, straight: f.state.clock.tick, want: c.tick }));
       }

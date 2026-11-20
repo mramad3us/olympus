@@ -21,6 +21,7 @@ import { WRECK, WRECK_ID, WRECK_DECKS, WRECK_DECK_M, WRECK_CEILING_M, WRECK_TRUN
 import { WRECK_PLANS, WRECK_ORDER } from '../src/data/places/wreck-plans.js';
 import { SITE_LIST } from '../src/data/places/sites.js';
 import { deriveWreck } from '../tools/derive-plans.mjs';
+import { HAULER_ID } from '../src/data/places/hauler.js';
 
 const near = (a, b, e = 1e-6) => Math.abs(a - b) <= e;
 const onGrid = (v, step) => near(Math.round(v / step) * step, v, 1e-6);
@@ -200,7 +201,9 @@ export default [
       console.log(`      the Wreck: ${W.length} runs, ${stand.length} standing (${sides.join(', ')}) at ${[...new Set(stand.map(w => w.h))].join(', ')} m, ${cut.length} cut at ${[...new Set(cut.map(w => w.h))].join(', ')} m`);
       assert(stand.length === 6 && stand.every(w => w.h === WRECK_CEILING_M) && cut.every(w => w.h === CUT_H_M), JSON.stringify(stand));
       for (const n of [5, 6]) { const [x0, , x1] = WRECK_DECKS[n].rect; assert(['w', 'e'].every(sd => stand.some(w => w.side === sd && w.at === (sd === 'w' ? x0 : x1))), `deck ${n}'s side bulkheads not standing`); }
-      const shipped = AREA_LIST.filter(a => a.id !== WRECK_ID);
+      // (v0.0.27's stage 0: the areas shipped before the Wreck, as pinned: the Patient Mule's deck, flagged to its deckhead as the Wreck is,
+      // is the next round's and held by hauler-place, so it is left out with the Wreck, the digest v0.0.24's to the byte)
+      const shipped = AREA_LIST.filter(a => a.id !== WRECK_ID && a.id !== HAULER_ID);
       const all = shipped.map(a => ({ id: a.id, plan: JSON.parse(JSON.stringify(planOf(a))), walls: wallsOf(planOf(a)) }));
       console.log(`      ${shipped.length} shipped areas (${shipped.map(a => a.id).join(', ')}): ${goldenDigest(all)}, every standing run ${[...new Set(all.flatMap(x => x.walls.filter(w => w.side && w.side !== 's').map(w => w.h)))].join(', ')} m`);
       golden('every shipped area\'s plan and walls (v0.0.24\'s snapshot)', all, SHIPPED_WALLS);

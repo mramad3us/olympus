@@ -1,0 +1,18 @@
+{
+ "title": "A Belt hauler's crew deck: the inside of the Patient Mule's deck 2, the lock, the passage, the cabins and the bunk room",
+ "about": "v0.0.27, \"Away the boarding party\", is fought on deck 2 of the Belt ice hauler Patient Mule: the lock, a passage 1.5 m wide, two cabins and the hands' bunk room, every opening a hatch, every standing piece to the 2.4 m deckhead. The deck is the game's own data (its rooms, its hatches, its berth boxes, lockers and the head's stalls, the walls as the stage's cutaway stands and cuts them), drawn by the stage's camera from 45° above at 16 px a metre before its look is built, so the look is scored first: the whole deck, then three times larger the passage from the lock, cabin 1 and the bunk room. I-a (the default) is Belt grey, patched panels, union-red trim and hand-painted stencils in Lang Belta and Standard; I-b painted liners in faded colours, a compartment each, foam pads at the corners and hatches, a child's drawing in cabin 1; I-c bare steel and grey foam, run cold. The candidate's colours are drawn as they are: the game's Belter palette is built from your pick. The game builds the default until you score.",
+ "open": {"default": ["I-a"], "since": "2026-11-19", "decides": "the inside of the Patient Mule's crew deck in Away the boarding party: its palette, its panels, its trim and its paint", "builtIn": "v0.0.27"},
+ "pixel": true,
+ "groups": [
+  {
+   "id": "I",
+   "title": "I: the inside (the whole deck, then the passage from the lock, cabin 1 and the bunk room three times larger)",
+   "about": "Deck 2 at 16 px/m from 45° above, then three crops three times larger.",
+   "views": [
+    { "id": "I-a", "name": "I-a: Belt grey, patched panels, union-red trim, hand-painted stencils in Lang Belta and Standard (the default)", "query": "i=I-a", "pixel": "808x415" },
+    { "id": "I-b", "name": "I-b: painted liners in faded colours, foam pads at the corners and hatches, a child's drawing in cabin 1", "query": "i=I-b", "pixel": "808x415" },
+    { "id": "I-c", "name": "I-c: bare steel and grey foam, run cold", "query": "i=I-c", "pixel": "808x415" }
+   ]
+  }
+ ]
+}

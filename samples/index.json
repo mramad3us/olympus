@@ -1,5 +1,5 @@
 {
- "built": "2026-11-19T12:50",
+ "built": "2026-11-19T18:42",
  "samples": [
   {
    "id": "audio",
@@ -112,6 +112,177 @@
         360
        ],
        "report": {}
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "belt-crew",
+   "title": "The holdouts: the dress of the armed men aboard the Patient Mule, on the deck and on the deckhead",
+   "about": "v0.0.27, \"Away the boarding party\", draws pirates or smugglers from the seed, and some of the hauler's own crew, unarmed. One dress serves both kinds of holdout; the crew always wear coveralls. Every picture is the game's own code: the figure composed at the stage's 16 px/m by the figure engine, shaded and snapped to the palette as the stage draws it, on the hauler's deck plate and three times its size. The first row is a holdout aimed (the R-7 at the shoulder) toward you, away, side on to the right and to the left, on the deck; the second the same on the deckhead, turned as the stage turns a body there; the third the candidate's three men side by side, then one of the crew, unarmed, in his coveralls. The coverall is the game's own Belter coverall, one piece in three makes by the man (blue-grey with the union's red band, rust, faded olive), the head bare; the light vac suit unsealed is the game's \"Light vac suit, helmet off\", the helmet clipped at the pack. The game builds the default until you score; the pick is the holdouts' outfit (src/art/figures/outfits.js).",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "D-c"
+    ],
+    "since": "2026-11-19",
+    "decides": "how the holdouts aboard the Patient Mule are dressed (the hauler's crew always in coveralls) in Away the boarding party",
+    "builtIn": "v0.0.27"
+   },
+   "groups": [
+    {
+     "id": "D",
+     "title": "D: the dress (four facings on the deck and on the deckhead, aimed; the three men; one of the crew)",
+     "about": "A holdout aimed in four facings on the deck, the same on the deckhead, then the candidate's three men toward you and one of the hauler's crew in coveralls.",
+     "sets": null,
+     "views": [
+      {
+       "id": "D-a",
+       "name": "D-a: coveralls, three makes",
+       "query": "d=D-a",
+       "shot": "belt-crew/shots/d-a.png",
+       "native": [
+        428,
+        466
+       ],
+       "report": {
+        "frame": [
+         428,
+         466
+        ]
+       }
+      },
+      {
+       "id": "D-b",
+       "name": "D-b: the light vac suit unsealed, the helmet at the pack",
+       "query": "d=D-b",
+       "shot": "belt-crew/shots/d-b.png",
+       "native": [
+        428,
+        466
+       ],
+       "report": {
+        "frame": [
+         428,
+         466
+        ]
+       }
+      },
+      {
+       "id": "D-c",
+       "name": "D-c: the mixed crew, two in coveralls and one in the vac suit (the default)",
+       "query": "d=D-c",
+       "shot": "belt-crew/shots/d-c.png",
+       "native": [
+        428,
+        466
+       ],
+       "report": {
+        "frame": [
+         428,
+         466
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "board-poses",
+   "title": "A man in a real fight: blind fire from cover, and a man down at zero G on his boots, on the stage and on his target card",
+   "about": "v0.0.27, \"Away the boarding party\", puts armed men who are not role-players on the Patient Mule's deck 2 at zero G, each on locked mag boots, and live rounds both ways. An irregular in cover may fire blind: the rifle over or round his cover, his head below it, FIRING BLIND. A man hit hangs from his locked boots where he stood: there is no floor to fall to, DOWN. The stage has no frame for either today (a man in cover kneels at the low ready; a man down sits where he is), so these are the candidates. Every picture is the game's own code: a holdout in the game's Belt coverall (the dress is the belt-crew set's to score; here its blue-grey make), no carrier, no mask, the R-7, composed at the stage's 16 px/m by the figure engine with the candidate's pose, shaded and snapped to the palette as the stage draws him, on the hauler's deck plate and three times his size: first what the stage draws today, then the candidate toward you, away, side on to the right and to the left, and a man down also on the deckhead, toward you and away, turned as the stage turns a body there. Under them his target card: today's, then the candidate's at 4 m and 14 m, in the same coverall. B (the default B-a) is blind fire; Z (the default Z-a) is a man down at zero G. The game builds the defaults until you score; each pick is one row of the figure's poses (a band of the stance pool, beside the daze and the cower) and one of the card's.",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "B-a",
+     "Z-a"
+    ],
+    "since": "2026-11-19",
+    "decides": "how a holdout firing blind from cover (B) and a man down at zero G on his locked boots (Z) are drawn on the stage and on his target card in Away the boarding party",
+    "builtIn": "v0.0.27"
+   },
+   "groups": [
+    {
+     "id": "B",
+     "title": "B: blind fire (the rifle over or round his cover, his eyes down)",
+     "about": "The stage today (kneeling at the low ready, toward you), then the candidate in four facings; the card today and the candidate's card at 4 m and 14 m (FIRING BLIND).",
+     "sets": null,
+     "views": [
+      {
+       "id": "B-a",
+       "name": "B-a: down behind cover, the rifle up over it, the head below (the default)",
+       "query": "c=B-a",
+       "shot": "board-poses/shots/b-a.png",
+       "native": [
+        616,
+        377
+       ],
+       "report": {
+        "frame": [
+         616,
+         377
+        ]
+       }
+      },
+      {
+       "id": "B-b",
+       "name": "B-b: side on to the cover, the rifle round its edge in one hand, the body behind it",
+       "query": "c=B-b",
+       "shot": "board-poses/shots/b-b.png",
+       "native": [
+        616,
+        377
+       ],
+       "report": {
+        "frame": [
+         616,
+         377
+        ]
+       }
+      }
+     ]
+    },
+    {
+     "id": "Z",
+     "title": "Z: a man down at zero G, hanging from his locked boots",
+     "about": "The stage today (sitting where he is, toward you), then the candidate in four facings on the deck and two on the deckhead; the card today (DOWN) and the candidate's card at 4 m and 14 m.",
+     "sets": null,
+     "views": [
+      {
+       "id": "Z-a",
+       "name": "Z-a: slack from his locked boots, the arms adrift, the rifle on its sling (the default)",
+       "query": "c=Z-a",
+       "shot": "board-poses/shots/z-a.png",
+       "native": [
+        746,
+        377
+       ],
+       "report": {
+        "frame": [
+         746,
+         377
+        ]
+       }
+      },
+      {
+       "id": "Z-b",
+       "name": "Z-b: curled, the knees up, still on his boots, the rifle across him",
+       "query": "c=Z-b",
+       "shot": "board-poses/shots/z-b.png",
+       "native": [
+        746,
+        377
+       ],
+       "report": {
+        "frame": [
+         746,
+         377
+        ]
+       }
       }
      ]
     }
@@ -716,6 +887,79 @@
         "frame": [
          304,
          270
+        ]
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "hauler-deck",
+   "title": "A Belt hauler's crew deck: the inside of the Patient Mule's deck 2, the lock, the passage, the cabins and the bunk room",
+   "about": "v0.0.27, \"Away the boarding party\", is fought on deck 2 of the Belt ice hauler Patient Mule: the lock, a passage 1.5 m wide, two cabins and the hands' bunk room, every opening a hatch, every standing piece to the 2.4 m deckhead. The deck is the game's own data (its rooms, its hatches, its berth boxes, lockers and the head's stalls, the walls as the stage's cutaway stands and cuts them), drawn by the stage's camera from 45° above at 16 px a metre before its look is built, so the look is scored first: the whole deck, then three times larger the passage from the lock, cabin 1 and the bunk room. I-a (the default) is Belt grey, patched panels, union-red trim and hand-painted stencils in Lang Belta and Standard; I-b painted liners in faded colours, a compartment each, foam pads at the corners and hatches, a child's drawing in cabin 1; I-c bare steel and grey foam, run cold. The candidate's colours are drawn as they are: the game's Belter palette is built from your pick. The game builds the default until you score.",
+   "pixel": true,
+   "matrix": null,
+   "open": {
+    "default": [
+     "I-a"
+    ],
+    "since": "2026-11-19",
+    "decides": "the inside of the Patient Mule's crew deck in Away the boarding party: its palette, its panels, its trim and its paint",
+    "builtIn": "v0.0.27"
+   },
+   "groups": [
+    {
+     "id": "I",
+     "title": "I: the inside (the whole deck, then the passage from the lock, cabin 1 and the bunk room three times larger)",
+     "about": "Deck 2 at 16 px/m from 45° above, then three crops three times larger.",
+     "sets": null,
+     "views": [
+      {
+       "id": "I-a",
+       "name": "I-a: Belt grey, patched panels, union-red trim, hand-painted stencils in Lang Belta and Standard (the default)",
+       "query": "i=I-a",
+       "shot": "hauler-deck/shots/i-a.png",
+       "native": [
+        808,
+        415
+       ],
+       "report": {
+        "frame": [
+         808,
+         415
+        ]
+       }
+      },
+      {
+       "id": "I-b",
+       "name": "I-b: painted liners in faded colours, foam pads at the corners and hatches, a child's drawing in cabin 1",
+       "query": "i=I-b",
+       "shot": "hauler-deck/shots/i-b.png",
+       "native": [
+        808,
+        415
+       ],
+       "report": {
+        "frame": [
+         808,
+         415
+        ]
+       }
+      },
+      {
+       "id": "I-c",
+       "name": "I-c: bare steel and grey foam, run cold",
+       "query": "i=I-c",
+       "shot": "hauler-deck/shots/i-c.png",
+       "native": [
+        808,
+        415
+       ],
+       "report": {
+        "frame": [
+         808,
+         415
         ]
        }
       }

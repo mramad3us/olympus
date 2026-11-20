@@ -496,9 +496,13 @@ export function houseTBot() {
 
 /** The lines that name a shot and leave it to the player (no act): the honest bot takes the row they name on a man of his own. */
 // (v0.0.26: and cqb-rp-dazed, "He's dazed. Now.", on "Bang, then go": a dazed man of yours, the pair it names, no act)
-export const SHOT_LINES = Object.freeze(new Set(['cqb-contact', 'cqb-still-up', 'cqb-hostage', 'cqb-rp-fire', 'cqb-rp-dazed']));
+// (v0.0.27, "Away the boarding party" (its build sheet §1 D, §11 risk 14, §14 item 25): the round's act-less urgent lines, cqb-rp-blind
+// "Firing blind. Get on him.", cqb-rp-flee "He's running. Hold." and cqb-passage "Nobody on the passage. Watch your back.": without them
+// the honest and T bots read a line with no act and stall, as v0.0.26's T bots did on cqb-rp-dazed; each the pair on a man of yours up
+// and facing, none on a man turned away or of your number two's (namesShot's and the shot's own guards))
+export const SHOT_LINES = Object.freeze(new Set(['cqb-contact', 'cqb-still-up', 'cqb-hostage', 'cqb-rp-fire', 'cqb-rp-dazed', 'cqb-rp-blind', 'cqb-rp-flee', 'cqb-passage']));
 // (the lines that name the pair: the contact's, and a role-player firing on you (v0.0.19, cqb-rp-fire); the others name the head)
-const PAIR_LINES = new Set(['cqb-contact', 'cqb-rp-fire', 'cqb-rp-dazed']);
+const PAIR_LINES = new Set(['cqb-contact', 'cqb-rp-fire', 'cqb-rp-dazed', 'cqb-rp-blind', 'cqb-rp-flee', 'cqb-passage']);
 // (v0.0.21, the review of A and B: the contact's line names a shot on the bracketed man only in its press, row and aim variants (each
 // read off the man bracketed); 'his', 'move', 'hands' and 'safe' name none, and a line of theirs with no act is a gap of the game's,
 // never a shot: the honest bot fired a pair at a no-shoot under "That one's his. Carry on." (act-less while the closet's question

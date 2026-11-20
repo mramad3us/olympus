@@ -174,7 +174,7 @@ import { logEntry } from '../log.js';
 import { lineReady, recordShot, recordEjects, recordDischarge, afterStep, aheadOf, lineCold, coachOf, rangeOf, markOfMacro, onStepStart, noteTick, magSeated, oneMagWarn, kindWarn, spoutCheck } from '../scenarios/handling.js';
 import { turnerTargets, facingOf } from './turners.js';
 import { shotRows, reloadRows, rowPlan, keptPlan, runRowSub, endRowSub, RELOAD_PURPOSE, rungOfShooter, RUNG_AIM, halfOrLess, fullerAtHand, ROWS, stanceHint } from './specials.js';
-import { contactRows, runContactSub, endContactSub, pendingOf, feetOf, contactLive, contactNow, CONTACT_LABELS } from '../combat/contact.js';
+import { contactRows, realRows, runContactSub, endContactSub, pendingOf, feetOf, contactLive, contactNow, CONTACT_LABELS } from '../combat/contact.js';
 import { contactOf } from '../people/mind.js';
 import { useList, begin, advance, endStep, stepFact } from '../combat/stepper.js';
 import { singleRows, bundleRows, carryRow, startBundle, startSingle, carryOn, stopBundle, setStance, laneOf, setVariant, wayOf, pathFrom, feetTo, flowIn, flowAfter, crossTick, mineUp, doorNow, preGoRows, handsStruck, moveStruck } from '../combat/bundle.js';
@@ -715,12 +715,13 @@ function stepsOfRaw(state, ms) {
   // (the rifle on its sling: its Up, the drill's rows and the weapon group's (Transition, Gun down, Off the line), Fix marked by the
   // planner (Up, or Transition where the rifle has no rounds left) (the review and the dead-end hunt of v0.0.18: a fumble that
   // swung the rifle onto its sling at a contact left Fix "Nothing to fix", T silent and Up four keys deep, and a rifle hanging
-  // on a stoppage after a fumbled draw lost Transition with a man facing at 4 m))
+  // on a stoppage after a fumbled draw lost Transition with a man facing at 4 m); v0.0.27's review: the real fight's own rows (contact.js
+  // realRows: "Tourniquet", "Get up") lead here too, so a rifle hanging on its sling never hides them)
   if (slung(posture)) {
     const wS = weaponsHere(state) ? weaponRows(state, pid, ms) : [];
     // (the hunt of v0.0.18: Up struck while a hand holds a device (devices.js handsFullWhy), the device's ways out first)
     const full = handsFullWhy(state, pid), upStep = (a) => { const st = actionStep(state, roller, gun, a); return a === 'up' && full && !st.off ? { ...st, off: full } : st; };
-    const sl = [...wS.filter(r => r.lead), ...(hRows?.rows ?? []), ...(br && !br.later ? [br] : []), ...canDo(state, pid, S.gun).map(upStep), ...stances, ...boots, ...(br?.later ? [br] : []),
+    const sl = [...realRows(state, pid, ms), ...wS.filter(r => r.lead), ...(hRows?.rows ?? []), ...(br && !br.later ? [br] : []), ...canDo(state, pid, S.gun).map(upStep), ...stances, ...boots, ...(br?.later ? [br] : []),
       ...wS.filter(r => !r.lead && !r.later), wait, leave, ...wS.filter(r => !r.lead && r.later), ...(hRows?.grey ?? [])];
     markFix(state, pid, S.gun, sl, roller, gun);
     return voidLead(state, shaking(roller, sl));

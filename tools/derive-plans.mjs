@@ -9,11 +9,14 @@
 //
 //   node tools/derive-plans.mjs            print every derived family
 //   node tools/derive-plans.mjs --write    and rewrite the derived families between x4.js's two markers, nothing else
-//   node tools/derive-plans.mjs --wreck [--write]   v0.0.25 (the build sheet v0.0.25 §1 A): the Wreck's three bulkhead hatches'
-//                                          plans (cells 2 and 5, the store: src/data/places/wreck.js), derived in the area's own frame
-//                                          (one authored area, no chunk), printed, and with --write rewritten between
-//                                          src/data/places/wreck-plans.js's two markers; the hold's plan (entered from its deckhead,
-//                                          no door) is authored there by hand. tests/wreck-place.test.mjs holds them fresh.
+//   node tools/derive-plans.mjs --ship <id> [--write]   a ship's bulkhead hatches' plans (SHIP_DERIVED's rows), derived in the area's
+//                                          own frame (one authored area, no chunk), printed, and with --write rewritten between its plans
+//                                          file's two markers. v0.0.25 (the build sheet v0.0.25 §1 A): the Wreck's three (cells 2 and 5, the
+//                                          store: src/data/places/wreck.js, into wreck-plans.js; the hold's plan, entered from its deckhead,
+//                                          no door, authored there by hand; tests/wreck-place.test.mjs holds them fresh); `--wreck` is
+//                                          `--ship wreck`. v0.0.27 (its build sheet §1 D): the Patient Mule's three compartment hatches
+//                                          (cabin 1, the bunk room, cabin 2: src/data/places/hauler.js, into hauler-plans.js; the passage's
+//                                          plan, the holders' leg, authored there by hand; tests/hauler-plans.test.mjs holds them fresh).
 //
 // The committed families are held equal to what the deriver gives today by tests/chunks-fresh.test.mjs: when the router, the sight
 // grid or the corner rule changes, that test fails, this tool is rerun, and the change is said in CHANGELOG.md with the chunks'
@@ -68,17 +71,28 @@ function block(plans) {
   return rows.join('\n');
 }
 
-// ---- v0.0.25, the Wreck (see the header) ----
+// ---- v0.0.25, the Wreck; v0.0.27, any ship (see the header) ----
 
 /** The Wreck's derived legs: [leg number, the hatch, the compartment's rooms] (the lane's order: cell 2, cell 5, the hold (authored), the store). */
 export const WRECK_DERIVED = Object.freeze([[1, 'o:wk:d5:cell-2', ['wk.d5.cell-2']], [2, 'o:wk:d5:cell-5', ['wk.d5.cell-5']], [4, 'o:wk:d6:store', ['wk.d6.store']]]);
-/** The Wreck's derived plans: { plans: { [hatch]: plan }, lines }, each hot spot's id its leg's ('r1:c0', as a drawn house's), every offered hatch open for the paths. */
-export async function deriveWreck() {
+/** The Patient Mule's derived legs (v0.0.27; the lane's order: the passage (authored), cabin 1, the bunk room, cabin 2). */
+export const HAULER_DERIVED = Object.freeze([[2, 'o:mu:d2:cabin-1', ['mu.d2.cabin-1']], [3, 'o:mu:d2:bunks', ['mu.d2.bunks']], [4, 'o:mu:d2:cabin-2', ['mu.d2.cabin-2']]]);
+/** Each ship's derived legs, the module that holds its area and hatches (their export names) and the plans file the tool writes. */
+export const SHIP_DERIVED = Object.freeze({
+  wreck: Object.freeze({ legs: WRECK_DERIVED, module: 'src/data/places/wreck.js', area: 'WRECK', hatches: 'WRECK_HATCHES', file: 'src/data/places/wreck-plans.js' }),
+  hauler: Object.freeze({ legs: HAULER_DERIVED, module: 'src/data/places/hauler.js', area: 'HAULER', hatches: 'HAULER_HATCHES', file: 'src/data/places/hauler-plans.js' }),
+});
+/** The Wreck's derived plans (v0.0.25's name): deriveShip('wreck'). */
+export const deriveWreck = () => deriveShip('wreck');
+/** A ship's derived plans: { plans: { [hatch]: plan }, lines }, each hot spot's id its leg's ('r1:c0', as a drawn house's), every offered hatch open for the paths. */
+export async function deriveShip(id) {
+  const row = SHIP_DERIVED[id];
+  if (!row) throw new Error(`derive-plans: no ship '${id}' (${Object.keys(SHIP_DERIVED).join(', ')})`);
   const { derivePlan, geoOf } = await import(path.join(root, 'src/sim/combat/derive.js'));
-  const { WRECK, WRECK_HATCHES } = await import(path.join(root, 'src/data/places/wreck.js'));
-  const open = WRECK_HATCHES.filter(h => h.offered !== false).map(h => h.id), plans = {}, lines = [];
-  for (const [leg, door, parts] of WRECK_DERIVED) {
-    const t = performance.now(), P = derivePlan(geoOf(WRECK.id, door, parts), { open }), ms = performance.now() - t;
+  const M = await import(path.join(root, row.module)), AREA = M[row.area], HATCHES = M[row.hatches];
+  const open = HATCHES.filter(h => h.offered !== false).map(h => h.id), plans = {}, lines = [];
+  for (const [leg, door, parts] of row.legs) {
+    const t = performance.now(), P = derivePlan(geoOf(AREA.id, door, parts), { open }), ms = performance.now() - t;
     plans[door] = { ...P, hot: P.hot.map(h => ({ ...h, id: `r${leg}:${h.id}` })), corners: P.corners, ...(P.far ? { far: { ...P.far, hot: `r${leg}:${P.far.hot}` } } : {}) };
     lines.push(`leg ${leg} ${door} (${P.entry}): points ${JSON.stringify(P.points)}; paths ${r2(len(P.paths[1]))} and ${r2(len(P.paths[2]))} m; hot ${P.hot.length} (${P.hot.map(h => h.why).join(', ')}); ${Math.round(ms)} ms`);
   }
@@ -95,13 +109,15 @@ function wreckBlock(plans) {
   return rows.join('\n');
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv.includes('--wreck')) {
-  const { plans, lines } = await deriveWreck();
+// (the ship asked for: `--ship <id>`, or `--wreck` (v0.0.25's flag) for the Wreck)
+const shipArg = process.argv.includes('--wreck') ? 'wreck' : process.argv.includes('--ship') ? process.argv[process.argv.indexOf('--ship') + 1] ?? null : null;
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url) && shipArg) {
+  const { plans, lines } = await deriveShip(shipArg);
   for (const l of lines) console.log(l);
   if (process.argv.includes('--write')) {
-    const file = path.join(root, 'src/data/places/wreck-plans.js'), src = readFileSync(file, 'utf8');
+    const rel = SHIP_DERIVED[shipArg].file, file = path.join(root, rel), src = readFileSync(file, 'utf8');
     const a = src.indexOf('// derive-plans:begin\n'), b = src.indexOf('// derive-plans:end');
-    if (a < 0 || b < a) throw new Error('derive-plans: no markers in src/data/places/wreck-plans.js');
+    if (a < 0 || b < a) throw new Error(`derive-plans: no markers in ${rel}`);
     writeFileSync(file, `${src.slice(0, a)}// derive-plans:begin\n${wreckBlock(plans)}\n${src.slice(b)}`);
     console.log(`written: ${path.relative(root, file)}, between its markers`);
   }

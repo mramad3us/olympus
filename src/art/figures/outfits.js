@@ -28,6 +28,10 @@
 //     all over (the Corps' armour is black: the user's rule), a black shell over a darker skin, the sealed helmet with its
 //     smoked visor and its glint, a slim pack, the carrier over it black too; no red anywhere (the vac suit's red shoulder
 //     band is a grey seam here), only the chest display's green and amber, which glow.
+//   - THE BELT COVERALL (v0.0.27, "Away the boarding party": the Patient Mule's holdouts and crew, SH§8.2; samples/belt-crew): a
+//     ship's one-piece coverall in one of three makes by the man's seed (BELT_MAKES: Belter blue-grey with a union-red band at the
+//     waist and the shins, rust, faded olive, each banded a shade darker), dark work boots, the bare head (no cover, no hard hat), no
+//     camouflage: not in OUTFITS (the samples' lineup), as the duty dress and the worn kit are not (CREW_DRESS).
 // And what the kit puts on anyone (0.0.5, the arms role's kitLook): ear defenders over the cover (look.ears:
 // drab cups on a band), the plate carrier with its magazine pouches over utilities (look.carrier, as the
 // carrier outfit's but under the cover, not the helmet: the 25 m line's dress); and look.magOut, the rifle
@@ -49,7 +53,7 @@
 // pixel at 16 px/m and two at 24 (a pattern a few centimetres a block either way), its coordinates
 // those of the body part it is on, so it moves with the part and never swims across a walking figure.
 // Colours here are base tones; shade.js makes each one's light, shade and dark by rule. Pure.
-import { noise, tone, mixHex } from '../tone.js';
+import { noise, tone, mixHex, hash3 } from '../tone.js';
 import { CUT_IDS, MAG_BOOT_LETTERS } from './templates.js';
 import { drawingOf } from '../rifles.js';
 import { helmOf, helmColours, helmFor, FOF_MASKS, fofMaskFor, fofMaskColours } from './helmets.js';
@@ -96,10 +100,19 @@ export const OUTFITS = Object.freeze(['utilities', 'nco', 'pt', 'vac', 'vacOpen'
 export const DUTY_DRESS = Object.freeze(['rangeStaff']);
 /** Worn kit a look may name that is not in the samples' lineup either (0.0.12: the combat EVA suit; the same reason as DUTY_DRESS). */
 export const WORN_KIT = Object.freeze(['combatSuit']);
+/** A ship's crew dress a look may name, not in the samples' lineup either (v0.0.27: the Belt coverall; the same reason). */
+export const CREW_DRESS = Object.freeze(['beltCoverall']);
+/** The Belt coverall's three makes (v0.0.27, samples/belt-crew's; my calls): { cloth, band } Belter blue-grey with the union's red, rust, faded olive. */
+export const BELT_MAKES = Object.freeze([
+  Object.freeze({ cloth: 0x5a6878, band: 0x9a2a24 }), Object.freeze({ cloth: 0x9a5a34, band: 0x6e3e24 }), Object.freeze({ cloth: 0x6a6a4a, band: 0x4c4c34 }),
+]);
+/** A man's make of the Belt coverall by his seed (cosmetic, by hash: the figure and the doll read this one). */
+export const beltMakeOf = (seed = 1) => BELT_MAKES[hash3(Math.round(seed) | 0, 7, 27) % BELT_MAKES.length];
+const BELT_BOOT = 0x3a3430;
 export const OUTFIT_LABELS = Object.freeze({
   utilities: 'Utilities, Valles pattern', nco: 'Sergeant in utilities (collar pins)', pt: 'PT kit', vac: 'Light vac suit, sealed',
   vacOpen: 'Light vac suit, helmet off', carrier: 'Plate carrier over utilities', civilian: 'Europa ice miner', towel: 'A towel, after the shower',
-  rangeStaff: 'Range staff in utilities (the red brassard)', combatSuit: 'Combat EVA suit, visor down (black)',
+  rangeStaff: 'Range staff in utilities (the red brassard)', combatSuit: 'Combat EVA suit, visor down (black)', beltCoverall: 'A Belter\'s ship coverall',
 });
 /** The towel (an issue towel's olive drab, light enough to read as cloth on skin) and shower shoes. */
 export const TOWEL = 0xa59f86, SHOWER_SHOE = 0x2c2e38;
@@ -123,7 +136,7 @@ const MINER = 0xd0663a, MINER_BAND = 0xdfe2e8, HARDHAT = 0xe0b040, HELMET = 0x5f
  * weapon, carry, skin, seed }. top/legs: { kind, color | pattern }; head: { kind, color, sealed }.
  */
 export function wear(look = {}) {
-  const outfit = OUTFITS.includes(look.outfit) || DUTY_DRESS.includes(look.outfit) || WORN_KIT.includes(look.outfit) ? look.outfit : 'utilities';
+  const outfit = OUTFITS.includes(look.outfit) || DUTY_DRESS.includes(look.outfit) || WORN_KIT.includes(look.outfit) || CREW_DRESS.includes(look.outfit) ? look.outfit : 'utilities';
   const seed = look.seed ?? 1;
   const L = {
     outfit, seed,
@@ -200,6 +213,16 @@ export function wear(look = {}) {
       L.legs = { kind: 'towel', color: TOWEL };
       L.boots = SHOWER_SHOE;
       break;
+    case 'beltCoverall': {
+      // (one piece in the man's make, banded, his head bare (see the header))
+      const M = beltMakeOf(seed);
+      L.top = { kind: 'coverall', color: M.cloth };
+      L.legs = { kind: 'coverall', color: M.cloth };
+      L.boots = BELT_BOOT;
+      L.accents.bands = M.band;
+      L.head = null;
+      break;
+    }
     case 'civilian':
       L.top = { kind: 'coverall', color: MINER };
       L.legs = { kind: 'coverall', color: MINER };

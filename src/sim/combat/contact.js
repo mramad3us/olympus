@@ -107,9 +107,26 @@
 // searchOn(state, ms) is whether a search is under way now (the stop's doing on its sub, or on its walk; never the record alone: a
 // search cut by a cue leaves the record, and is offered again). cardPhaseOf(state, key) is the phase his hit card is drawn in: the truth once he is
 // searched or the lane is over, belief before. Never required, never faulted.
+// v0.0.27 ("Away the boarding party": its build sheet item 8 and 9, §3.2; FT§5.2, FT§6.4, FT§7.1): **the knock and the tourniquet**, on
+// a real ledger only (would.js realOf: the boarding's; every other lane reads none of it). knockedDown(state) is your body down by its
+// wound now (wounds.js downOf: the knock, or worse), and while it is **nothing of yours begins**: refusesAct refuses every act (T's
+// too), feetOf stills the feet, and contactInput's knock (its first line, which runs while time stands still) hands a running bundle or
+// flow back 'down' (bundle.js handBack; stepper.js HALTS' 'down'), ends a list step at its sub-step's end (a command's rest queued, a
+// pair's second round never fired) and lets go stop motion's own hold, so the fight runs on while you
+// hang from your boots (time standing still on a body that cannot choose would freeze the game), the stop marked `knock` to take its
+// hold again once you can, on the first whole second after (a save in the knock carries on). Once the knock is over and you are still down, a move key stands you as
+// built (body/domain.js woundsFast) or the row "Get up" ('contact:up', UP_LABEL, the stand's time from prone: shooting.js
+// stanceMsOf), which T's "On your feet." (instinct/cqb.js cqb-up) presses; while you lie (lyingNow: your stance 'down') nothing moves
+// or fires from the deck: the feet are still (a move key's first tick stands you, the next walks) and a row of yours begun that is not
+// the hands' (LYING_STEPS: Tourniquet, Get up, a stance, a posture, the rifle up, Wait) stands you first, on its own tick before any
+// layer moves you (v0.0.27's review: "Carry on" had walked you 1.5 m along the deck lying). **The tourniquet** (body/aid.js): "Tourniquet"
+// ('contact:tourniquet', TQ_LABEL, aid.js TQ_MS 25 s in TQ_PARTS 5 parts) is offered exactly while aid.js tourniquetOf finds a limb
+// bleeding hard on your body and you are not down; its limb kept on the doing at its first part (d.tq), aid.js applyTourniquet at
+// the last part's end; a sighting cuts it at a part's end (contactInput, as the search's), so it is offered again until done. Its
+// cost is the body's own (wounds.js woundMods: the limb counted broken, −6 on Weapon handling).
 // Pure but contactLook, contactInput, identify, runContactSub, endContactSub and byOrder, which write the mind, the stop
 // and the log.
-import { holdTime, releaseTime, isHeld } from '../../core/clock.js';
+import { holdTime, releaseTime, isHeld, SEC_MS } from '../../core/clock.js';
 import { q } from '../../core/num.js';
 import { stream } from '../../core/rng.js';
 import { playerActor, playerId } from '../../core/ids.js';
@@ -128,13 +145,20 @@ import { startled, feltOf, bandN, blockOf } from './supp.js';
 import { halt as haltDoing, suspendFlow } from './stepper.js';
 import { gunField } from '../arms/firearms.js';
 import { roomPlanOf, pastThreshold, inFunnel, manPlace, doorOfRoom } from './room.js';
-import { ownerOf, roleAt } from './team.js';
+import { ownerOf, roleAt, FALLBACK_ROW } from './team.js';
 import { stillUp } from '../arms/specials.js';
-import { seenK, upNow, stale, remember, drawnOn, gateWhy, casualtyOn, liveStateOf, accountedOf } from './men.js';
+import { seenK, upNow, stale, remember, drawnOn, gateWhy, casualtyOn, liveStateOf, accountedOf, choosesOf } from './men.js';
 import { startleTick, flowOn, carryOn, doorNow, legsOf, wayOf } from './bundle.js';
 import { profileOf, pathLen } from './stepper.js';
 import { BANG_LATE_MS } from './burst.js';
 import { opOf, onHouse, laneRec, sessionOf } from './op.js';
+import { realOf } from './would.js';
+import { downOf } from '../body/wounds.js';
+import { tourniquetOf, applyTourniquet, TQ_MS, TQ_PARTS } from '../body/aid.js';
+import { handBack } from './bundle.js';
+import { stanceMsOf } from '../arms/shooting.js';
+import { gravityAt } from '../places/env.js';
+import { openingOf, areaOf } from '../places/model.js';
 
 /** The rung from which a contact suspends a running bundle rather than handing it back (COMBAT §25.19.3.1). */
 export const SUSPEND_RUNG = 2;
@@ -162,8 +186,12 @@ export const SEARCH_LABEL = 'Search him', SEARCH_MS = 20_000, SEARCH_M = 1.5;
 export const SEARCH_PARTS = 4;
 /** The search's walk: its end this far short of him on the line from you (m; my call: inside SEARCH_M with the walk's arrival to spare), and its label. */
 export const SEARCH_WALK_M = 0.9, SEARCH_WALK_LABEL = 'To him, to search';
+/** v0.0.27's rows on a real ledger (see the header): the tourniquet's label, and the stand after the knock's. */
+export const TQ_LABEL = 'Tourniquet', UP_LABEL = 'Get up';
 
 const sgn = (v) => (v > 0 ? 1 : v < 0 ? -1 : 0);
+/** A limb in words, the tourniquet's (its line, its note): one table. */
+export const LIMB_WORDS = Object.freeze({ armL: 'left arm', armR: 'right arm', legL: 'left leg', legR: 'right leg' });
 const ZERO_FEET = Object.freeze({ mx: 0, mz: 0, run: false, stroll: false });
 const threatFace = (face) => face === 'threat' || face === 'armoured' || face === 'unknown';
 
@@ -171,15 +199,57 @@ const threatFace = (face) => face === 'threat' || face === 'armoured' || face ==
 export function pendingOf(state) { return contactOf(state)?.pending ?? null; }
 
 /** Whether a sim action is refused: every one while a window is open or the player is startled (COMBAT §25.4.5, §5.7; game.js act()'s gate). */
-export function refusesAct(state, action) { return !!pendingOf(state) || startled(state, playerId(state), state.clock.ms) || (casualtyOn(state) && state.stop?.mode !== 'stop'); }
+export function refusesAct(state, action) { return !!pendingOf(state) || startled(state, playerId(state), state.clock.ms) || (casualtyOn(state) && state.stop?.mode !== 'stop') || knockedDown(state); }
+
+/** Whether a marine's body is down by its wounds now, on a real ledger only (v0.0.27; see the header): wounds.js downOf, the knock or worse. */
+export function knockedDown(state, pid = playerId(state), ms = state.clock.ms) {
+  if (!realOf(state)) return false;
+  const body = state.people?.[pid]?.body;
+  return !!body && downOf(body, ms).down;
+}
+// (the knock (see the header): your bundle or flow handed back 'down', stop motion's hold let go while you are down and taken
+// again after; from contactInput's head, every tick, time standing still or not)
+function knockTick(state, bus) {
+  const S = state.stop;
+  lyingTick(state);
+  if (knockedDown(state)) {
+    if (S?.flow || (S?.doing?.beats && !S.doing.halt)) handBack(state, bus, 'down');
+    // (a list step under way ends at its sub-step's end, its next never begun: a command's rest queued as "Carry on", any other cut
+    // (a pair's second round is not fired from the deck), as a window's pause does; a Wait runs out)
+    const d = S?.doing;
+    if (d && !d.beats && d.kind !== 'wait' && d.i + 1 < (d.list?.length ?? 0)) { if (d.kind === 'command') d.halt = true; else d.cut = true; }
+    if (S?.mode === 'stop' && !S.doing && !S.reflex && isHeld(state) && state.clock.holds.every(h => h === 'stop')) { releaseTime(state, 'stop'); S.knock = true; }
+    return;
+  }
+  // (the knock over: the hold taken again on the first whole second, where the instinct's line is due afresh (instinct.js), so the
+  // line standing at the pause is the one T acts on; a row chosen before it runs as any, and holds at its end)
+  if (!S?.knock || state.clock.ms % SEC_MS !== 0) return;
+  delete S.knock;
+  if (S.mode === 'stop' && !S.doing && !isHeld(state)) holdTime(state, 'stop');
+}
+
+// (the boarding round's review: the knock over and you still lying (your stance 'down' until a move key or "Get up"): a step of yours begun that
+// is not one of LYING_STEPS stands you first, on the tick it begins and before any layer moves you or fires (contactInput runs after
+// the tick's acts and before the player's layer), as a move key does (body/domain.js woundsFast), so nothing moves or fires from the
+// deck and no row is a dead end; while the knock lasts every act is refused (refusesAct). LYING_STEPS: what the hands do lying)
+const LYING_STEPS = /^(contact:(up|tourniquet)|stance:|posture:|up$|wait$)/;
+/** Your stance down on a real ledger (the knock, or after it until you stand: see the header). */
+export function lyingNow(state) {
+  return realOf(state) && playerActor(state)?.stance === 'down';
+}
+function lyingTick(state) {
+  const me = playerActor(state), step = state.stop?.doing?.step ?? null;
+  if (me?.stance === 'down' && step && !LYING_STEPS.test(step) && !knockedDown(state)) delete me.stance;
+}
 
 /**
  * The feet while a window is open (see the header): the move held at the sighting until seenMs + goMs, then
  * stopped; pre-armed, the held move all through. With no window, the input's own. Returns { mx, mz, run, stroll }.
  */
 export function feetOf(state, input) {
-  // (v0.0.19: a startle, and the live lane's casualty beat (men.js casualtyOn): the feet still)
-  if (startled(state, playerId(state), state.clock.ms) || casualtyOn(state)) return ZERO_FEET;
+  // (v0.0.19: a startle, and the live lane's casualty beat (men.js casualtyOn): the feet still; v0.0.27, your body down by a real round,
+  // and your stance down after it: a move key's first tick stands you (body/domain.js woundsFast reads the raw input), the next walks)
+  if (startled(state, playerId(state), state.clock.ms) || casualtyOn(state) || knockedDown(state) || lyingNow(state)) return ZERO_FEET;
   const P = pendingOf(state);
   if (!P) return { mx: sgn(input?.mx), mz: sgn(input?.mz), run: !!input?.run, stroll: !!input?.stroll };
   if (P.armed || state.clock.ms < P.seenMs + P.goMs) return { mx: P.mx, mz: P.mz, run: !!P.run, stroll: false };
@@ -232,8 +302,9 @@ export function contactLook(state, input, bus, ctx) {
     (liveK ??= {})[T.key] = k;
     if (k >= SEEN) { c0 ??= noteContact(state, {}); remember(c0.seenAt ??= {}, T.key, ms); }
   }
-  // ("Bang, then go" only: a man identified at a pause and seen now in plain sight is read as he is (see the header))
-  if (c0?.last?.state && liveK && laneRec(state)?.bangGo) for (const T of list) {
+  // ("Bang, then go" only: a man identified at a pause and seen now in plain sight is read as he is (see the header); v0.0.27's
+  // stage 0 (K1): on every lane whose men choose, men.js choosesOf ("Bang, then go" and the boarding))
+  if (c0?.last?.state && liveK && choosesOf(state)) for (const T of list) {
     const was = c0.last.state[T.key];
     if (was === undefined || !(liveK[T.key] >= SEEN)) continue;
     const now = liveStateOf(state, T, ms);
@@ -447,6 +518,8 @@ export function byOrder(state, bus, last) {
 
 /** The fast layer 'input' (runs while time stands still): the window's end, the pause on its tick (see the header). */
 export function contactInput(state, input, bus, ctx) {
+  // (the knock on a real ledger (see the header))
+  if (realOf(state) && !state.skip) knockTick(state, bus);
   const c = contactOf(state);
   // (the #2's men left to him, re-tested every tick: one crossing into your muzzle's cone, or the #2 no longer up with you,
   // and the pause comes after all (COMBAT §25.19.4))
@@ -461,8 +534,9 @@ export function contactInput(state, input, bus, ctx) {
   // through a man seen)
   const b = state.stop?.doing;
   if (b && b.kind === 'breathe' && b.i + 1 < b.list.length) b.cut = true;
-  // (and "Search him", at its part's end: a man seen is a cue, the search offered again after it (see the header))
-  if (b && b.list?.[b.i] === 'contact:search' && b.i + 1 < b.list.length) b.cut = true;
+  // (and "Search him", at its part's end: a man seen is a cue, the search offered again after it (see the header); v0.0.27,
+  // the tourniquet the same)
+  if (b && (b.list?.[b.i] === 'contact:search' || b.list?.[b.i] === 'contact:tourniquet') && b.i + 1 < b.list.length) b.cut = true;
   if (state.clock.ms < P.untilMs) {
     // (time held inside the window would freeze the game on a person not yet taken in, every action refused: a stop-motion
     // step that ended here lets the clock run on, the body idle (COMBAT §25.4.5); any other hold (a reflex card) ends the
@@ -682,7 +756,7 @@ const liveRow = (rid, label, ms0, key, o = {}) => ({ id: rid, kind: 'contact', l
 // (the rows on the bracketed live man, or the man in reach, that no pause has to give: Challenge on a man seen cowering, the bracket
 // on him though the last contact was another's; Search him on "Bang, then go" (see the header))
 function liveRows(state, pid, ms) {
-  const S = state.stop, out = [];
+  const S = state.stop, out = [...realRows(state, pid, ms)];
   const P = S?.pick ? turnerOf(state, S.pick) : null;
   if (P?.live && cowering(state, P.key, null, ms)) out.push(liveRow('contact:challenge', CONTACT_LABELS['contact:challenge'], CHALLENGE_MS, P.key, { words: CHALLENGE_SAY, lead: true }));
   const T = searchableOf(state, pid, ms)[0];
@@ -694,8 +768,45 @@ function liveRows(state, pid, ms) {
     const W = searchWalkOf(state, pid, ms);
     if (W) out.push(liveRow('move:search', SEARCH_WALK_LABEL, W.ms, W.key, { kind: 'move', to: W.to, subs: [], list: [] }));
   }
+  // (D's: the fall back called (R.house.boarding.fallback, the scene's) and you not yet in the lock: "Back to the lock", a house move
+  // row (bundle.js startSingle's) to the lock's middle, team.js FALLBACK_ROW, the row T's cqb-back takes)
+  const B = lockWalkOf(state, pid);
+  if (B) out.push(liveRow(FALLBACK_ROW, LOCK_LABEL, B.ms, null, { kind: 'move', to: B.to, subs: [], list: [], lead: true }));
   return out;
 }
+/** The fall back's row's label (v0.0.27). */
+export const LOCK_LABEL = 'Back to the lock';
+/**
+ * The walk back to the lock (v0.0.27, the boarding's fall back; see liveRows): { to: the lock's middle, ms: the walk's at Combat } while the
+ * fall back is called and the scene has not ended it, you outside the lock; else null. The lock is the room the lane's first door (the
+ * lock's inner hatch) is worked from.
+ */
+export function lockWalkOf(state, pid = playerId(state)) {
+  const H = laneRec(state), F = H?.boarding?.fallback, me = playerActor(state);
+  if (!F || F.inAtMs !== null || pid !== playerId(state) || !me) return null;
+  const o = openingOf(H.rooms?.[0]?.door ?? null), A = areaOf(state.places?.live?.area), r = A?.rooms?.find(x => x.id === o?.rooms?.[0])?.rect ?? null;
+  if (!r || (me.x >= r[0] && me.x <= r[2] && me.z >= r[1] && me.z <= r[3])) return null;
+  const to = [q((r[0] + r[2]) / 2, 0.01), q((r[1] + r[3]) / 2, 0.01)], legs = legsOf(state, pid), P = profileOf(pathLen(wayOf(state, [[me.x, me.z], to])), legs.walk.combat, legs.pushMs2, legs.brakeMs2);
+  return { to, ms: Math.round(P.T * 1000) };
+}
+/**
+ * v0.0.27's rows on a real ledger (see the header), leading: "Tourniquet" while aid.js tourniquetOf finds a limb on your body and you
+ * are not down, its TQ_PARTS parts of TQ_MS / TQ_PARTS; "Get up" while your stance is down and your body no longer is. [] elsewhere.
+ */
+export function realRows(state, pid = playerId(state), ms = state.clock.ms) {
+  if (!realOf(state)) return [];
+  const body = state.people?.[pid]?.body, me = pid === playerId(state) ? playerActor(state) : state.actors?.list?.find(a => a.who === pid) ?? null, out = [];
+  if (!body || !me || downOf(body, ms).down) return out;
+  if (tourniquetOf(body, ms)) {
+    const part = { id: 'contact:tourniquet', label: TQ_LABEL, ms: TQ_MS / TQ_PARTS }, subs = Array.from({ length: TQ_PARTS }, () => ({ ...part }));
+    out.push(liveRow('contact:tourniquet', TQ_LABEL, TQ_MS, null, { subs, list: subs.map(x => x.id), lead: true }));
+  }
+  if (me.stance === 'down') out.push(liveRow('contact:up', UP_LABEL, upMsOf(state, pid, me), null, { lead: true }));
+  return out;
+}
+// (the stand from the deck after the knock: shooting.js stanceMsOf from prone, at the marine's Fitness and the place's gravity)
+const upMsOf = (state, pid, me) => stanceMsOf('prone', 'stand', rollerOf(state, pid).value('fitness'), gravityAt(state, null, me.x, me.z).gG);
+
 /**
  * The walk up to the man a marine would search (v0.0.26; see the header): the nearest searchable at any reach, none within SEARCH_M;
  * { key, to: [x, z] SEARCH_WALK_M short of him on the line from the marine, ms the walk's at Combat (bundle.js legsOf, its routed way) }
@@ -755,6 +866,16 @@ export function searchOn(state, ms = state.clock.ms) {
 
 /** A contact sub-step at its start (shooting.js runSub): the challenge said; v0.0.26, the search begun (see the header). Returns { ms, text }. */
 export function runContactSub(state, bus, d, id, atMs) {
+  // (the tourniquet's part, its limb kept at the first; Get up, the stand's time (see the header))
+  if (id === 'contact:tourniquet') {
+    const pid = d?.who ?? playerId(state), inj = tourniquetOf(state.people?.[pid]?.body, atMs);
+    if (d && !(d.i > 0)) d.tq = inj?.part ?? null;
+    return { ms: TQ_MS / TQ_PARTS, text: TQ_LABEL };
+  }
+  if (id === 'contact:up') {
+    const pid = d?.who ?? playerId(state), me = pid === playerId(state) ? playerActor(state) : state.actors?.list?.find(a => a.who === pid);
+    return { ms: me ? upMsOf(state, pid, me) : 0, text: UP_LABEL };
+  }
   if (id === 'contact:search') {
     const H = laneRec(state), key = d?.target ?? state.stop?.pick ?? null;
     if (H?.bangGo && key && !(d?.i > 0)) H.bangGo.search = { key, fromMs: atMs, untilMs: atMs + SEARCH_MS };
@@ -767,6 +888,20 @@ export function runContactSub(state, bus, d, id, atMs) {
 
 /** A contact sub-step at its end (shooting.js endSub): after the challenge, a fresh identification at +CHALLENGE_BONUS, and the line says what you now see; v0.0.26, the search done (see the header). */
 export function endContactSub(state, bus, d, id) {
+  // (the tourniquet on at the last part's end, the limb taken at its first; Get up, the stance stood)
+  if (id === 'contact:tourniquet') {
+    if (d && d.i + 1 < (d.list?.length ?? 1)) return null;
+    const pid = d?.who ?? playerId(state), body = state.people?.[pid]?.body, now = state.clock.ms;
+    const inj = (body?.injuries ?? []).find(i => i.part === d?.tq && !i.internal && !i.cared && i.bleed > now) ?? tourniquetOf(body, now);
+    const done = inj ? applyTourniquet(body, inj, now) : [];
+    if (done.length) bus?.emit('line', { text: `Tourniquet on the ${LIMB_WORDS[inj.part] ?? 'limb'}.`, kind: 'note' });
+    return done.length ? { part: inj.part, n: done.length } : null;
+  }
+  if (id === 'contact:up') {
+    const pid = d?.who ?? playerId(state), me = pid === playerId(state) ? playerActor(state) : state.actors?.list?.find(a => a.who === pid);
+    if (me?.stance === 'down' && !downOf(state.people?.[pid]?.body, state.clock.ms).down) delete me.stance;
+    return me ?? null;
+  }
   if (id === 'contact:search') {
     const H = laneRec(state), key = d?.target ?? state.stop?.pick ?? null, T = key ? turnerOf(state, key) : null, now = state.clock.ms;
     // (only the last part's end searches him: a search cut at an earlier part's end leaves him as he was)

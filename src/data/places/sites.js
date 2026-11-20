@@ -59,5 +59,18 @@ export const TESTUDO_SITE = deepFreeze({
   areas: ['testudo.deck-b.berth-2'],
 });
 
+/**
+ * v0.0.27 (its build sheet §0 item 2, item 3; SH§3.1; PLACES §8): the Patient Mule, a Belt ice hauler coasting (its gravity its
+ * thrust, 0 G), its crew decks' air the Belt's station air (70.0 kPa, src/data/places/env.js AIRS 'belt-station'), a ship's clock,
+ * lighting and water, no routine of its own (the scene's hour is its own). One area: deck 2 of its crew decks (src/data/places/hauler.js).
+ * Its palette is the Belter one (E's: src/render/view.js applies it once src/art/palette.js has it).
+ */
+export const BELT_MULE_SITE = deepFreeze({
+  id: 'belt-mule', kind: 'ship', template: 'belt-mule@1', name: 'the Patient Mule', body: 'none', clock: 'utc',
+  outside: { kind: 'vacuum', air: 'vacuum' }, inside: { air: 'belt-station' },
+  gravity: { regime: 'thrust', gG: 0, down: [0, -1, 0] }, lighting: 'ship', water: 'ship', routine: 'melas', palette: 'belt',
+  areas: ['mule.crew'],
+});
+
 /** Every site record, in the registry's order. */
-export const SITE_LIST = Object.freeze([TEST_SITE, MELAS_SITE, PHOBOS_VOID_SITE, TESTUDO_SITE]);
+export const SITE_LIST = Object.freeze([TEST_SITE, MELAS_SITE, PHOBOS_VOID_SITE, TESTUDO_SITE, BELT_MULE_SITE]);

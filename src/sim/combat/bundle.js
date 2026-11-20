@@ -282,7 +282,7 @@ import { swingFrom, KICK_PULL_WHY } from '../places/swing.js';
 import { locoStep } from '../body/loco.js';
 import { COURSES } from '../../data/courses.js';
 import { houseSpecOf } from '../scenes/assemble.js';
-import { wreckDeckAt } from '../../data/places/wreck.js';
+import { shipOf, shipDeckAt } from '../../data/places/ships.js';
 import { opOf, opRec, brokenOf, breakOpening, sessionOf } from './op.js';
 import { VOID_DRILL, VOID_BUNDLES, VOID_BEATS, voidDef, UNDOG_MS, OPEN_HATCH_MS, THROUGH_MS, COAMING_MS, faceMsOf, KICK_VOID_WHY } from './drills/void.js';
 import { hatchOf, hatchState, setHatch, crossHatch, deckAt, HATCH_REACH_M } from '../places/hatch.js';
@@ -414,6 +414,8 @@ const DONE_ROOM = new Set(['clear', 'passed']);
 
 /** A row of the catalogue by id, the house's (bundleDef) or the void's (drills/void.js): the one read of both (see the header). */
 export const defOf = (id) => bundleDef(id) ?? voidDef(id);
+// (the rows at a hatch (bundleRows): the void's, and the house's kit row "Flash it" (offered only where the kit carries a flashbang))
+const HATCH_BUNDLES = Object.freeze([...VOID_BUNDLES, ...BUNDLES.filter(b => b.id === 'door:flash')]);
 /** A beat's definition by id: the house's (ENTER_AND_CLEAR.beats), else the void's (VOID_DRILL.beats). */
 export const beatDefOf = (bid) => ENTER_AND_CLEAR.beats[bid] ?? VOID_DRILL.beats[bid] ?? null;
 /** The deck hatch a plan is entered by (plan.hatch, a hatch's id: places/hatch.js), or null. */
@@ -2074,8 +2076,14 @@ const laneCount = (beats) => beats.reduce((o, b) => ((o[b.ch] = (o[b.ch] ?? 0) +
 export function bundleRows(state, pid = playerId(state), ms = state.clock.ms) {
   const here = doorNow(state, pid);
   if (!here) return [];
-  // (at a hatch the void's rows, at the void's rung, each run as the house row it names (see the header))
-  const hz = atHatch(here.plan), CAT = hz ? VOID_BUNDLES : BUNDLES;
+  // (the boarding's fall back called: no drill row while you go back to the lock, whose row leads (contact.js lockWalkOf); a
+  // compartment's row pressed then walked your #2 back to his stack, and he held you in its hatch till the wait ran out (the play review,
+  // finding 3 a and d))
+  if (houseOf(state)?.boarding?.fallback && pid === playerId(state)) return [];
+  // (at a hatch the void's rows, at the void's rung, each run as the house row it names (see the header), and the house's "Flash it"
+  // where the kit carries a G-11 (kitRow: the boarding's, the only hatches with bangs issued); the v0.0.27 play review, finding 1: the
+  // recruit and the private carried three aboard and no row of theirs below rung 2 threw one, so every compartment went in unbanged)
+  const hz = atHatch(here.plan), CAT = hz ? HATCH_BUNDLES : BUNDLES;
   const rung = rungOf(state, pid, hz ? 'void' : 'room'), out = [];
   // (the review of the hunt fixes: a charge placed or primed on the shut leaf is the way in. Yours: the room's rows go by it
   // (@charge, @cut for a BC-1) whatever way was set, and the cycle offers no other (breachWays); every row that would open the leaf
@@ -3370,7 +3378,8 @@ export function runSlot(state, bus, rec, ms = state.clock.ms) {
   // by a compartment the stall passed, he holds there, and the lane's clear gate waits on him (shoothouse.js clearGateOf 'two'). Before it
   // his walk to the store's stack went through the hull, the fuzz's private on 1555 between the decks 80 s, and his entry on your cue the
   // sergeant's on 2110)
-  if (bundle && !inside2 && houseOf(state)?.ship === 'wreck' && wreckDeckAt(a.x) !== wreckDeckAt(stackOf(plan, 2)[0])) return 'idle';
+  const ship = bundle && !inside2 ? shipOf(houseOf(state)) : null;
+  if (ship && shipDeckAt(ship.id, a.x) !== shipDeckAt(ship.id, stackOf(plan, 2)[0])) return 'idle';
   // (not cued yet but at his stack, your walk in known: he steps off so as to reach his own threshold as you are ENTRY_GAP_M past
   // yours, never sooner (entryAhead: "almost simultaneously", the gap kept at the door rather than waited for at the stack))
   if (!bundle && !inside2 && stacked2 && me && entryAhead(state, rec, a, here, me, rung, ms)) bundle = 'room:in';

@@ -6,6 +6,27 @@ Shots and drivers stay in the scratch folders named below, outside the repo; wha
 
 ---
 
+## v0.0.27, 2026-11-20: "Away the boarding party", the integration's smoke, the play review, the code review and the fixer
+
+**What was played.** The integrated tree before the release: the integration's smoke on port 8235 (`?play=test-collar&tier=sgt&seed=48213&holdouts=vikings`: the hauler, pirates `pirates:1a,3a,3b,4a/2c,2d`, the goal toast and "No holdouts 'vikings': drawn from the seed.", 400 ticks, 0 page errors, console errors or failed requests), `ui-collar` in the page (the scene, bubbles at 1024 × 768 and 1600 × 900, 40, 27 and 40 samples each over its speaker on the final tree (62, 50 and 65 at the integration: the count follows the page's frames), 0 overlaps), the tests' own bots on the pirates and smugglers lanes (480 lanes of `collar-nodead`, 20 seeds a sheet in `collar-balance`), and the play reviewer's probes and shots (`.run/v027/review-play/`).
+
+**What a player would find rough, and what was done** (each reproduced first, each with a case in `fixer-v027` that fails without its fix):
+1. **The recruit and the private had no way to bang a hatch** ("Flash it" was not offered below rung 2): fixed, the house's kit row at a hatch.
+2. **Every T entry on the bang was faulted "You gave them back the bang"** (2.96 to 3.46 s against the house's 2 s window): fixed, 4 s aboard a ship on mag boots.
+3. **The fall back did not take the drill off you**: the corporal's bundle went on into cabin 1, Four held you 41 s in a hatch, "Ready." 18 times in 60 s: fixed (a to g).
+4. **THEIR CHOICES said "2C DOWN" for a crewman who gave up unhurt and named men down twice; "for the corpsman" over men who gave up**: fixed.
+5. **A range verdict aboard** ("Clean. Now do it again, and quicker.", "in the C zone", "NO HITS" of rounds that put men down): fixed, the boarding's own words.
+6. **The defenders' misses met nothing** (THEIRS 0 on every lane, the hull never holed): fixed. **Paint on the real ledger**: fixed. **The lockout's lamp never lit**: fixed. **The override read "3 min" for 150 s**: fixed.
+7. **The first pirates lanes by T went through a held hatch with no bang** (7 to 11 of 20 down for good from the corporal up): fixed by issuing the G-11s (19 to 20 secured of 20).
+8. **The holders walked into the barricade man's fire** on every sheet before "Set.": fixed, they fight on the walk.
+9. **T looped stop motion in the lock** (300 flips): `cqb-hold`. **A leader lying with a chest wound sent the recruit's pair at 45 s**: fixed.
+
+**Said, not changed** (reasons in DESIGN.md's log): the passage lost on about 1 seed in 6 (seeds 13, 15, 17 of 11 to 20), the chest-only hits, F157's give, F169, T's line after a load: balance or the user's score.
+
+**The numbers**: the full run 2,616 passed, 9 failed (each known and named in CHANGELOG), the quick suite 2,204 passed, 0 failed at the integration (on the final tree, one file at a time, 2,208 passed and 2 failed, `catch-marks`'s file CPU on time alone and `env-fixes`' pool case, both green on a re-run); the user's rules held (no voice anywhere, the rated picks folded at the bottom, nothing that costs a tick).
+
+---
+
 ## v0.0.26, 2026-11-19: "Bang, then go", the round's play review, code review and fixer
 
 **What was played.** The integrated tree before the release, by the play reviewer's probes and shots (`.run/v026/review-play/`), the integration's smoke on port 8235 (the tests' own bots loaded in the page, a tick at a time, the search's fast-forward ended by hand: `?play=test-breach&tier=private&breach=bang,held` by the keys to the card, both men searched, 4,564 ticks; `&tier=sgt&breach=quiet,loose` by T, 4,297; `&tier=raider&setup=go&seed=1037` by T on a drawn bang,loose, 3,293; `&tier=sgt&breach=bang,held&loadout=frag&draw=drawn`, the options dropped, 4,399; 0 page errors, console errors or failed requests each), the fixer's page runs on :8237 (the sergeant's bang on the held door by the honest player; the boot recruit by T on the bang, the loose door), and the build's own lanes: 240 lanes by the honest player (ten seeds, six sheets, four draws), 60 by the fuzz, 192 by the review's matrix, 984 men's blindness on fresh seeds.

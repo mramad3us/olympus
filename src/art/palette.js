@@ -19,6 +19,10 @@
 //     console teal, status green, emergency amber;
 //   - EUROPA: ice blues and cyans with a lighter top step (0.93) for snow and frost, deep water blue,
 //     violet shadow, Europa's chaos-terrain brown, the lamps' amber.
+//   - BELT (v0.0.27, "Away the boarding party": the Patient Mule's crew deck, PLACES §9.2's Belter culture, samples/hauler-deck
+//     I-a until the user scores): Belt grey at twelve steps (the patched panels), the union's red (the trim, the DC locker),
+//     the stencils' cream, hazard yellow (the coamings), the lock panel's amber and green, the coveralls' blue-grey, rust and
+//     faded olive (outfits.js BELT_MAKES), skin, the screens' teal, violet shadow.
 // Every palette built here carries the FIXED colours, so ink lines, paper and lamp glow read the
 // same everywhere; SHIP_GLOWS (the floor strips' amber, the battle strip's red) go in the place
 // palettes that have ship and base lighting moods.
@@ -67,6 +71,10 @@ export function buildPalette({ families, steps = STEPS_L, fixed = FIXED, centre 
 }
 
 const ICE_STEPS = [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.88, 0.94];
+// (Belt grey's twelve steps, the patched panels a step or two apart: see the header)
+const BELT_GREY_STEPS = [0.17, 0.24, 0.31, 0.38, 0.44, 0.49, 0.54, 0.59, 0.64, 0.7, 0.77, 0.86];
+// (and the coveralls' cloth, eight steps about their middle tones, so a make's base is held: see the header)
+const BELT_CLOTH_STEPS = [0.3, 0.36, 0.415, 0.46, 0.51, 0.56, 0.62, 0.7];
 
 /** The places' parameters (see the header): families as [hue°, chroma, steps?]. */
 export const PLACES = Object.freeze({
@@ -92,6 +100,19 @@ export const PLACES = Object.freeze({
       [85, 0.13], [25, 0.14], [70, 0.11],                                  // hazard yellow, safety red, emergency amber
       [55, 0.05], [40, 0.08], [115, 0.07],                                 // skin, brown skin and wood, olive drab
       [200, 0.07], [150, 0.09], [265, 0.06],                               // console teal, status green, violet shadow
+    ],
+    fixed: [...FIXED, ...SHIP_GLOWS],
+  },
+  belt: {
+    // (each family's hue and chroma searched so its ramp holds the pick's colours (samples/hauler-deck I-a's bulkheads, floor,
+    // trim and paint; the coveralls' makes and bands, outfits.js BELT_MAKES; the coamings' yellow, the lock's green, skin): every one
+    // within 12 levels a channel of its snap (tests/samples-board), where the Mars palette leaves them 21 off; the greys at twelve
+    // steps, the panels' tones a step or two apart; the coveralls' cloth at eight steps of their own, so a make is never a grey)
+    families: [
+      [235, 0.008, BELT_GREY_STEPS], [252, 0.031, BELT_CLOTH_STEPS],      // Belt grey, the coveralls' blue-grey
+      [42, 0.16], [112, 0.065], [92, 0.16], [46, 0.075],                  // the union's red, the stencils' cream, hazard yellow, leather
+      [156, 0.19], [46, 0.08], [60, 0.1, BELT_CLOTH_STEPS], [104, 0.04, BELT_CLOTH_STEPS],   // the lock's green, skin, rust, faded olive
+      [200, 0.06], [276, 0.03],                                           // the screens' teal, violet shadow
     ],
     fixed: [...FIXED, ...SHIP_GLOWS],
   },

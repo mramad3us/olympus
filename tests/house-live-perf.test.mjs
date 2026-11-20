@@ -44,6 +44,8 @@ export default [
   {
     name: 'v0.0.19, v0.0.21 (F60): the tier one\'s live lane (live:fight,hide) keeps the sim\'s busiest tick, each tick the least of three runs, under 2 ms × the machine\'s factor (4 on a minute boundary); its p50, p95 and the live men\'s share against the turner lane printed',
     timeoutMs: 180_000,
+    // (v0.0.27's stage 0, K7: a time line; red on time alone it is run again before it counts (tests/run.mjs), the budget unchanged)
+    timeLine: true,
     fn() {
       const k = machineK(), LIVE = { tier: 'tierone', seed: 48213, opfor: 'live:fight,hide' }, BASE = { tier: 'tierone', seed: 48213 };
       const L = tickCosts(LIVE), B = tickCosts(BASE), f = (v) => v.toFixed(3);

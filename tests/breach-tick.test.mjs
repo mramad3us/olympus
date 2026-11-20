@@ -56,6 +56,8 @@ export default [
   {
     name: 'F148 (the tick\'s half, quick): the tier one by T with the bang on the loose door on 48213 from GO to the card, the busiest tick of the sim, each the least of three runs, at most 2 ms × the machine\'s factor (4 on a minute boundary)',
     timeoutMs: 180_000,
+    // (v0.0.27's stage 0, K7: a time line; red on time alone it is run again before it counts (tests/run.mjs), the budget unchanged)
+    timeLine: true,
     fn() { check([{ tier: 'tierone', seed: 48213, code: 'bang,loose' }]); },
   },
   {

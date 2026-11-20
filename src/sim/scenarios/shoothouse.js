@@ -132,7 +132,7 @@
 // one). The funnel's fault is now earned only by a step that stands still by your own choice (a "stop here", Hold him).
 // v0.0.25 ("Hold to hold", its build sheet §1 C, §3.3; ROADMAP §4.2's 0.0.7e; COMBAT §14.5, §14.8): **the Wreck**. The same lane on a
 // second set of authored data, the Wreck at Phobos (scenes/assemble.js wreckSpec over src/data/places/wreck.js and wreck-plans.js: its two
-// decks one area, 60 m apart in its plan), selected by one field of the operation record, R.house.ship 'wreck' (absent on every house
+// decks one area, 60 m apart in its plan), selected by one field of the operation record, R.house.ship (absent on every house
 // lane: "absent means the house", so no set, drawn or live lane reads a byte of what follows), and played as its own scenario,
 // 'test-zerocqb' (testZerocqb: game.js specOf holds one host a scenario). What differs, each a branch on `ship`: the fill (the void site
 // entered as test-anchors enters it, your and your #2's mag boots worn and locked, the void drill's families at the sheet's rung, the
@@ -212,13 +212,26 @@ import { runSlot, freeBody, gapSettle, twoLegOver, handBack, legsOf as bodyLegsO
 import { profileOf, moveAt, pathLen, advanceList, halt as haltDoing, suspendFlow } from '../combat/stepper.js';
 import { useBodies } from '../places/move.js';
 import { useLanes, useKeepClear, liveZoneAt, arcsOf } from '../places/zones.js';
-import { leafAt, toggleDoor, turns as leafTurns } from '../places/doors.js';
+import { leafAt, toggleDoor, turns as leafTurns, DOOR_S } from '../places/doors.js';
 import { routed } from '../combat/route.js';
 import { moverStart, locoStep } from '../body/loco.js';
 import { startActivity } from '../time/activities.js';
 // (v0.0.19: your number two's code is in combat/two.js, its names re-exported here so the tests, the bots and the gauges import them unchanged)
 import { TWO_CMDS, twoLacks, twoCmd, twoAdminTick, legOf, isThreat, twoTick, maskTick, TWO_FOLLOW_N, THREAT_FACES, whole, actorOf, legsOf, curLeg, loadedGun, twoLeftMs } from '../combat/two.js';
 import { registerHost, breakOpening } from '../combat/op.js';
+// ("Away the boarding party": the defenders' draw and hors de combat (A's opfor.js drawBoarding, protectedOf), the one rule's
+// switch (would.js realOf: 'real', a round is the wound), the fire team (team.js fireTeamOf), the body's down, the Tech skill)
+import { drawBoarding, protectedOf } from './opfor.js';
+import { realOf } from '../combat/would.js';
+import { fireTeamOf } from '../combat/team.js';
+import { downOf, hitWhere } from '../body/wounds.js';
+import { valueOf } from '../skills/templates.js';
+import { issueBoarding, BOARDING_ISSUES } from '../arms/kit.js';
+import { missFace, holesOf } from '../combat/holes.js';
+import { boardingCare } from '../body/aid.js';
+import { fillHolders, holdersPosted, holderTick } from '../combat/holders.js';
+import { OVERRIDE_DC } from '../../data/courses.js';
+import { openingOf } from '../places/model.js';
 // (v0.0.19, "Stack and clear, live": the role-players' brain (opfor.js) and the one seam for what is seen of a man and what he
 // does to the stack (combat/men.js); the house only calls them, never reads a role-player's state but through them)
 import { parseOpfor, fillOpfor, opforTick, opforHit, opforBled, ruleOut, spotOf, rpShocked } from './opfor.js';
@@ -233,7 +246,8 @@ export { TWO_FOLLOW_N, THREAT_FACES, whole, actorOf, curLeg, loadedGun };
 import { readsTick, intelOf, kitMarks as kit2Marks, breachShot, intelWords } from './house-kit.js';
 // (the card's (the build sheet v0.0.20 §1 items 4, 11, 19, 20, 26): the room bundle's planned time (pure), the take-in's
 // and the rows' books at the sheet, the immediate action's, the carry at a sighting, and the constants of the pars and the verdict)
-import { planBundle, lockedOf, handMsOf } from '../combat/bundle.js';
+import { planBundle, lockedOf, handMsOf, doorNow } from '../combat/bundle.js';
+import { kitHas } from '../combat/breach.js';
 import { takeInOf } from '../combat/react.js';
 import { POINT_REACH_S, IMMEDIATE_M } from '../arms/specials.js';
 import { POSTURES, carryOf } from '../arms/carry.js';
@@ -244,9 +258,12 @@ import { BUILT } from '../../core/reads.js';
 import { seenOf, standSeen } from '../people/seen.js';
 import { seenFace } from '../arms/engage.js';
 // ("Hold to hold" (its build sheet §1 C, §3.3): the Wreck's words and spec, its boots, its tug, the anchor of a round, the
-// open middle's reach, the deck hatch's state; the lane's one branch is the operation record's `ship: 'wreck'`, absent on the house)
-import { SEQ_WRECK, WRECK_CHIEF, WRECK_LEGS, WRECK_ROLES, DECK_WORDS } from '../../data/courses.js';
-import { wreckSpec, wreckDeckAt } from '../scenes/assemble.js';
+// open middle's reach, the deck hatch's state; the lane's one branch is the operation record's `ship`, absent on the house; v0.0.27's
+// stage 0: a key of src/data/places/ships.js SHIPS, every branch reading the ship's row: its data, the void's rules (any ship) or the
+// Wreck's own (its cadre, `staff` 'cadre', and its tug))
+import { WRECK_ROLES, DECK_WORDS } from '../../data/courses.js';
+import { shipSpec, wreckDeckAt, shipDeckAt } from '../scenes/assemble.js';
+import { SHIPS, shipOf } from '../../data/places/ships.js';
 import { enterSite } from '../places/model.js';
 import { siteDayOf } from '../jobs.js';
 import { wear } from '../arms/kit.js';
@@ -254,7 +271,6 @@ import { footingOf, setAnchor, bootsLocked } from '../body/footing.js';
 import { setProfile, gravNow } from '../places/gravity.js';
 import { anchorOf, pullMsOf } from '../arms/shot.js';
 import { hatchOf, setHatch, crossHatch, hatchState, HATCH_REACH_M } from '../places/hatch.js';
-import { WRECK_TRUNK } from '../../data/places/wreck.js';
 import { GAIT_G } from '../../data/body/needs.js';
 import { voidLivedAt, faceMsOf } from '../combat/drills/void.js';
 import { openMiddleOf } from '../body/freefall.js';
@@ -324,8 +340,8 @@ export const STANDS = Object.freeze({
 const STAND_IDS = Object.freeze(Object.keys(STANDS));
 /** v0.0.25, the Wreck's set A's roles (courses.js WRECK_ROLES: the face, the trigger, the card's name), re-exported for the tests and the bots. */
 export const WRECK_STANDS = WRECK_ROLES;
-/** Whether the lane is the Wreck's (the operation record's `ship`, v0.0.25; absent on every house lane). */
-export const onWreck = (state) => houseOf(state)?.ship === 'wreck';
+/** Whether the lane is the Wreck's (the operation record's `ship`, v0.0.25; absent on every house lane; v0.0.27: its row of the registry). */
+export const onWreck = (state) => shipOf(houseOf(state)) === SHIPS.wreck;
 /** A fault's words on the paper and on the card. */
 export const FAULT_WORDS = Object.freeze({
   funnel: 'stopped in the door',
@@ -363,6 +379,9 @@ export const FAULT_WORDS = Object.freeze({
   open: 'the open middle',
   hatch: 'hung in the hatch',
   aft: 'not feet aft at the tug',
+  // ("Away the boarding party" (its build sheet item 10, §0 item 19; COMBAT §7.10): a round at a man down, with his hands up or
+  // unarmed, as the shooter's take-in recorded him at the round's tick (opfor.js protectedOf); apart from a no-shoot hit, both where both)
+  protected: 'a round at a man who could not fight',
 });
 // (a fault's mark on its leg's row of the run sheet (legWords), where it has one)
 const FAULT_PAPER = Object.freeze({
@@ -392,15 +411,20 @@ const FAULT_PAPER = Object.freeze({
   hatch: 'HUNG IN THE HATCH',
   aft: 'NOT FEET AFT',
 });
+/** The 'protected' fault's card words by why (opfor.js protectedOf: 'down', 'hands', 'unarmed'; v0.0.27): its leg's mark, one a round (the fault itself has no FAULT_PAPER word, so the row says which). */
+export const PROTECTED_CARD = Object.freeze({ down: 'A ROUND AT A MAN DOWN', hands: 'A ROUND AT A MAN WITH HIS HANDS UP', unarmed: 'A ROUND AT A MAN WITH NO WEAPON' });
 const ZONES =Object.freeze(['A', 'C', 'head', 'ring', 'headDown', 'miss', 'noshoot', 'hostage']);
 const ZONE_PAPER = Object.freeze({ A: 'A', C: 'C', head: 'HEAD', ring: 'RING', headDown: 'HEAD DOWN', miss: 'MISS', noshoot: 'NO-SHOOT', hostage: 'HOSTAGE' });
 const LEG_WORD = Object.freeze(['ROOM 1', 'ROOM 2', 'ROOM 3', 'THE HALL']);
 const LEG_SAID = Object.freeze(['room 1', 'room 2', 'room 3', 'the hall']);
-// (a leg's word on the paper and as said, the Wreck's from courses.js WRECK_LEGS ("CELL 2", "the hold"), the house's above)
-const legWord = (H, k) => (H?.ship === 'wreck' ? WRECK_LEGS[k]?.word : LEG_WORD[k]) ?? `LEG ${k + 1}`;
-const legSaid = (H, k) => (H?.ship === 'wreck' ? WRECK_LEGS[k]?.said : LEG_SAID[k]) ?? 'the room';
+// (a leg's word on the paper and as said, a ship's from its row's legs (the Wreck's courses.js WRECK_LEGS: "CELL 2", "the hold"), the house's above)
+const legWord = (H, k) => (shipOf(H) ? shipOf(H).legs?.[k]?.word : LEG_WORD[k]) ?? `LEG ${k + 1}`;
+const legSaid = (H, k) => (shipOf(H) ? shipOf(H).legs?.[k]?.said : LEG_SAID[k]) ?? 'the room';
 
 const tierOf = (tier) => (tier && TEST_SHEETS[tier] ? tier : HOUSE_SHEET);
+// (a command's index in the lane's own sequence (v0.0.27: the hauler's SEQ_COLLAR has no LOAD or MAKE READY, so its GO stands at 3, not
+// SEQ_HOUSE's 4); the house's, its drawn and named sequences and the Wreck's are SEQ_HOUSE's command for command, so theirs is SEQ_HOUSE's)
+const cmdIndexOf = (state, id) => (shipOf(houseOf(state))?.seq ?? SEQ_HOUSE).findIndex(c => c.id === id);
 const isHouse = (state) => rangeOf(state)?.course === 'house';
 /** The house's record, or null off the house course. */
 export const houseOf = (state) => (isHouse(state) ? rangeOf(state).house ?? null : null);
@@ -417,8 +441,8 @@ export function standsOf(state = null) {
   // H), so a room drawn anywhere gives its men to the marine whose sector they are in; on the set each is HOUSE1's, all seven)
   const spec = houseSpecOf(state), S = spec.stands ?? [], plan = lanePlanOf(state);
   const list = Array.isArray(S) ? S : Object.entries(S).map(([stand, s]) => ({ stand, ...s }));
-  // (the Wreck's set A, its ten in the spec's order, by WRECK_STANDS' roles; the house's seven by STANDS')
-  const wreck = spec.ship === 'wreck', ids = wreck ? list.map(x => x.stand) : STAND_IDS, roles = wreck ? WRECK_STANDS : STANDS;
+  // (a ship's set in the spec's order, by its row's roles (the Wreck's set A, its ten, by WRECK_STANDS'); the house's seven by STANDS')
+  const ship = shipOf(spec), ids = ship ? list.map(x => x.stand) : STAND_IDS, roles = ship ? ship.roles : STANDS;
   return ids.map((stand, i) => {
     const s = list.find(x => (x.stand ?? x.id) === stand) ?? null, R = roles[stand];
     if (!s || !R) throw new Error(`shoothouse: the house's spec has no stand '${stand}'`);
@@ -553,13 +577,13 @@ const newLeg = (door, room) => ({ room, door, state: 'ahead', fromMs: null, stac
 // createGame only, never from the page) lets a live lane be drawn as asked while its ship rule is open: drawnCodeFor). v0.0.23 (its
 // build sheet §2 step 3, item 14): again (the page's "Again" of the same lane, createGame's again: true) writes R.house.again = true
 // when given with no setup (a setup has no brief), nothing otherwise; stage 0 only threads it, v0.0.23's D reads it (the short brief)
-export function testShoothouse(state, { at = null, setup = null, tier = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, liveDraw = false, again = false, ship = null, breach = null } = {}) {
+export function testShoothouse(state, { at = null, setup = null, tier = null, par = null, loadout = null, opfor = null, draw = null, house = null, doors = null, rooms = null, layout = null, plans = null, liveDraw = false, again = false, ship = null, breach = null, holdouts = null } = {}) {
   // (`breach` ("Bang, then go": its build sheet §1 item 1, §3.2; 'drawn' or a code, parseBreach's): room 1 of lane A as set, the
   // live lane's two role-players there both briefed to fight (opfor.js fillOpfor with room 1's stands, rpStandsOf on R.house.bangGo), the
   // flash loadout for both where the bang is issued, the standard where not, every house option nulled first as the Wreck's branch below
   // does (so a test's createGame cannot pass them either), and only the 'go' setup kept. R.house.bangGo = { v, bang, held, code, window,
   // track, search } (absent on every other lane: no other save gains a key); the lane ends at room 1's "Clear!" (endLeg))
-  const bg = breach && ship !== 'wreck' ? drawBreach(state.meta.seed, parseBreach(breach)) : null;
+  const bg = breach && !shipOf({ ship }) ? drawBreach(state.meta.seed, parseBreach(breach)) : null;
   if (bg) {
     opfor = { mode: 'live', cards: { '1a': 'fight', '1b': 'fight' } }; loadout = bg.bang === 'bang' ? 'flash' : null;
     draw = null; house = null; doors = null; rooms = null; layout = null; plans = null; liveDraw = false;
@@ -568,16 +592,21 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
   // (the house through its seam, scenes/assemble.js: HOUSE1 and its area as set. v0.0.21 A, the drawn house: its code
   // (drawnCodeFor: the URL's &house, the picker's draw, never the live lane's), its area assembled and registered (model.js's
   // registry), its spec read from it until R.house.draw is written; nothing of it on the set)
-  // (`ship` 'wreck' (testZerocqb's only): the Wreck's spec (assemble.js wreckSpec), never drawn, no role-players, the standard kit)
-  const wreck = ship === 'wreck';
-  if (wreck) { opfor = null; loadout = null; draw = null; house = null; doors = null; rooms = null; layout = null; plans = null; liveDraw = false; }
-  const seed = state.meta.seed, op0 = parseOpfor(opfor), code = wreck ? null : drawnCodeFor(seed, { draw, house, doors, live: !!op0 && !op0.error, liveDraw: !!liveDraw, rooms, layout });
+  // (`ship`, a key of the ships' registry (testZerocqb's the Wreck's): the ship's spec (assemble.js shipSpec), never drawn, no role-players,
+  // the standard kit (v0.0.27's stage 0: SH its row, aboard on any ship)
+  const SH = shipOf({ ship }), aboard = !!SH;
+  if (aboard) { opfor = null; loadout = null; draw = null; house = null; doors = null; rooms = null; layout = null; plans = null; liveDraw = false; }
+  // ("Away the boarding party" (its build sheet §1 D, items 1, 5, 7; §0 items 11, 31): a ship whose row carries posts is boarded,
+  // its men men, never boards: the holdouts drawn from the seed (opfor.js drawBoarding: pirates or smugglers, `holdouts` the URL's forced
+  // type), the boarding issue (frangible, the plates in), chambered at the muster (no LOAD or MAKE READY), no instructor's dummy round)
+  const boarded = boardedOf(SH), board = boarded ? boardingDraw(state.meta.seed, { holdouts }) : null;
+  const seed = state.meta.seed, op0 = parseOpfor(opfor), code = aboard ? null : drawnCodeFor(seed, { draw, house, doors, live: !!op0 && !op0.error, liveDraw: !!liveDraw, rooms, layout });
   const drawn = code ? assembleHouse(code) : null;
-  const hs = wreck ? wreckSpec() : drawn?.spec ?? houseSpecOf(state), sheet = tierOf(tier), S0 = wreck ? { x: hs.start.x, z: hs.start.z, face: hs.start.face ?? 'right' } : startOf(state);
+  const hs = aboard ? shipSpec(SH.id) : drawn?.spec ?? houseSpecOf(state), sheet = tierOf(tier), S0 = aboard ? { x: hs.start.x, z: hs.start.z, face: hs.start.face ?? 'right' } : startOf(state);
   // (the scene's site: the Wheel's (Base Melas's) for the house; the Wreck's the void site's, entered as test-anchors enters it, the
   // scene's environment kept (newGame sets it live on the host before the fill))
-  const site = wreck ? SCENES['test-zerocqb'].host.site : HOUSE_SCENE.site;
-  if (wreck) {
+  const site = aboard ? SCENES[SH.scene].host.site : HOUSE_SCENE.site;
+  if (aboard) {
     const keep = state.places?.live?.env ?? null;
     barracks(state);
     Object.assign(playerActor(state), { x: S0.x, z: S0.z, face: S0.face, gait: 'idle', strideM: 0, ...(at ?? {}) });
@@ -590,41 +619,47 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
   const me = playerActor(state), pid = playerId(state), person = state.people[pid];
   setOutfit(me, 'combatSuit');
   // (the body's day the site's: Mars's sol in the Wheel, the void site's UTC day on the Wreck (jobs.js siteDayOf, as test-anchors reads it))
-  person.body = deltaOf(setLedgers(startBody(person, state.clock.ms, wreck ? siteDayOf(state) : lonOfSite(site), seed), {}));
+  person.body = deltaOf(setLedgers(startBody(person, state.clock.ms, aboard ? siteDayOf(state) : lonOfSite(site), seed), {}));
   person.skills = testSheet(sheet);
   me.moveStance = 'combat';
   // (setup 'ref': room 1 as COMBAT §25.5.1's reference room, one man in it, no dummy (the tests' measure against the sheet's §4))
-  const ref = setup === 'ref', dummy = drawDummy(seed);
+  const ref = setup === 'ref' || boarded, dummy = drawDummy(seed);
   // (v0.0.19: on the live lane the marines' issue is 'house-fof', the house's with marking rounds in place of frangible (kit.js):
   // the same items in the same order, so its ids are the lane's own; the P-12's FOF_SIDEARM)
-  const op = parseOpfor(opfor), live = !!op && !op.error, issue = live ? 'house-fof' : C.kit;
-  const kit = materialise(state, pid, issue, { sets: ref ? {} : { 1: { n: dummy.n, kind: dummy.kind } } });
+  // (aboard the boarding the marines' real issue, kit.js issueBoarding 'boarding-cqb' (B's: the carrier's plates in, three
+  // HAD-30s of ten frangible, the mag boots worn, the P-12 with two HAD-17s of frangible with it), no instructor's dummy round)
+  const op = parseOpfor(opfor), live = !!op && !op.error, issue = boarded ? BOARDING_ISSUES.marine : live ? 'house-fof' : C.kit;
+  const kit = boarded ? issueBoarding(state, pid, issue) : materialise(state, pid, issue, { sets: ref ? {} : { 1: { n: dummy.n, kind: dummy.kind } } });
   // (the #2: a marine of your fire team, your sheet written on him for the scene, his issue in Condition 4 as yours is: the
   // magazines in his pouches, the chamber empty, on safe; he loads on the tower's LOAD and makes ready on its MAKE READY, his
   // own macros (twoCmd; COMBAT §25.19.5, the rework's R5: v0.0.12 loaded him at the fill))
-  const twoPid = drawTwo(state), T0 = wreck ? { x: hs.two.x, z: hs.two.z } : twoStartOf(state);
+  const twoPid = drawTwo(state), T0 = aboard ? { x: hs.two.x, z: hs.two.z } : twoStartOf(state);
   let twoKit = null;
   if (twoPid) {
     const two = state.people[twoPid];
     two.skills = testSheet(sheet);
-    twoKit = materialise(state, twoPid, issue);
+    twoKit = boarded ? issueBoarding(state, twoPid, issue) : materialise(state, twoPid, issue);
     state.items[twoKit.gunId].mode = 'safe';
-    setPost(state, twoPid, { key: 'house-two', area: hs.area, x: T0.x, z: T0.z, face: wreck ? hs.two.face ?? S0.face : 'left', outfit: 'combatSuit' });
+    setPost(state, twoPid, { key: 'house-two', area: hs.area, x: T0.x, z: T0.z, face: aboard ? hs.two.face ?? S0.face : 'left', outfit: 'combatSuit' });
   }
   // (the Wreck's cadre, a staff sergeant of the Void Operations School, in the Shed's gallery: posted off the Wreck's area
   // (the School's well, the void site's other area), so no actor of his is made until Stop, when he comes aboard (wreckCadreIn))
-  const chiefPid = wreck ? drawStaff(state, 'phobos-void:cadre') : drawStaff(state, 'melas:wheel-house-chief'), B = hs.booth;
-  if (wreck) setPost(state, chiefPid, { area: WRECK_GALLERY_AREA, x: 0, z: 0, face: 'down', outfit: 'combatSuit' });
+  // (aboard, the ship's row names his post and where he waits: the Wreck's cadre in the School's well, src/data/places/ships.js chief)
+  const chiefPid = aboard ? drawStaff(state, SH.chief.post) : drawStaff(state, 'melas:wheel-house-chief'), B = hs.booth;
+  if (aboard) setPost(state, chiefPid, { area: SH.chief.area, x: SH.chief.x, z: SH.chief.z, face: SH.chief.face, outfit: 'combatSuit' });
   else setPost(state, chiefPid, { area: hs.area, x: B.x, z: B.z, face: B.face ?? 'left' });
   // (the Wreck's mag boots, yours and your #2's, worn now and locked once your actors are made (below))
-  if (wreck) { wear(state, pid, 'mb-1'); if (twoPid) wear(state, twoPid, 'mb-1'); wear(state, chiefPid, 'mb-1'); }
+  // (aboard the boarding the marines' boots are their issue's, and the leader's his own issue's (combat/holders.js fillHolders, C's))
+  if (aboard && !boarded) { wear(state, pid, 'mb-1'); if (twoPid) wear(state, twoPid, 'mb-1'); wear(state, chiefPid, 'mb-1'); }
   syncActors(state);
   const twoA = actorOf(state, twoPid);
-  if (twoA) { twoA.moveStance = 'combat'; twoA.headRad = wreck ? headOfFace(hs.two.face ?? S0.face) : Math.PI; }
-  if (wreck) { setAnchor(state, pid, 'boots'); if (twoA) setAnchor(state, twoPid, 'boots'); wreckDrills(state, pid, sheet); if (twoPid) wreckDrills(state, twoPid, sheet); }
+  if (twoA) { twoA.moveStance = 'combat'; twoA.headRad = aboard ? headOfFace(hs.two.face ?? S0.face) : Math.PI; }
+  if (aboard) { setAnchor(state, pid, 'boots'); if (twoA) setAnchor(state, twoPid, 'boots'); wreckDrills(state, pid, sheet); if (twoPid) wreckDrills(state, twoPid, sheet); }
+  // (the boarding team's leader, the lane's chief aboard, on locked boots at #1's start in the lock beside you)
+  if (boarded && actorOf(state, chiefPid)) setAnchor(state, chiefPid, 'boots');
   const R = startRange(state, null, { course: 'house', lane: null, area: hs.area, kit, set: ref ? null : { mag: dummy.mag, n: dummy.n, kind: dummy.kind }, roId: chiefPid, coachId: chiefPid });
   // (the Wreck's record first, so every reader of the seam below (houseSpecOf, planSetOf, lanePlanOf, standsOf) reads its lane)
-  if (wreck) { R.house = { ship: 'wreck' }; delete state.$rooms; }
+  if (aboard) { R.house = { ship: SH.id, ...(board ? { boarding: boardingRecord(board) } : {}) }; delete state.$rooms; }
   // (the drawn house's record first, so every reader of the seam below (lanePlanOf, standsOf, hallZone) reads its house.
   // its rooms ('all', a lane drawn from the eight; absent the three) and its named layout ('B' | 'C'; absent the set or a
   // draw), and the plans' source (R.house.plans 'derived', the lead's switch: every door's plan derived from its geometry at the fill,
@@ -633,10 +668,12 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
   const drawRec = drawn ? { mode: 'drawn', v: 1, code: drawn.code, ...(rooms === 'all' && !named ? { rooms: 'all' } : {}), ...(named ? { layout } : {}) } : null;
   const plansRec = plans === 'derived' ? { plans: 'derived' } : {};
   if (drawRec || plans === 'derived') { R.house = { ...(drawRec ? { draw: drawRec } : {}), ...plansRec }; delete state.$rooms; }
-  const draws = drawStands(seed, wreck ? hs : drawn?.spec ?? null), plan = lanePlanOf(state);
+  const draws = drawStands(seed, aboard ? hs : drawn?.spec ?? null), plan = lanePlanOf(state);
   // ("Bang, then go"'s stands are room 1's alone, so no turner, dummy stand or hall target exists past it; the legs are made as
   // on every lane, so every reader of H.rooms and H.hall keeps its shape, the legs past room 1 never opened)
-  R.turners = standsOf(state).filter(s => !bg || s.leg === 0).map(s => {
+  // (aboard a boarded ship the draw's stands alone (§0 item 31), so no paper board stands on the hauler's deck)
+  const drawnStands = board ? new Set([...board.armed, ...board.crew].map(x => x.stand)) : null;
+  R.turners = standsOf(state).filter(s => (!bg || s.leg === 0) && (!drawnStands || drawnStands.has(s.stand))).map(s => {
     const d = draws[s.stand], R0 = { trigger: s.trigger ?? STANDS[s.stand].trigger };
     const on = R0.trigger === 'door' ? plan.order[s.leg] : R0.trigger === 'zone' ? hallZone(state) : null;
     // (the reference room's second man stays edge-on: setup 'ref')
@@ -651,12 +688,14 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
   const legs = plan.order.map(door => newLeg(door, plan.plans[door]?.room ?? null));
   R.house = {
     // (the Wreck's `ship` first; its four compartments are its legs, no hall (two.js legsOf: H.hall null))
-    ...(wreck ? { ship: 'wreck' } : {}),
+    ...(aboard ? { ship: SH.id } : {}),
+    // (the boarding's record, written before the role-players' fill and every reader of the lane)
+    ...(board ? { boarding: boardingRecord(board) } : {}),
     lane: plan.lane ?? 'A', tier: sheet, par: sheetPar, parMs: PAR_MS[sheetPar], parSet: par && PAR_MS[par] ? par : null, standby: null, goAtMs: null, twoPid, chiefPid,
     stallAtMs: null, end: null, wash: null, cur: 0, doors: {}, zones: {}, owed: [], spinSaid: false,
     two: { pid: twoPid, aid: twoA?.id ?? null, rung: twoPid ? rungOf(state, twoPid, 'room') : 0, doing: null, hold: null, contact: null, eng: null, known: {}, ident: {}, fired: 0, hits: 0 },
     dummy: { magId: kit.magIds[0], n: ref ? null : dummy.n, round: ref ? null : dummy.round, clickAtMs: null, clearedAtMs: null },
-    rooms: wreck ? legs : legs.slice(0, -1), hall: wreck ? null : legs.at(-1),
+    rooms: aboard ? legs : legs.slice(0, -1), hall: aboard ? null : legs.at(-1),
     // (the drawn house's record, R.house.draw = { mode: 'drawn', v, code }: absent on the set; its rooms and
     // layout where given, and R.house.plans 'derived' where given)
     ...(drawRec ? { draw: drawRec } : {}), ...plansRec,
@@ -669,12 +708,14 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
   R.load = live ? 'marking' : 'frangible';
   // (the rework's R6: the P-12, on every sheet from 2026-11-15 (the Sergeant up before), its ids after every other item of the
   // fill so the stands' and the kit's ids are the same on every sheet; Condition 3, the spare in the thigh's pouch (kit.js issueSidearm))
-  if (SIDEARM_TIERS.includes(sheet)) issueHouseSidearm(state, pid, live);
+  // (aboard the boarding the P-12 came with the issue, on every sheet: its ids the issue's, yours and Four's)
+  if (boarded) { R.house.pistol = kit.pistol?.gunId ?? null; R.house.two.pistol = twoKit?.pistol?.gunId ?? null; }
+  else if (SIDEARM_TIERS.includes(sheet)) issueHouseSidearm(state, pid, live);
   // (v0.0.18, the loadout (WEAPONS §12.7; loadout.js): one for every sheet, yours then your #2's, its ids after every other
   // item of the fill; the standard makes nothing and writes nothing, so its lane is the lane without it to the byte)
   // (a code the page refuses fills the standard, his P-12 with it (it is the standard's now))
   const asked = loadoutOf(loadout), spec = asked.error ? loadoutOf(null) : asked;
-  if (!wreck && !asked.error && !isStandard(loadout)) {
+  if (!aboard && !asked.error && !isStandard(loadout)) {
     applyLoadout(state, pid, spec);
     if (twoPid) applyLoadout(state, twoPid, spec);
     R.house.loadout = codeOf(spec);
@@ -684,34 +725,51 @@ export function testShoothouse(state, { at = null, setup = null, tier = null, pa
   // (your #2's P-12, standard issue from v0.0.20 (loadout.js twoP12Of, the one reader: '~two:none' the tests' only; an unknown code
   // is the standard, so the default): the fill's last items, so every other id is v0.0.18's; on the live lane marking as yours is
   // (v0.0.19 issued his the house's frangible there: one helper for both men now, issueHouseSidearm)
-  if (twoPid && twoP12Of(spec.error ? null : spec)) issueHouseSidearm(state, twoPid, live, { two: true });
+  if (twoPid && !boarded && twoP12Of(spec.error ? null : spec)) issueHouseSidearm(state, twoPid, live, { two: true });
   // (a lane door drawn open is found open: set so at the fill (a delta in the save) and its time noted, as a setup's
   // open door is; its stands turn no sooner than GO and their gap (triggers))
   if (drawn) parseHouse(drawn.code).rooms.forEach((R1, k) => { if (R1.state === 'open') openDoor(state, plan.order[k]); });
   // (the card: the stands' books, each room's par and the lane's, from the house as drawn, before any setup moves you (fillPars))
   fillPars(state, R.house, kit.gunId);
-  if (setup) (wreck ? setupWreck : setupHouse)(state, setup);
+  // (aboard a boarded ship chambered at the muster (§0 item 11): you, your P-12, Four and his, as MAKE READY leaves them; then the
+  // boarding team's holders, the leader (the lane's chief, drawn above) and the AR, each in his issue at his place in the lock on locked
+  // boots (combat/holders.js fillHolders, C's: before the setup, which posts them past the passage)
+  if (boarded) { armAtMuster(state, R.house); issueBoardingBangs(state, pid, twoPid); fillHolders(state, SH.holders); }
+  if (setup) (aboard ? setupShip : setupHouse)(state, setup);
   // (v0.0.19, "Stack and clear, live" (COMBAT §25.18; the build sheet v0.0.19 §0 item 18): the role-players the last items of the
   // fill, after v0.0.18's and your number two's P-12, so every id before them is the lane's without them, and after the setup,
   // which makes no item, so a man of a leg it cleared is ruled out by opfor.js's fill ('setup'); with opfor none (or a code
   // parseOpfor refuses) nothing is made and nothing written; R.house.opfor the code that made them, for "Again as …")
   // (on "Bang, then go" the record's code is 'live', its men's cards room 1's (the live code reads rooms 2 and 3's cards)
   if (live) { R.house.opfor = bg ? 'live' : op.cards ? `live:${op.cards['2a'] ?? '*'},${op.cards['3a'] ?? '*'}` : 'live'; fillOpfor(state, R.house, op); }
+  // (aboard the boarding the drawn men (opfor.js fillOpfor reads R.house.boarding: the draw's armed men and crew, the one
+  // rule's ledger 'real'), the fill's last items as the role-players are, after the setup)
+  else if (board) fillOpfor(state, R.house, null);
   return state;
 }
 /**
  * The fill of 'test-zerocqb', "Hold to hold" (v0.0.25; its build sheet §1 item 1, §3.3): the house's fill on the Wreck (testShoothouse with
- * `ship: 'wreck'`): you and your #2 on deck 5's passage in the combat EVA suit on locked mag boots, the house's issue and your P-12, the
+ * the Wreck's row of the ships' registry): you and your #2 on deck 5's passage in the combat EVA suit on locked mag boots, the house's issue and your P-12, the
  * cadre in the gallery; the loadout the standard and the house as set (any other the page asked for is dropped with its toast, main.js).
  * tier: a TEST_SHEETS id; par: as the house's; setup: WRECK_SETUPS or null; again as the house's.
  */
 export function testZerocqb(state, { at = null, setup = null, tier = null, par = null, again = false } = {}) {
-  return testShoothouse(state, { at, setup, tier, par, again, ship: 'wreck' });
+  return testShoothouse(state, { at, setup, tier, par, again, ship: SHIPS.wreck.id });
 }
 /** The Wreck's setups (tests and the page): at GO, stacked on the trunk with both cells cleared, on the hold's deckhead after the transit, at the tug's warning. */
-export const WRECK_SETUPS = Object.freeze(['go', 'trunk', 'hold', 'tug']);
-/** Where the cadre waits until Stop: the School's well, an area of the void site off the Wreck (no actor of his is made while he is posted there). */
-const WRECK_GALLERY_AREA = 'phobos.void.well-a';
+export const WRECK_SETUPS = Object.freeze(Object.keys(SHIPS.wreck.setups));
+/**
+ * The fill of 'test-collar', "Away the boarding party" (v0.0.27; its build sheet §1 D, item 1, §3.4): the house's fill on the Patient Mule
+ * (testShoothouse with the hauler's row of the ships' registry): the four in the lock on locked boots, chambered, the holdouts drawn from
+ * the seed (holdouts: 'pirates' | 'smugglers' forces the type; else drawn 1 : 1), the boarding team's leader the lane's chief. tier: a
+ * TEST_SHEETS id; setup: COLLAR_SETUPS or null (the brief); again as the house's.
+ */
+export function testCollar(state, { at = null, setup = null, tier = null, again = false, holdouts = null } = {}) {
+  return testShoothouse(state, { at, setup, tier, again, holdouts, ship: SHIPS.hauler.id });
+}
+/** The hauler's setups (tests and the page): at GO with the lock cycled, stacked on cabin 2's hatch with the rest cleared, the fall back called. */
+export const COLLAR_SETUPS = Object.freeze(Object.keys(SHIPS.hauler.setups));
+
 // (the facing's heading, rad, of a four-way face: the house's #2's 'left' is π)
 const headOfFace = (f) => (f === 'right' ? 0 : f === 'down' ? Math.PI / 2 : f === 'up' ? -Math.PI / 2 : Math.PI);
 // (the void drill's families written at the sheet's rung on a marine of the Wreck, never in testSheet (so no other scene's save
@@ -814,14 +872,17 @@ export function upgradeHousePars(state) {
 // (a setup: the rifle loaded, made ready and on safe at low ready; GO given now, in stop motion; the legs before `leg` cleared)
 function setupHouse(state, setup) {
   const R = rangeOf(state), H = R.house, pid = playerId(state), me = playerActor(state), gunId = gunOn(state, pid), gun = state.items[gunId], now = state.clock.ms;
-  const magId = H.dummy.magId, mag = state.items[magId];
-  // (the load it went in with, as the seat records it (firearms.js fullN): ten in a thirty, Top up's "half or less" of ten)
-  const loadN = mag.n;
-  move(state, magId, { gun: gunId });
-  feed(gun, mag);
-  gun.mode = 'safe';
-  gun.belief = { chamber: 'live', count: mag.n, ...(loadN < famCap(mag.fam) ? { fullN: loadN } : {}) };
-  if (mag.belief) delete mag.belief;
+  // (aboard a boarded ship the rifles were chambered at the muster (armAtMuster): nothing to seat again)
+  if (!gun.mag) {
+    const magId = H.dummy.magId, mag = state.items[magId];
+    // (the load it went in with, as the seat records it (firearms.js fullN): ten in a thirty, Top up's "half or less" of ten)
+    const loadN = mag.n;
+    move(state, magId, { gun: gunId });
+    feed(gun, mag);
+    gun.mode = 'safe';
+    gun.belief = { chamber: 'live', count: mag.n, ...(loadN < famCap(mag.fam) ? { fullN: loadN } : {}) };
+    if (mag.belief) delete mag.belief;
+  }
   state.people[pid].kit.carry.posture = 'lowReady';
   // (the P-12 made ready and holstered on safe, as MAKE READY leaves it (the rework's R6))
   readyPistol(state, H.pistol);
@@ -829,17 +890,17 @@ function setupHouse(state, setup) {
   armTwo(state, H);
   readyPistol(state, H.two.pistol);
   cancel(state, 'arms:range');
-  const i = SEQ_HOUSE.findIndex(c => c.id === 'go');
+  const i = cmdIndexOf(state, 'go');
   R.cmd = { id: 'go', i, atMs: now }; R.next = null; R.livedMs = 0;
   // (the Wreck's 'trunk', 'hold' and 'tug' start at the hold's leg, both cells cleared before it)
-  const leg = H.ship === 'wreck' ? WRECK_SETUP_LEG[setup] ?? 0 : setup === 'room:2' ? 1 : setup === 'room:3' ? 2 : setup === 'hall' ? 3 : 0;
+  const leg = shipOf(H) ? shipOf(H).setups[setup] ?? 0 : setup === 'room:2' ? 1 : setup === 'room:3' ? 2 : setup === 'hall' ? 3 : 0;
   goNow(state, null, { stop: setup !== 'contact' });
   const legs = legsOf(H), plans = lanePlanOf(state).plans;
   for (let k = 0; k < leg; k++) {
     const L = legs[k], P = plans[L.door];
     Object.assign(L, { state: 'clear', setup: true, stackAtMs: now, openAtMs: now, enteredAtMs: now });
     for (const h of P?.hot ?? []) L.covered[h.id] = { atMs: now, by: 'me' };
-    if (L.door !== 'hall') openDoor(state, L.door, { undog: H.ship === 'wreck' });
+    if (L.door !== 'hall') openDoor(state, L.door, { undog: !!shipOf(H) });
     for (const T of R.turners) if (legOf(T) === k) { if (THREAT_FACES.includes(T.face)) T.stoppedAtMs = now; if (T.turnAtMs !== null) turnAway(T, now); }
   }
   H.cur = leg;
@@ -868,6 +929,13 @@ function setupHouse(state, setup) {
   H.stallAtMs = now;
 }
 // (a setup's #2 in Condition 1 as his LOAD and MAKE READY would leave him: his first magazine seated, a round up, on safe, low ready, believed so)
+// (the G-11s aboard (v0.0.27's carried stage: the fight lens's issue, "two G-11 for #3 and #4", never made, so no hatch aboard was ever
+// banged): BOARDING_BANGS on the carrier's sides, for you and Four, after your muster)
+function issueBoardingBangs(state, pid, twoPid) {
+  const spec = loadoutOf(BOARDING_BANGS);
+  if (spec.error) throw new Error(`shoothouse: BOARDING_BANGS ${spec.error}`);
+  for (const id of [pid, twoPid]) if (id && state.people[id]?.kit?.worn?.carrier) applyLoadout(state, id, spec);
+}
 function armTwo(state, H) {
   const W = H?.two, gunId = W?.pid ? gunOn(state, W.pid) : null, gun = gunId ? state.items[gunId] : null;
   if (!gun || gun.mag) return;
@@ -899,6 +967,18 @@ function openDoor(state, door, { undog = false } = {}) {
   setOpening(state, door, 'open', { atMs: now });
   if (H) H.doors[door] ??= now;
 }
+// (the boarding's lock hatch opened by the leader's hand at GO: undogged if a setup skipped the override, its leaf on its swing
+// (doors.js DOOR_S, the opening's own openS), the door fact for the picture and the sound, the time noted as a lane door's)
+function leaderOpens(state, bus, door, now) {
+  const o = openingOf(door), H = houseOf(state);
+  if (!o) return;
+  breakOpening(state, door, now);
+  const atMs = now + Math.round((o.openS ?? DOOR_S) * 1000);
+  setOpening(state, door, 'open', { atMs, how: 'push' });
+  ((state.$places ??= {}).moving ??= new Set()).add(door);
+  const x = o.axis === 'x' ? (o.a + o.b) / 2 : o.at, z = o.axis === 'x' ? o.at : (o.a + o.b) / 2;
+  bus?.emit('door', { id: door, area: houseSpecOf(state).area, x, z, state: 'open', kind: o.kind, who: H?.chiefPid ?? null, how: 'push', leafAtMs: now, stopAtMs: atMs });
+}
 // (the Wreck's deck hatch opened at a setup, undogged and swung: its own record's state (places/hatch.js setHatch, the trunk's one writer of it))
 function openHatch(state, id, now) { setHatch(state, id, 'open', { atMs: now }); }
 // (the transit made at a setup ('hold', 'tug'): the trunk opened, you and your #2 through it (places/hatch.js crossHatch, the one writer of
@@ -920,16 +1000,316 @@ function wreckThrough(state) {
   Object.assign(L, { state: 'entered', stackAtMs: now, openAtMs: now, enteredAtMs: now });
   noteMind(state, 'clearing', { room: L.room, fromMs: now });
 }
-/** The Wreck's setups' legs (v0.0.25): the hold's (2) for every one but 'go'. */
-const WRECK_SETUP_LEG = Object.freeze({ go: 0, trunk: 2, hold: 2, tug: 2 });
-// (a Wreck setup (WRECK_SETUPS): the house's (setupHouse, the cells cleared before the hold's leg as the tier one's plan
-// clears them), then for 'hold' and 'tug' the transit made and both of you planted on the hold's deckhead (wreckThrough), and for
-// 'tug' the yard tug's warning now: the profile set again with its onset warnS from now)
-function setupWreck(state, setup) {
-  if (!WRECK_SETUPS.includes(setup)) throw new Error(`shoothouse: no Wreck setup '${setup}' (${WRECK_SETUPS.join(', ')})`);
+// (a ship's setup (its row's setups: the leg it starts at; the Wreck's WRECK_SETUPS, the hold's leg (2) for every one but 'go')): the
+// house's (setupHouse, the compartments before its leg cleared as the tier one's plan clears them), then on the Wreck for 'hold' and
+// 'tug' the transit made and both of you planted on the hold's deckhead (wreckThrough), and for 'tug' the yard tug's warning now: the
+// profile set again with its onset warnS from now (v0.0.25's setupWreck; v0.0.27's stage 0: any ship's, by its row)
+function setupShip(state, setup) {
+  const SH = shipOf(rangeOf(state)?.house);
+  if (!SH || !Object.hasOwn(SH.setups, setup)) throw new Error(`shoothouse: no ${SH === SHIPS.wreck ? 'Wreck' : SH?.name ?? 'ship'} setup '${setup}' (${Object.keys(SH?.setups ?? {}).join(', ')})`);
+  // (the boarding's (its build sheet §0 item 14): every setup starts with the lock cycled (the override done, at no roll, the
+  // holdouts alerted at the fill), the passage held by the team where a setup starts past it, and 'fallback' with the call made)
+  const B = rangeOf(state).house.boarding ?? null;
+  if (B) collarSetupBefore(state, B);
   setupHouse(state, setup);
+  if (B) collarSetupAfter(state, B, setup);
   if (setup === 'hold' || setup === 'tug') wreckThrough(state);
-  if (setup === 'tug') { const tug = SCENES['test-zerocqb'].tug; setProfile(state, [{ ...tug, atS: tug.warnS }]); }
+  if (setup === 'tug') { const tug = SCENES[SH.scene].tug; setProfile(state, [{ ...tug, atS: tug.warnS }]); }
+}
+
+// ---- v0.0.27, "Away the boarding party": the collar, the send, the fall back and the ends (its build sheet §1 D, items 1, 2, 4, 14,
+// 15, 18; §0 items 9, 11, 14, 15, 31; COMBAT §14.1 to §14.6; SH§5, SH§6, FT§5.3) ----
+//
+// A ship whose registry row carries posts (src/data/places/ships.js: the hauler's HAULER_POSTS) is boarded: the fill draws its holdouts
+// from the seed and writes R.house.boarding = { v, type, code, holes, counts, track, side, collar, fallback, end, send? } before any
+// reader of the lane (absent on every other lane: no other save gains a key), and every branch below reads that record, never the ship's
+// name. Each lived tick of the boarding (collarTick, from houseRules before its GO gate):
+//   the override   at the leader's "Four, override." (houseOnCmd), Four rolls d20 + Tech against OVERRIDE_DC 13 once: OVERRIDE_PASS_MS
+//                  120 s on a pass, OVERRIDE_POINT_MS 30 s more a point under, at most OVERRIDE_MAX_MS 300 s; a miss by OVERRIDE_LOCKOUT_MISS
+//                  5 or more locks the panel out once, OVERRIDE_LOCKOUT_MS 60 s more ("Panel's locked me out. Again.", Four's bubble). The
+//                  time passes in one outcome skip behind one splash (the activity 'collar-override': nothing in the lock moves, never a
+//                  fast-forward, none set over a surprise); at its end the holdouts alerted (collar.alertAtMs, which opfor.js reads), the
+//                  'house' fact { phase: 'override', dc, roll, ms, tries } (the sheet's 'collar' fact rides the house's: one registered
+//                  name, src/core/facts.js), the inner hatch's dogs off (op.js breakOpening, the Wreck's undog), the panel's
+//                  lamp green (collar.lamp, the look's), and the override's readiness met (houseReady): "Stand by." comes;
+//   GO             the leader opens the lock's inner hatch (its leaf on its swing: the barricade man's cue); the holders go through
+//                  (combat/holders.js, C's); leg 1, the passage, is theirs: your pair holds in the lock (hauler-plans.js PASSAGE);
+//   the send       the passage's man accounted for (men.js accountedOf, or not drawn), or PASSAGE_SEND_MS 20 s after the holders'
+//                  "Set." (setAtOf), or PASSAGE_SEND_MAX_MS 45 s after GO at the latest, whichever first: the leader's "Three, Four:
+//                  cabin one. Go.", the passage leg ended 'held' (holdLeg: the holders hold it, nobody's fault), cabin 1 the leg; each
+//                  later compartment sent so too at the leg before it ended (endLeg);
+//   the fall back  FALLBACK_DOWN 2 of the fire team's four down (fireTeamOf; a man down by his body, a knock alone never counts): the
+//                  senior marine standing but you (you only where nobody else stands) calls "Fall back to the lock!", a drill of yours under
+//                  way handed back and no drill row offered after it, no leg judged, Four's slot let go for his walk to his place; the scene
+//                  ends when you stand in the lock or its inner hatch (LOCK_HATCH_M of its middle), or FALLBACK_WAIT_MS
+//                  60 s from the call, behind FALLBACK_SPLASH_MS 30 s ('collar-fallback': the inner hatch shut behind you, the
+//                  casualties carried, said), the defenders not pursuing: the end 'fellBack';
+//   the ends       'clear' (every compartment ended and every armed man accounted for, or the side given up and every armed man
+//                  accounted for: the leader's "Deck secure."), 'fellBack', 'down' (your body down for good: wounds.js downOf without
+//                  the knock), the house's 'time' (LANE_MAX_MS) and 'passed' (the last compartment passed by its due): B.end and H.end;
+//   the track      every live man's state and choice as they change (K6: R.house.boarding.track[stand], at most TRACK_KEPT a man), the
+//                  card's THEIR CHOICES and collar-nodead's gauge (F157);
+//   the hull       the first round of theirs through the hull (the boarding's counts, holes.js's): the leader once, "Hull's holed. Keep going.".
+// Every line is a text bubble at its speaker (the user, 2026-11-19: "forget voice synthesis, no voices.").
+/** The holdouts' types (the URL's &holdouts=, createGame's holdouts; drawn 1 : 1 when absent). */
+export const HOLDOUTS = Object.freeze(['pirates', 'smugglers']);
+/** The override's time: a pass, each point under the DC, the most; the lockout's extra and the miss that locks (ms; points). */
+export const OVERRIDE_PASS_MS = 120_000, OVERRIDE_POINT_MS = 30_000, OVERRIDE_MAX_MS = 300_000, OVERRIDE_LOCKOUT_MS = 60_000, OVERRIDE_LOCKOUT_MISS = 5;
+/** The send after the holders' "Set." (ms; my call: the holders' fight never stalls the lane), and its latest after GO whatever they do (ms; my call). */
+export const PASSAGE_SEND_MS = 20_000, PASSAGE_SEND_MAX_MS = 45_000;
+/** The fall back: marines down that call it, its wait for you in the lock, its splash (COMBAT §14.6 read for four; ms). */
+export const FALLBACK_DOWN = 2, FALLBACK_WAIT_MS = 60_000, FALLBACK_SPLASH_MS = 30_000;
+/** The bangs issued aboard to you and Four (a loadout.js code: three G-11s each, one a compartment past the passage, two on the left and one on the right; v0.0.27's carried stage, my call: the fight lens's two left the third compartment unbanged). */
+export const BOARDING_BANGS = 'v1~front:mag2,mag2,dump~left:g11,g11~right:g11';
+/** A man's track kept, entries (K6; my call). */
+export const TRACK_KEPT = 24;
+/** The entry on the bang aboard a ship (ms; bangToEntry): burst.js BANG_LATE_MS and the boots' 2 s more over a hatch's stack and coaming (my call, inside FLASH_BLIND_MS 5 s). */
+export const BANG_LATE_SHIP_MS = BANG_LATE_MS + 2000;
+
+// (a boarded ship: its row carries the holdouts' posts)
+const boardedOf = (SH) => !!SH?.posts;
+/** The boarding's record (R.house.boarding), or null on every other lane. */
+export const boardingOf = (state) => houseOf(state)?.boarding ?? null;
+// (the holdouts drawn from the seed: opfor.js drawBoarding, A's (a type or a whole code forced by the URL's &holdouts=))
+const boardingDraw = (seed, opts) => drawBoarding(seed, opts);
+// (the boarding's record at the fill: its build sheet §0 item 1's fields)
+const boardingRecord = (board) => ({ v: 1, type: board.type, code: board.code ?? board.type, holes: [], counts: {}, track: {}, side: null, collar: null, fallback: null, end: null });
+// (chambered at the muster (§0 item 11): your first magazine seated and a round up, on safe, low ready, your P-12 the same in its holster,
+// and Four likewise, as MAKE READY leaves you both; no LOAD or MAKE READY is ever called aboard)
+function armAtMuster(state, H) {
+  const pid = playerId(state), gunId = gunOn(state, pid), gun = state.items[gunId], magId = H.dummy.magId, mag = state.items[magId];
+  if (gun && mag && !gun.mag) {
+    const loadN = mag.n;
+    move(state, magId, { gun: gunId });
+    feed(gun, mag);
+    gun.mode = 'safe';
+    gun.belief = { chamber: 'live', count: mag.n, ...(loadN < famCap(mag.fam) ? { fullN: loadN } : {}) };
+    if (mag.belief) delete mag.belief;
+  }
+  (state.people[pid].kit.carry ??= {}).posture = 'lowReady';
+  readyPistol(state, H.pistol);
+  armTwo(state, H);
+  readyPistol(state, H.two?.pistol);
+}
+// (the lock's inner hatch: the first leg's key (the passage's plan has no door of its own: hauler-plans.js), and the lock, the room it
+// is worked from (hauler.js's rooms [lock, passage]))
+const lockHatchOf = (state) => lanePlanOf(state).order[0];
+const lockRoomOf = (state) => openingOf(lockHatchOf(state))?.rooms?.[0] ?? null;
+const inLock = (state, a) => { const id = lockRoomOf(state), A = areaOf(houseSpecOf(state).area); return !!a && !!id && roomOf(A, a.x, a.z)?.id === id; };
+/** Within this of the lock's inner hatch's middle you are back at the lock (m; my call: its half width and a little). */
+export const LOCK_HATCH_M = 0.6;
+// (you in the lock's inner hatch, back at the lock: the lock itself may be full, two marines lying in it and Four at his place (the
+// v0.0.27 play review, finding 3 d: held 41 s by the body gap 0.1 m short of the lock's line, the end left to the 60 s wait))
+const atLockHatch = (state, a) => { const o = a ? openingOf(lockHatchOf(state)) : null; if (!o) return false; const m = o.axis === 'x' ? [(o.a + o.b) / 2, o.at] : [o.at, (o.a + o.b) / 2]; return Math.hypot(a.x - m[0], a.z - m[1]) <= LOCK_HATCH_M; };
+// (a marine down by his body (a knock alone is no casualty: he gets up): you by your body's own down without the knock (you rise by a
+// move key once it is over, so your stance alone would count a man standing up); one of the others by his stance still 'down' once his
+// knock is over (an NPC marine bleeding, or shot in a leg or the torso, waits down as a casualty: body/domain.js woundsFast))
+function marineDown(state, pid, now) {
+  const a = actorOf(state, pid), body = state.people?.[pid]?.body;
+  if (!a || !body || a.stance !== 'down') return false;
+  if (pid === playerId(state)) return downOf(body, now, { knock: false }).down;
+  return !(body.knock && body.knock.untilMs > now);
+}
+// (your body down for good: dead, the chest, the head, both legs, collapsed, shock, past the pain's floor (FT§5.3: the knock never ends it))
+const youDownForGood = (state, now) => { const b = state.people?.[playerId(state)]?.body; return !!b && downOf(b, now, { knock: false }).down; };
+// (an armed man of the deck accounted for: a live man by men.js accountedOf ('down', 'hands', 'out'), a board (the stub's) by its stop)
+const accounted = (state, T) => (isLive(T) ? !!accountedOf(state, T) : T.stoppedAtMs !== null);
+// (the deck's armed men: the turners on the posts whose role is a threat's (courses.js HAULER_ROLES), a man who gave up among them)
+const armedOf = (state, R) => R.turners.filter(T => shipOf(R.house)?.roles?.[T.stand]?.face === 'threat');
+// (the holders' "Set." (C's combat/holders.js R.house.holders.setMs: null until both stand at their posts); GO's on a lane with none)
+const setAtOf = (state, H) => (H.holders ? H.holders.setMs ?? Infinity : H.goAtMs);
+// (the senior marine of the fire team standing (fireTeamOf's n), never a man whose stance is 'down', you only where `you`: the fall
+// back's caller (you among them) and, aboard with holders, the voice of the leader's words (you never: chiefSpeaks); the review of D
+// heard the team leader, down with a chest wound, send the pair at 45 s and give the card's last line)
+const marineUp = (state, pid) => { const a = actorOf(state, pid); return !!a && a.stance !== 'down'; };
+const seniorStanding = (state, { you = true } = {}) => [...fireTeamOf(state)].sort((a, b) => a.n - b.n).find(m => (you || m.pid !== playerId(state)) && marineUp(state, m.pid)) ?? null;
+// (the passage's men covered: a holder standing, or no holders on the lane (the send's 'set' and 'late' wait on it while a man of the
+// passage is up: the review of D, the recruit's pair sent at 45 s into a passage both holders lay down in, its man up)
+const passageCovered = (state, H) => !H.holders?.men?.length || H.holders.men.some(m => marineUp(state, m.pid));
+// (the send said by Four, the leader and the AR down (voiceOf): his own words to you, never "Three, Four: …" to himself (the v0.0.27 play
+// review, finding 3 g); the hash's key stays the send's)
+const leaderSays = (state, bus, key, map = null, ...k) => {
+  const H = houseOf(state), SH = shipOf(H), two = key === 'send' && !!H?.twoPid && !!SH?.words?.sendTwo && voiceOf(state, rangeOf(state), H) === H.twoPid;
+  const W = SH?.words?.[two ? 'sendTwo' : key];
+  if (W) chiefSays(state, bus, map ? W.map(l => fill(l, map)) : W, key, ...k);
+};
+
+/**
+ * The override's roll and its time (see the section's head), pure: Four's d20 + Tech (value) against OVERRIDE_DC on stream(seed,
+ * 'collar:override'): { roll, total, ok, margin, ms, tries } (tries 2 where it locked the panel out once).
+ */
+export function overrideRoll(seed, value) {
+  const r = check(stream(seed, 'collar:override'), { skill: 'tech', value, dc: OVERRIDE_DC, verb: null });
+  const under = Math.max(0, OVERRIDE_DC - r.total), lock = !r.ok && -r.margin >= OVERRIDE_LOCKOUT_MISS;
+  const ms = Math.min(OVERRIDE_MAX_MS, (r.ok ? OVERRIDE_PASS_MS : OVERRIDE_PASS_MS + under * OVERRIDE_POINT_MS) + (lock ? OVERRIDE_LOCKOUT_MS : 0));
+  return { roll: r.roll, total: r.total, ok: r.ok, margin: r.margin, ms, tries: lock ? 2 : 1 };
+}
+/** The override begun at the leader's "Four, override." (houseOnCmd; see the section's head): Four's roll, its time, the lockout. */
+function overrideStart(state, bus, H) {
+  const B = H.boarding, now = state.clock.ms;
+  if (!B || B.collar) return;
+  const who = H.twoPid ?? playerId(state), r = overrideRoll(state.meta.seed, valueOf(state, who, 'tech'));
+  B.collar = { phase: 'override', dc: OVERRIDE_DC, roll: r.roll, total: r.total, ok: r.ok, ms: r.ms, tries: r.tries, atMs: now, doneAtMs: now + r.ms, alertAtMs: null, lamp: 'amber', skipped: false };
+  // (the lockout's minute from his miss, the panel's lamp red while it holds (look.js boardLook reads lockedOutUntilMs; the v0.0.27 code
+  // review, finding 3: nothing wrote it, so the red lamp never lit)
+  if (r.tries > 1) B.collar.lockedOutUntilMs = now + OVERRIDE_LOCKOUT_MS;
+  if (r.tries > 1) { const W = shipOf(H)?.words?.lockout; if (W) sayOn(state, bus, { who, text: hashPick(W, 'house-chief', state.meta.seed, 'lockout'), kind: 'speech' }); }
+}
+// (the override's time behind its splash, begun once you may begin it; its end: the holdouts alerted, the hatch undogged, the lamp green)
+function overrideTick(state, bus, R, H, B, now, ctx) {
+  const K = B.collar;
+  if (!K || K.alertAtMs !== null) return;
+  if (now >= K.doneAtMs) {
+    K.alertAtMs = now; K.lamp = 'green';
+    breakOpening(state, lockHatchOf(state), now);
+    bus?.emit('house', { phase: 'override', room: null, who: H.twoPid ?? null, dc: K.dc, roll: K.total, ms: K.ms, tries: K.tries, atMs: now });
+    return;
+  }
+  if (K.skipped || state.skip || state.time?.doing || !ctx?.sim || pendingOf(state)) return;
+  if (state.stop) leaveStop(state, bus, 'scene');
+  if (state.stop) return;
+  const r = startActivity(state, bus, ctx, { id: ACTIVITIES['collar-override'] ? 'collar-override' : 'idle', args: { ms: whole(K.doneAtMs - now) }, force: 'outcome' });
+  if (r?.ok) K.skipped = true;
+}
+// (the passage leg held by the team (see the section's head): ended as a leg passed (bundle.js's done rooms: the drill's next door is
+// the next compartment's) and marked `held`, nobody's fault (no 'time' fault, never "a room not cleared", never reopened by its man,
+// who is the holders'), your #2's walk to its stack let go, its men left to the holders; the next compartment the leg, the leader's send)
+function holdLeg(state, bus, H, L, now) {
+  const R = rangeOf(state);
+  L.state = 'passed'; L.held = true; L.clearAtMs = now;
+  clearTask(H);
+  const S = state.stop, d = S?.flow ?? S?.doing;
+  if (d?.beats && (d.door ?? L.door) === L.door) handBack(state, bus, 'stall');
+  if (H.two) twoLegOver(state, bus, H.two, L.door, now);
+  H.stallAtMs = now;
+  H.cur = legsOf(H).indexOf(L) + 1;
+  const next = legsOf(H)[H.cur];
+  if (!next) return;
+  next.fromMs = now;
+  noteMind(state, 'clearing', { room: next.room, fromMs: now });
+  R.cueAtMs = now;
+  leaderSays(state, bus, 'send', { room: legSaid(H, H.cur) }, 'send', H.cur);
+}
+// (the deck secured: every compartment ended (cur past the last) or the side given up, and every armed man accounted for)
+const securedNow = (state, R, H) => (H.cur >= legsOf(H).length || !!H.boarding?.side?.gaveAtMs) && armedOf(state, R).every(T => accounted(state, T));
+
+// (a setup's override (setupShip): done at the fill, no roll, the holdouts alerted now, the lamp green, the inner hatch undogged)
+function collarSetupBefore(state, B) {
+  const now = state.clock.ms;
+  B.collar = { phase: 'override', dc: OVERRIDE_DC, roll: null, total: null, ok: true, ms: 0, tries: 0, atMs: now, doneAtMs: now, alertAtMs: now, lamp: 'green', skipped: true, setup: true };
+  breakOpening(state, lockHatchOf(state), now);
+}
+// (a setup past the passage: its leg held by the team (holdLeg's marks, a setup's own); 'fallback': the call made by the leader as the
+// fall back's own call (fallbackTick then ends it in the lock or at its wait), the marines it names down none: the setup's call, said so)
+function collarSetupAfter(state, B, setup) {
+  const H = rangeOf(state).house, L0 = legsOf(H)[0], now = state.clock.ms;
+  if (H.cur > 0 && L0) { L0.state = 'passed'; L0.held = true; B.send = { atMs: now, why: 'setup' }; holdersPosted(state, now); }
+  if (setup === 'fallback') {
+    B.fallback = { atMs: now, by: H.chiefPid ?? null, down: [], inAtMs: null, setup: true };
+    const W = shipOf(H)?.words?.fallback;
+    if (W) chiefSays(state, null, W, 'fallback');
+  }
+  // (a setup stacked on a compartment's hatch starts at a pause, before any lived tick: its bang preset now, as the tick would)
+  bangAtHatch(state, H);
+}
+
+/** The boarding's lived tick (see the section's head): from houseRules, before its GO gate. */
+function collarTick(state, bus, R, H, now, ctx) {
+  const B = H.boarding;
+  if (!B || H.end) return;
+  overrideTick(state, bus, R, H, B, now, ctx);
+  if (H.goAtMs === null) return;
+  trackTick(state, R, B, now);
+  hullTick(state, bus, B);
+  if (youDownForGood(state, now)) { collarEnd(state, bus, H, 'down', now); return; }
+  if (fallbackTick(state, bus, R, H, B, now, ctx)) return;
+  const L0 = legsOf(H)[0];
+  if (H.cur === 0 && L0 && !L0.held) {
+    const P0 = planOf(state, L0), men = armedOf(state, R).filter(T => legOf(T) === 0);
+    const covered = passageCovered(state, H);
+    const why = men.every(T => accounted(state, T)) ? 'accounted' : !covered ? null : now >= setAtOf(state, H) + PASSAGE_SEND_MS ? 'set' : now >= H.goAtMs + PASSAGE_SEND_MAX_MS ? 'late' : null;
+    if (P0?.hold && why) { B.send = { atMs: now, why }; holdLeg(state, bus, H, L0, now); }
+    // (both holders down with a man of the passage up: he is yours (T.slot 1, read by team.js ownerOf), not Four's slot 2 in the lock, who
+    // never fires on him while the leg is held (the review of D: Four fired nothing, T led you to the wall, you were down at 85 s))
+    else if (!covered) for (const T of men) if (ownerOf(state, T) !== 1 && !accounted(state, T)) T.slot = 1;
+  }
+  bangAtHatch(state, H);
+  if (securedNow(state, R, H)) collarEnd(state, bus, H, 'clear', now);
+}
+// (each compartment's hatch past the passage, shut, a G-11 still yours: its bundle starts with its bang at flash, once a hatch (the boarding's
+// `preset`, the hatch last preset), as "Bang, then go"'s room 1 does (bundle.js variantHere keeps it for that hatch alone; "No bang" is one
+// press of its variant row, never undone by a later stop motion at the same hatch): T's room row carries it from rung 2 (v0.0.27's
+// carried stage: no G-11 was issued aboard, so the men laid on a hatch shot first on every pirates lane)
+function bangAtHatch(state, H) {
+  const S = state.stop, pid = playerId(state), B = H.boarding;
+  if (!S || S.who !== pid || H.cur < 1 || !B) return;
+  const d = doorNow(state, pid)?.door ?? null;
+  if (!d || d === 'hall' || d === lockHatchOf(state) || B.preset === d || openingState(state, d) === 'open' || !kitHas(state, pid, 'flashbang')) return;
+  B.preset = d;
+  S.variant = { ...(S.variant ?? {}), bang: 'flash', at: d };
+}
+// (an end of the boarding (see the section's head): its record, the leader's word on a secured deck, the lane's end)
+function collarEnd(state, bus, H, why, now) {
+  const B = H.boarding;
+  if (H.end) return;
+  B.end = { why, atMs: now };
+  if (why === 'clear') leaderSays(state, bus, 'secure', null, 'secure');
+  // (the after-action line (SEQ_COLLAR's 'end', said by the range's officer) from the senior marine standing but you where the leader is
+  // down (the review of D: "We are out. Hold the lock for the corpsman." from the team leader lying in the passage))
+  const R = rangeOf(state), by = H.holders ? seniorStanding(state, { you: false }) : null;
+  if (by && R.roId !== by.pid && !marineUp(state, R.roId)) R.roId = by.pid;
+  laneEnd(state, bus, why);
+}
+// (the fall back (see the section's head): true while it holds the lane)
+function fallbackTick(state, bus, R, H, B, now, ctx) {
+  const team = fireTeamOf(state);
+  if (!B.fallback) {
+    const down = team.filter(m => marineDown(state, m.pid, now)).map(m => m.pid);
+    if (down.length < FALLBACK_DOWN) return false;
+    // (the senior marine standing but you calls it, you only where nobody else stands: a bubble of yours you never pressed for read as
+    // the game speaking for you (the v0.0.27 play review, finding 3 g))
+    const by = seniorStanding(state, { you: false }) ?? seniorStanding(state);
+    B.fallback = { atMs: now, by: by?.pid ?? null, down, inAtMs: null };
+    const W = shipOf(H)?.words?.fallback;
+    if (W && by) sayOn(state, bus, { who: by.pid, text: hashPick(W, 'house-chief', state.meta.seed, 'fallback'), kind: 'speech' });
+    bus?.emit('house', { phase: 'fallback', room: null, who: by?.pid ?? null, atMs: now, down });
+    // (the call takes the drill off you: a bundle or a flow under way handed back where it stands, a Wait ended, so the pause offers "Back
+    // to the lock" at once (the play review, finding 3 a and c: the corporal's T bundle went on into cabin 1 after the call, its #2 walked
+    // back to his stack and held you in the hatch 41 s; the sergeant's Wait for his #2 ran 11.5 s past it))
+    if (state.stop?.doing?.beats || state.stop?.flow) handBack(state, bus, 'stop');
+    const w = state.stop?.doing;
+    if (w?.kind === 'wait' && w.untilMs > now) w.untilMs = now;
+  }
+  const F = B.fallback, me = playerActor(state);
+  if (F.inAtMs === null && (inLock(state, me) || atLockHatch(state, me) || now - F.atMs >= FALLBACK_WAIT_MS)) {
+    F.inAtMs = now; F.inLock = team.filter(m => { const a = actorOf(state, m.pid); return inLock(state, a) || atLockHatch(state, a); }).map(m => m.pid);
+    collarEnd(state, bus, H, 'fellBack', now);
+    // (the inner hatch shut behind you: the splash carries the rest, said, nothing judged meanwhile)
+    setOpening(state, lockHatchOf(state), 'closed', { atMs: now });
+    if (ctx?.sim && !state.skip && !state.time?.doing) { if (state.stop) leaveStop(state, bus, 'scene'); if (!state.stop) startActivity(state, bus, ctx, { id: ACTIVITIES['collar-fallback'] ? 'collar-fallback' : 'idle', args: { ms: FALLBACK_SPLASH_MS }, force: 'outcome' }); }
+    bus?.emit('house', { phase: 'fellback', room: null, who: playerId(state), atMs: now });
+  }
+  return true;
+}
+// (the states the track keeps beside the choices: what the card names of a man (blind fire, flight, down, hands up, ruled out))
+const TRACK_STATES = new Set(['blind', 'flee', 'down', 'hands', 'out']);
+// (every live man's choices and his notable states as they change (K6; the card's THEIR CHOICES, F157): on transitions only, a choice
+// when his choice record (opfor.js L.choice: { what, band, atMs, grade, dc }) names another `what`, a state when he enters one of TRACK_STATES;
+// each man's last state kept in R.house.boarding.trackSt, saved, so a game loaded mid-fight tracks on as the one it came from)
+function trackTick(state, R, B, now) {
+  for (const T of R.turners) {
+    if (!isLive(T)) continue;
+    const L = T.live, list = ((B.track ??= {})[T.stand] ??= []), c = L.choice ?? null, st = L.st ?? null;
+    const lastWhat = [...list].reverse().find(e => e.what)?.what ?? null, lastSt = (B.trackSt ??= {})[T.stand] ?? null;
+    if (c?.what && c.what !== lastWhat) list.push({ atMs: now, what: c.what, band: c.band ?? null, grade: c.grade ?? null });
+    if (st !== lastSt) { B.trackSt[T.stand] = st; if (TRACK_STATES.has(st)) list.push({ atMs: now, st }); }
+    if (list.length > TRACK_KEPT) list.splice(0, list.length - TRACK_KEPT);
+  }
+}
+// (the first round of theirs through the hull (the boarding's counts, holes.js's): the leader's word, once)
+function hullTick(state, bus, B) {
+  const n = holesOf(state).theirs.hull;
+  if (n > 0 && !B.hullSaidAtMs) { B.hullSaidAtMs = state.clock.ms; leaderSays(state, bus, 'hull', null, 'hull'); }
 }
 
 // ---- the words ----
@@ -957,8 +1337,12 @@ export function paintSays(state, bus, text) {
 // (a strike's call too late to say: the casualty open, or the lane over)
 const paintLate = (H) => !!(H.live?.casualty || H.end);
 // (the instructor's line said now: the fact, his last line, and outside the lane the PA's chain)
+// (who says the leader's words: aboard with holders the senior marine standing but you, never the leader down, and nobody with
+// nobody standing but you; the leader's own while he stands, so every lane he stands through is as before; chiefSpeaks' and sayOwed's)
+const voiceOf = (state, R, H) => (H.boarding && H.holders && !marineUp(state, R.coachId) ? seniorStanding(state, { you: false })?.pid ?? null : R.coachId);
 function chiefSpeaks(state, bus, R, H, text) {
-  sayOn(state, bus, { who: R.coachId, text, kind: 'speech' });
+  const who = voiceOf(state, R, H);
+  if (who) sayOn(state, bus, { who, text, kind: 'speech' });
   H.said = { text, atMs: state.clock.ms };
   // (the build sheet v0.0.20 §0 item 32: outside the lane (before GO's arming, from Stop on) his speech and his PA lines are one
   // speaker's, chained: the tower's next command waits for the chain's end (houseReady), so it never cuts him; in the lane, never)
@@ -972,7 +1356,8 @@ function gravityWords(state) {
   if (!Number.isFinite(g)) return '';
   // (in free fall on the Wreck its words, never "0.00 G on this deck." (my call); keyed on the ship, so the house's lane
   // at 0 G (&env=ship-coast, freefall-vacuum) keeps its own brief, "0.00 G on this deck." (the review of C and D))
-  if (rangeOf(state)?.house?.ship === 'wreck' && g < GAIT_G.FLOAT_BELOW_G) return hashPick(WRECK_CHIEF.zero, 'house-chief', state.meta.seed, 'gravity');
+  const ship = shipOf(rangeOf(state)?.house);
+  if (ship && g < GAIT_G.FLOAT_BELOW_G) return hashPick(ship.words.zero, 'house-chief', state.meta.seed, 'gravity');
   return fill(hashPick(Math.abs(g - 1) <= GRAVITY_FULL_TOL_G ? HOUSE_CHIEF.full : HOUSE_CHIEF.gravity, 'house-chief', state.meta.seed, 'gravity'), { g: q(g, 0.01).toFixed(2) });
 }
 // (v0.0.18: the brief names the kit when it is not the standard (WEAPONS §12.7): what you carry, and the stands as unsuited men)
@@ -999,6 +1384,9 @@ export function doorWords(state) {
 /** Within this of 1 G the brief says "Full G" (G; my call). */
 export const GRAVITY_FULL_TOL_G = 0.02;
 const fill = (line, map) => Object.entries(map).reduce((t, [k, v]) => t.replaceAll(`{${k}}`, String(v)), line);
+// (the chief's book for a key: his ship's words where it has the key (v0.0.27: the boarding's leader, courses.js COLLAR_LEADER's stall, time,
+// laneTime and out), else the instructor's HOUSE_CHIEF; the Wreck's book has none of these keys, so its lane says the instructor's as before)
+const chiefLines = (H, key) => shipOf(H)?.words?.[key] ?? HOUSE_CHIEF[key];
 
 /** A fault in the house (see the header): the leg's record, the session's, the 'house' fact and the instructor's word (none: words given null). */
 export function houseFault(state, bus, kind, words = HOUSE_CHIEF[kind] ?? null, L = curLeg(houseOf(state))) {
@@ -1031,7 +1419,7 @@ export function houseWant(state) {
   if (!dry && pistolOwed(state, pid)) return 'pistol';
   if (state.stop || state.time?.doing) return 'out';
   // (on the Wreck MAKE READY wants your mag boots locked on the deck too (its build sheet §1 item 1))
-  if (H.ship === 'wreck' && footingOf(state, pid).anchor !== 'magBoots') return 'boots';
+  if (shipOf(H) && footingOf(state, pid).anchor !== 'magBoots') return 'boots';
   if (Math.hypot(me.x - S0.x, me.z - S0.z) > STACK_M) return 'mark';
   if (!stillOf(state) || (me.$px !== undefined && (me.$px !== me.x || me.$pz !== me.z))) return 'still';
   if ((me.moveStance ?? 'relaxed') !== 'combat') return 'gait';
@@ -1072,6 +1460,8 @@ export function houseReady(state, def, { still, safe } = {}) {
     case 'houseStart': return houseWant(state) === null;
     case 'goArm': return false;
     case 'laneDone': return !!H.end;
+    // (the hauler's override done, the holdouts alerted (collarTick): the lock cycled)
+    case 'override': return !!H.boarding?.collar && H.boarding.collar.alertAtMs !== null;
     // (LOAD, Stop and SHOW CLEAR wait on your number two too: his magazine in, his rifle safe, his shown (COMBAT §25.19.5))
     case 'magIn': return twoLacks(state, 'load') ? false : null;
     // (both guns (WEAPONS §3.2's note: "UNLOAD and SHOW CLEAR both, the pistol last"): a P-12 still in the hand at Stop or SHOW
@@ -1129,7 +1519,8 @@ export function houseCmdSay(state, def) {
   if (def?.sayLive && live) return def.sayLive;
   if (!def?.sayEnd) return def?.say;
   const why = houseOf(state)?.end?.why ?? null;
-  return why === 'clear' || why === null ? def.sayEnd.clear : def.sayEnd.other;
+  // (an end with words of its own first, the boarding's 'down' ("Three is down. Corpsman forward."))
+  return (why && why !== 'other' ? def.sayEnd[why] : null) ?? (why === 'clear' || why === null ? def.sayEnd.clear : def.sayEnd.other);
 }
 /** A command said on the house course (handling.js onRangeCmd, after the words and the phase): what the scene does at it. */
 export function houseOnCmd(state, bus, def, i = SEQ_HOUSE.findIndex(c => c.id === def.id)) {
@@ -1146,8 +1537,10 @@ export function houseOnCmd(state, bus, def, i = SEQ_HOUSE.findIndex(c => c.id ==
     // rule ("hostiles only" rooms) is never lost to Again: "Same kit." and the intelligence (house-kit.js intelWords))
     case 'brief': if (H.again) { const intel = intelWords(state); if (intel) chiefSays(state, bus, `Same kit.${intel}`, 'brief'); break; }
       // ("Bang, then go"'s kit is named by its brief, never kitWords' "use them on the doors you choose")
-      chiefSays(state, bus, `${hashPick(H.ship === 'wreck' ? WRECK_CHIEF.brief : HOUSE_CHIEF.brief, 'house-chief', state.meta.seed, 'brief')} ${gravityWords(state)}${doorWords(state)}${H.bangGo ? '' : kitWords(state)}`, 'brief'); break;
+      chiefSays(state, bus, `${hashPick(shipOf(H) ? shipOf(H).words.brief : HOUSE_CHIEF.brief, 'house-chief', state.meta.seed, 'brief')} ${gravityWords(state)}${doorWords(state)}${H.bangGo ? '' : kitWords(state)}`, 'brief'); break;
     case 'standby': H.standby = { attempt: 0, goAtMs: null, fromMs: now, backSaid: false }; armGo(state); break;
+    // (the hauler's override, Four at the lock's panel (overrideStart; its time behind its splash, collarTick))
+    case 'override': overrideStart(state, bus, H); break;
     case 'go': goNow(state, bus); break;
     case 'stop': R.hot = false; break;
     case 'wash':
@@ -1166,7 +1559,7 @@ function armGo(state) {
   const R = rangeOf(state), H = R.house, sb = H.standby, now = state.clock.ms;
   if (!sb || sb.goAtMs !== null || state.stop?.mode === 'stop' || houseWant(state) !== null) return false;
   sb.goAtMs = whole(now + standbyGapOf(state.meta.seed, sb.attempt));
-  const i = SEQ_HOUSE.findIndex(c => c.id === 'go');
+  const i = cmdIndexOf(state, 'go');
   post(state, { atMs: sb.goAtMs, prio: 2, kind: 'range-cmd', src: 'arms:range', payload: { cmd: 'go', i } });
   R.next = { id: 'go', i, atMs: Math.floor(sb.goAtMs / 1000) * 1000 };
   return true;
@@ -1183,8 +1576,11 @@ function goNow(state, bus, { stop = true } = {}) {
   noteMind(state, 'clearing', { room: L.room, fromMs: now });
   // (on the Wreck the yard tug's pull, set now (its t0 GO's ms: gravity.js setProfile; the scene's `tug`, drawn from the seed in
   // whole seconds), its warning and onset the gravity's own events; the lane reads them (wreckRules))
-  if (H.ship === 'wreck') { const tug = SCENES[state.meta.scenario]?.tug ?? SCENES['test-zerocqb'].tug; setProfile(state, [tug]); H.tug = { warnAtMs: null, onsetAtMs: null, endAtMs: null, aft: {} }; }
+  if (shipOf(H)?.tug) { const tug = SCENES[state.meta.scenario]?.tug ?? SCENES[shipOf(H).scene].tug; setProfile(state, [tug]); H.tug = { warnAtMs: null, onsetAtMs: null, endAtMs: null, aft: {} }; }
   bus?.emit('house', { phase: 'go', room: L.room, who: pid, atMs: now });
+  // (aboard the boarding the leader opens the lock's inner hatch at GO, its leaf on its swing (the passage's man's cue))
+  // (with the holders the leader's own hand does it, at GO and his react.js goMs: combat/holders.js, C's)
+  if (H.boarding && !H.holders?.men?.length && L.door !== 'hall' && openingState(state, L.door) !== 'open') leaderOpens(state, bus, L.door, now);
   if (stop && !state.stop && gunOn(state, pid)) enterStop(state, bus, { pid, via: 'house' });
   // (on "Bang, then go" with the bang issued, room 1's door bundle starts with its bang at flash (the brief's default; bundle.js
   // variantHere keeps it for that door alone): T's room row carries it, and "No bang" is one press of its variant row)
@@ -1226,7 +1622,12 @@ export function houseActors(state, input, bus) {
       const outOfIt = !!H.live?.casualty;
       // (the Wreck: under the tug's warning his drill goes on as yours does once you take it up again; on the deckhead his own feet
       // aft (two.js voidTick halts his row for it), so nothing of the lane freezes him: frozen there, he was left behind the trunk)
-      if (!outOfIt && (!H.two.eng || H.two.eng.move) && !(H.two.doing && !H.two.doing.beats)) runSlot(state, bus, H.two, now);
+      // (aboard the boarding, Four down by his body (his stance 'down' on the one rule's 'real') walks no slot: his feet braked
+      // where he lies, as a casualty's (C's note: a bundle of yours begun after could start his slot again and walk him while he lies))
+      // (and once the boarding's fall back is called his slot is not run: his walk back to the lock is his own (two.js twoBack), and his
+      // slot started his stack-up at your stack again and again, holding that walk the whole wait (the fixer of v0.0.27's play review))
+      const twoDown = !!H.boarding && (a.stance === 'down' || !!H.boarding.fallback);
+      if (!outOfIt && !twoDown && (!H.two.eng || H.two.eng.move) && !(H.two.doing && !H.two.doing.beats)) runSlot(state, bus, H.two, now);
       else freeBody(state, H.two, a, now, true);
       // (a body-gap hold with nothing of his walks left to hold closed (bundle.js gapSettle: his walk ended where he stands))
       gapSettle(state, H.two, now);
@@ -1238,6 +1639,9 @@ export function houseActors(state, input, bus) {
       const v = Math.hypot(a.v?.[0] ?? 0, a.v?.[1] ?? 0);
       locoStep(a, a.$px, a.$pz, { state, pid: H.twoPid, gait: 'walk', stance: a.moveStance ?? 'combat', vMs: v > 0 ? v : null });
     }
+    // (the boarding team's holders after your number two, before the defenders (the build sheet item 4, §1 D: C's holderTick, each
+    // his own mover and locomotion; never under the casualty's beat, which the one rule's 'real' has none of))
+    for (const m of H.holders?.men ?? []) holderTick(state, bus, m.pid, now);
     // (v0.0.19: the role-players after your number two, before the instructor's walk (the build sheet v0.0.19 §3.3's tick order):
     // what they decide acts the next tick)
     if (H.live) opforTick(state, bus, R, H, now);
@@ -1262,7 +1666,7 @@ function standbyTick(state, bus, R, H, now) {
   if (now - sb.fromMs >= C.moveOnMs) {
     fault(state, bus, 'slow', 'warn', hashPick(HOUSE_CHIEF.stall, 'house-chief', state.meta.seed, 'standby'));
     sb.goAtMs = whole(now + TICK_MS);
-    const i = SEQ_HOUSE.findIndex(c => c.id === 'go');
+    const i = cmdIndexOf(state, 'go');
     post(state, { atMs: sb.goAtMs, prio: 2, kind: 'range-cmd', src: 'arms:range', payload: { cmd: 'go', i } });
     R.next = { id: 'go', i, atMs: Math.floor(sb.goAtMs / 1000) * 1000 };
   }
@@ -1292,7 +1696,7 @@ function triggers(state, bus, R, H, now) {
 
 // (a lane door open: its opening's state; v0.0.25, the Wreck's deck hatch (no opening in the plane) its own record's (A's places/hatch.js))
 function doorIsOpen(state, door, H = houseOf(state)) {
-  const h = H?.ship === 'wreck' ? hatchOf(state, door) : null;
+  const h = shipOf(H) ? hatchOf(state, door) : null;
   return h?.kind === 'deck' ? h.state === 'open' : openingState(state, door) === 'open';
 }
 
@@ -1306,7 +1710,7 @@ function doorIsOpen(state, door, H = houseOf(state)) {
 // (R.house.show) that chiefSees reads; the rest of the time as before.
 function chiefWalk(state, R, H, now = state.clock.ms) {
   // (the Wreck's cadre is in the gallery until the lane's end, then aboard and on the floor (wreckCadre))
-  if (H.ship === 'wreck') { wreckCadre(state, R, H, now); return; }
+  if (shipOf(H)?.staff === 'cadre') { wreckCadre(state, R, H, now); return; }
   const c = actorOf(state, H.chiefPid), cw = houseSpecOf(state).catwalk;
   if (!c || !cw?.path?.length) return;
   const L = curLeg(H), P = planOf(state, L);
@@ -1348,8 +1752,8 @@ function wreckCadre(state, R, H, now) {
   if (m && wreckDeckAt(m.x) !== wreckDeckAt(c.x)) {
     const end = trunkEnd(state, wreckDeckAt(c.x));
     if (end && Math.hypot(c.x - end[0], c.z - end[1]) <= HATCH_REACH_M) {
-      if (hatchState(state, WRECK_TRUNK_ID) !== 'open') setHatch(state, WRECK_TRUNK_ID, 'open', { atMs: now });
-      if (crossHatch(state, null, WRECK_TRUNK_ID, [H.chiefPid]).ok) { delete c.floatY; delete c.onFace; delete c.v; setAnchor(state, H.chiefPid, 'boots'); S.to = null; S.who = null; delete H.chief; }
+      if (hatchState(state, trunkIdOf(state)) !== 'open') setHatch(state, trunkIdOf(state), 'open', { atMs: now });
+      if (crossHatch(state, null, trunkIdOf(state), [H.chiefPid]).ok) { delete c.floatY; delete c.onFace; delete c.v; setAnchor(state, H.chiefPid, 'boots'); S.to = null; S.who = null; delete H.chief; }
       lookTick(state, R, H, insp, now);
       return;
     }
@@ -1370,7 +1774,7 @@ function wreckCadre(state, R, H, now) {
 const wreckDoors = (state) => (areaOf(state.places?.live?.area)?.openings ?? []).filter(o => leafTurns(o)).map(o => o.id);
 // (the trunk's end on a deck (A's places/hatch.js hatchOf: its near end and `far`), as [x, z], or null)
 function trunkEnd(state, deck) {
-  const h = hatchOf(state, WRECK_TRUNK_ID);
+  const h = hatchOf(state, trunkIdOf(state));
   if (!h) return null;
   return h.deck === deck ? h.at : h.far?.deck === deck ? h.far.at : null;
 }
@@ -1460,7 +1864,7 @@ export function inspectNext(state, H, key = 'show') {
  */
 export function chiefSees(state, H, pid, key = 'show') {
   // (the Wreck's cadre looks on the floor, as the sterile check does: no catwalk, the look all the same once he is aboard)
-  if (!H || !actorOf(state, H.chiefPid) || (key === 'show' && !houseSpecOf(state).catwalk?.path?.length && H.ship !== 'wreck')) return true;
+  if (!H || !actorOf(state, H.chiefPid) || (key === 'show' && !houseSpecOf(state).catwalk?.path?.length && !shipOf(H))) return true;
   if (pid !== playerId(state) && pid !== H.twoPid) return true;
   // (done, or met this tick: his eye in reach long enough at guns shown now, so the tower reads the look on the tick the show ends,
   // never a tick after it, when a pause would open between)
@@ -1621,12 +2025,15 @@ export function houseRules(state, input, bus, ctx = null) {
   // (FL22-1: SHOW CLEAR's skip begun on the tick your guns pass, not at the tower's next whole second (houseSecond's): a
   // second lived for nothing before the brief splash)
   if (H.end && R.cmd?.id === 'clear') showClearSecond(state, bus, ctx, R, H);
+  // (the boarding's own tick (collarTick): the override before GO, the send, the fall back and the ends after it)
+  if (H.boarding) collarTick(state, bus, R, H, now, ctx);
   if (H.goAtMs === null || H.end) return;
   // (the would-have bodies judged again by their blood (would.js wouldTick: a wound that bleeds a man into shock puts him down
   // at that tick, the hunt of v0.0.20's bleed-shock): a role-player sits down where he stands, you or your number two the casualty)
   if (H.live && !H.live.casualty) for (const who of wouldTick(state, now)) { const T = R.turners.find(t => t.live?.who === who); if (T) opforBled(state, bus, T, now); }
   // (v0.0.19: a casualty's beat runs alone to the lane's end, nothing else judged meanwhile (see casualtyTick))
-  if (H.live && casualtyTick(state, bus, R, H, now)) return;
+  // (never on the one rule's 'real': a round is the wound, "down" the body's own, never paint (realOf))
+  if (H.live && !realOf(state) && casualtyTick(state, bus, R, H, now)) return;
   // ("Bang, then go" past room 1's "Clear!", its search offered: nothing of a leg left to judge (breachSearchTick); before the
   // lane's time and dry ends, which would have ruled a room already called clear 'time' or 'dry' while the offer held its clock (the code
   // review of v0.0.26, finding 3))
@@ -1634,12 +2041,18 @@ export function houseRules(state, input, bus, ctx = null) {
   if (now - H.goAtMs >= LANE_MAX_MS) { laneEnd(state, bus, 'time'); return; }
   if (now % 1000 === 0 && roundsLeft(state) === 0 && R.stoppage?.cleared !== false) { laneEnd(state, bus, 'dry'); return; }
   noteContacts(state, H, now);
-  pars(state, bus, R, H, now);
+  // (no par is judged aboard the boarding: no par tones, no "he fired first" on a real deck (the review of D: the timer read
+  // "THE BUNK ROOM 13.3 PAR 36" and its cabins were marked missed))
+  if (!H.boarding) pars(state, bus, R, H, now);
+  // (the fall back called (collarTick's fallbackTick ends it in the lock or at its wait): no leg is judged any more, so no doorway,
+  // stall, bang or progress of a compartment you are leaving (the play review, finding 3: "Out of the door! You are a target in it." and
+  // the stall's "Move. The deck is not cleared standing still." over the walk back); the live men and the walks as ever)
+  if (H.boarding?.fallback) { if (H.live && !H.end) liveTick(state, bus, R, H, now); if (!H.end) maskTick(state, bus, H, now); return; }
   const L = curLeg(H), P = planOf(state, L);
   if (!L || !P) return;
   const two = actorOf(state, H.twoPid);
   // (the Wreck's own rules (wreckRules): the tug's warning and onset, the open middle, the deck hatch's coaming)
-  if (H.ship === 'wreck') wreckRules(state, bus, R, H, L, me, two, now);
+  if (shipOf(H)) wreckRules(state, bus, R, H, L, me, two, now);
   // (v0.0.18: a breaching tool still in the hands once its door is open, its force not running (a failed pry and the door then
   // opened another way): let go at your feet, the rifle up, as the force's own end does (never a lane carried with a bar in hand))
   const tool = handDeviceOf(state, pid);
@@ -1722,7 +2135,7 @@ function wreckRules(state, bus, R, H, L, me, two, now) {
     }
     if (g && g.phase === 'onset' && T0.onsetAtMs === null) {
       T0.onsetAtMs = now;
-      if (bootsLocked(state, pid) && onFaceOf(state, pid) === 'deckhead') houseFault(state, bus, 'aft', WRECK_CHIEF.aft, L);
+      if (bootsLocked(state, pid) && onFaceOf(state, pid) === 'deckhead') houseFault(state, bus, 'aft', shipOf(H).words.aft, L);
       if (two && bootsLocked(state, H.twoPid) && onFaceOf(state, H.twoPid) === 'deckhead') H.two.notAft = (H.two.notAft ?? 0) + 1;
     }
     if (T0.onsetAtMs !== null && T0.endAtMs === null && (!g || g.phase === 'off')) {
@@ -1739,7 +2152,7 @@ function wreckRules(state, bus, R, H, L, me, two, now) {
   // fixture face within reach in the plane))
   if (L.state !== 'clear' && L.state !== 'passed' && openMiddleOf(state, pid)) {
     H.openRunMs = (H.openRunMs ?? 0) + TICK_MS;
-    if (H.openRunMs >= OPEN_MS && !hasFault(L, 'open')) houseFault(state, bus, 'open', WRECK_CHIEF.open, L);
+    if (H.openRunMs >= OPEN_MS && !hasFault(L, 'open')) houseFault(state, bus, 'open', shipOf(H).words.open, L);
   } else H.openRunMs = 0;
   // (the deck hatch's coaming, on the far side of the trunk until your boots are down; the count held, neither run nor reset, while
   // you plant or change face (the 'face:' rows, the drill's 'plant' and 'onface' beats), or work a man (a shot row's tail, a
@@ -1749,7 +2162,7 @@ function wreckRules(state, bus, R, H, L, me, two, now) {
   const far = trunkFar(state);
   if (far && Math.hypot(me.x - far[0], me.z - far[1]) <= HATCH_COAMING_M && !bootsLocked(state, pid) && !R.turners.some(T => legOf(T) === H.cur && THREAT_FACES.includes(T.face) && T.stoppedAtMs === null && facingOf(T, now) > 0)) {
     if (!busyInHatch(state)) H.hatchRunMs = (H.hatchRunMs ?? 0) + TICK_MS;
-    if (H.hatchRunMs >= FUNNEL_FAULT_MS && !hasFault(L, 'hatch')) houseFault(state, bus, 'hatch', WRECK_CHIEF.hatch, L);
+    if (H.hatchRunMs >= FUNNEL_FAULT_MS && !hasFault(L, 'hatch')) houseFault(state, bus, 'hatch', shipOf(H).words.hatch, L);
   } else H.hatchRunMs = 0;
 }
 // (you at work the hatch's count leaves alone: planting or changing face (a 'face:' row, a running beat of the drill's 'plant' or
@@ -1760,12 +2173,12 @@ function busyInHatch(state) {
   return !!d && (HATCH_BUSY.test(String(d.step ?? '')) || !!d.beats?.some(b => b.st === 'run' && (b.k === 'plant' || b.k === 'onface')));
 }
 // (the hot wash's own words: the Wreck's, where you stand on your boots, else the house's "Sit down, look at the board.")
-const washWords = (H) => (H?.ship === 'wreck' ? WRECK_CHIEF.wash : HOUSE_CHIEF.wash);
-// (the trunk's id: the deck hatch between the Wreck's decks (A's data))
-const WRECK_TRUNK_ID = WRECK_TRUNK.id;
-// (the trunk's far end in the plan, the hold's side (A's places/hatch.js hatchOf's `far`), or null off the Wreck's trunk)
+const washWords = (H) => (shipOf(H) ? shipOf(H).words.wash : HOUSE_CHIEF.wash);
+// (the trunk's id: the deck hatch between a ship's decks, its row's first trunk (the Wreck's, A's data of v0.0.25)), or null for a ship with none
+const trunkIdOf = (state) => shipOf(houseOf(state))?.trunks?.[0]?.id ?? null;
+// (the trunk's far end in the plan, the hold's side (A's places/hatch.js hatchOf's `far`), or null off a ship's trunk)
 function trunkFar(state) {
-  const h = hatchOf(state, WRECK_TRUNK_ID);
+  const id = trunkIdOf(state), h = id ? hatchOf(state, id) : null;
   return h?.far?.at ?? null;
 }
 
@@ -1825,12 +2238,15 @@ function liveDazeOf(state, T, atMs) {
 // leg's door, "ON THE BANG 1.20 S", else "BANG TO ENTRY 2.40 S" (a fault: "you gave them back the bang"); only that leg's own
 // throw, not one slipped at your feet (the review of 2026-11-16: any flash in the leg's room counted, of any age, and a throw
 // for room 1 that burst in the hall fined the hall's leg 63.48 s))
+// (aboard a ship the window is BANG_LATE_SHIP_MS: the entry is walked on mag boots (MAG_BOOTS.WALK_MS 0.5 m/s) from a hatch's stack 1.6 m
+// out and over its coaming (COAMING_MS 0.6 s), 3.8 s at the honest pace where the house's door is under 1 s of walk; the v0.0.27 play
+// review, finding 2: every T entry aboard, 2.96 to 3.46 s from the bang, was faulted "You gave them back the bang", which no entry could meet)
 function bangToEntry(state, bus, H, L, now) {
   const B = L.door ? (H.bursts ?? []).filter(b => b.thrown === L.door && !b.atFeet && DEVICES[b.model]?.flash && b.atMs <= now).at(-1) : null;
   if (!B) return;
   const dt = now - B.atMs;
   L.bangMs = dt;
-  if (dt > BANG_LATE_MS) { (L.kit ??= []).push(`BANG TO ENTRY ${s2(dt)} S`); houseFault(state, bus, 'bang', `${s2(dt)} seconds from the bang. You gave them back the bang.`, L); }
+  if (dt > (shipOf(H) ? BANG_LATE_SHIP_MS : BANG_LATE_MS)) { (L.kit ??= []).push(`BANG TO ENTRY ${s2(dt)} S`); houseFault(state, bus, 'bang', `${s2(dt)} seconds from the bang. You gave them back the bang.`, L); }
   else (L.kit ??= []).push(`ON THE BANG ${s2(dt)} S`);
 }
 
@@ -1870,7 +2286,8 @@ export function liveTick(state, bus, R, H, now) {
   // marine then joins it whenever it lands), `lastMs` his last round's time (the B and C review of 2026-11-16: the fuzz private on 7
   // live heard "You took paint, chest. Keep working." 1,950 ms before the cease fire, the man's next pair, planned on the tick after
   // his strike, fatal 850 ms after it; the fields additive, absent on a call that never waited)
-  const struck = LV.struck ?? [], said = (LV.said ??= {});
+  const struck = realOf(state) ? [] : LV.struck ?? [], said = (LV.said ??= {});
+  // (on the one rule's 'real' no paint is called: struck is read as none (realOf), so nothing is owed or said)
   for (let i = said.paint ?? 0; i < struck.length; i++) {
     const x = struck[i], w = LV.would?.log?.find(e => e.shotId === x.shotId && e.on === x.who), at = Number.isFinite(x.atMs) ? x.atMs : now, D = LV.paintDue;
     // (the part as the would-have has it (its `where`: "right arm", "belly"), the zone's where it has none (the review of v0.0.20's
@@ -1881,7 +2298,7 @@ export function liveTick(state, bus, R, H, now) {
     if (D) paintCall(state, bus, LV);
     LV.paintDue = { atMs: at, n: 1, part, stopped: w?.why === 'stopped', who: x.who ?? null, i, ...(x.by ? { by: x.by } : {}) };
   }
-  said.paint = struck.length;
+  if (!realOf(state)) said.paint = struck.length;
   const D = LV.paintDue;
   if (D && now >= D.atMs + PAINT_CALL_MS) {
     const left = paintRoundsLeft(R, D);
@@ -1940,7 +2357,8 @@ export function liveTick(state, bus, R, H, now) {
     }
     // (a man of a leg already over, up, a threat, seen again by either of you: the room reopened, once a man)
     const k = legOf(T);
-    if (k < H.cur && T.face !== 'noshoot' && (seenMe || seenTwo) && upNow(T, now) && (LV.reopened ??= {})[T.key] === undefined) {
+    // (never the boarding's passage, held by the team: its man is the holders' fight (holdLeg))
+    if (k < H.cur && !legsOf(H)[k]?.held && T.face !== 'noshoot' && (seenMe || seenTwo) && upNow(T, now) && (LV.reopened ??= {})[T.key] === undefined) {
       LV.reopened[T.key] = now;
       const words = fill(hashPick(HOUSE_CHIEF.reopened, 'house-chief', state.meta.seed, 'reopened', T.key), { Room: capWord(legSaid(H, k)) });
       houseFault(state, bus, 'reopened', words, curLeg(H));
@@ -2221,29 +2639,33 @@ function liveShot(state, bus, H, L, T, shot, mine, tally) {
     tally(shot.down ? 'headDown' : shot.ring && !shot.through ? 'ring' : shot.zone);
     if (!gave) T.firstAtMs ??= shot.atMs;
   }
-  const hit = T.stoppedAtMs === null ? opforHit(state, bus, T, shot) : null;
+  // (on the one rule's 'real' a round at a man already down still meets his body (opforHit counts a round once): no paper stop
+  // stands between a real round and the man (A's note))
+  const hit = T.stoppedAtMs === null || realOf(state) ? opforHit(state, bus, T, shot) : null;
   // (a round of yours his soft panel stopped (a 9×21 ball's, nearly always) is said, once a man, so you know why he
   // fights on with your paint on his chest; the instructor names no remedy)
   const said = H.live && (H.live.said ??= {});
-  if (mine && hit?.would?.why === 'stopped' && said && !(said.hisPanel ??= {})[T.key]) { said.hisPanel[T.key] = shot.atMs ?? state.clock.ms; chiefSays(state, bus, HOUSE_CHIEF.hisPanel, 'hisPanel', T.key); }
+  if (!realOf(state) && mine && hit?.would?.why === 'stopped' && said && !(said.hisPanel ??= {})[T.key]) { said.hisPanel[T.key] = shot.atMs ?? state.clock.ms; chiefSays(state, bus, HOUSE_CHIEF.hisPanel, 'hisPanel', T.key); }
 }
 
 // (the live men of leg k at its end: passed by the stall, every man of it ruled out; cleared, each down or with his hands up ruled
 // out ("He's out."), a man still up never (he may reopen it); a man of a reopened room with them)
 function liveLegEnd(state, bus, H, k, how) {
   const R = rangeOf(state), LV = H.live;
-  let out = 0;
+  let out = 0, downs = 0;
   const outs = [];
   for (const T of R.turners) {
     if (!isLive(T) || (legOf(T) !== k && LV.reopened?.[T.key] === undefined)) continue;
     if (accountedOf(state, T) === 'out') continue;
     if (how === 'passed') ruleOut(state, bus, T, 'passed');
-    else if (downOrHands(state, T, state.clock.ms)) { ruleOut(state, bus, T, 'clear'); out++; outs.push(String(T.stand).toUpperCase()); }
+    else { const was = downOrHands(state, T, state.clock.ms); if (was) { ruleOut(state, bus, T, 'clear'); out++; outs.push(String(T.stand).toUpperCase()); if (was === 'down') downs++; } }
   }
   // ("Bang, then go": the men named, "1A and 1B, you are out.", since the instructor stands beside you and "You, out." read as
   // said to you (the play review of v0.0.26, finding 10); the live lane's words as they were)
   if (out && H.bangGo) chiefSays(state, bus, fill(hashPick(BREACH_CHIEF.out, 'house-chief', state.meta.seed, 'out', k), { men: outs.join(' and ') }));
-  else if (out) chiefSays(state, bus, HOUSE_CHIEF.out, 'out', k);
+  // (aboard, men who gave up unhurt are not left for the corpsman: the leader's own words for them (the v0.0.27 play review, finding 5:
+  // "He is done. Leave him for the corpsman." over a crewman who had surrendered unhurt))
+  else if (out) chiefSays(state, bus, (!downs && shipOf(H)?.words?.outHands) || chiefLines(H, 'out'), 'out', k);
 }
 
 // (the muzzle's 3-D line over the #2's body as he stands, kneels or lies: carry.js flagsAt, the DI's rule too)
@@ -2273,8 +2695,8 @@ function sayOwed(state, bus, H) {
   while (H.owed.length && !pendingOf(state)) {
     const o = H.owed.shift(), text = typeof o === 'string' ? o : o?.text;
     if (o?.kind === 'paint' && paintLate(H)) continue;
-    const R = rangeOf(state);
-    sayOn(state, bus, { who: R.coachId, text, kind: 'speech' });
+    const R = rangeOf(state), who = voiceOf(state, R, H);
+    if (who) sayOn(state, bus, { who, text, kind: 'speech' });
     H.said = { text, atMs: state.clock.ms };
     return;
   }
@@ -2397,7 +2819,7 @@ function passLeg(state, bus, H, L, now) {
   // footing's, 'footing', never the door's or the stack's lesson)
   const w = footless(state) ? 'footing' : passWhyOf(L);
   if (w) L.passWhy = w;
-  houseFault(state, bus, 'time', HOUSE_CHIEF.time, L);
+  houseFault(state, bus, 'time', chiefLines(H, 'time'), L);
   endLeg(state, bus, H, L, 'passed', now);
 }
 // (your legs have nothing to push on where you stand (0 G with no boots locked: motion.js legsAt through bundle.js legsOf), so no walk
@@ -2411,7 +2833,7 @@ function stall(state, bus, R, H, L, now) {
     bus?.emit('house', { phase: 'stall', room: L.room, who: playerId(state), atMs: now });
     // (the fixer of v0.0.24's play review, M1: "Move. You are clearing, not visiting." beside "No footing here." where you could not
     // move: with your legs on nothing the instructor says why he moves you on)
-    chiefSays(state, bus, footless(state) ? HOUSE_CHIEF.stallFooting : HOUSE_CHIEF.stall, 'stall', L.room);
+    chiefSays(state, bus, footless(state) ? HOUSE_CHIEF.stallFooting : chiefLines(H, 'stall'), 'stall', L.room);
   }
   if (due !== null && now >= due) {
     L.dueSaid = true;
@@ -2498,7 +2920,8 @@ export function clearGateOf(state, door, ms = state.clock.ms) {
   // (the Wreck: your number two still on the other deck (his transit not made): a compartment is never called clear without
   // him, and the lane never goes on to the next with him left behind the trunk, 60 m off in the plan (the sergeant on 1074: the tug's
   // warning held his transit, the hold was called clear over him, and he walked deck 5 toward the store's stack until the stall))
-  if (H.ship === 'wreck' && H.twoPid) { const a = actorOf(state, H.twoPid), deck = WRECK_LEGS[k]?.deck; if (a && deck && wreckDeckAt(a.x) !== deck) return 'two'; }
+  const ship = shipOf(H);
+  if (ship && H.twoPid) { const a = actorOf(state, H.twoPid), deck = ship.legs?.[k]?.deck; if (a && deck && shipDeckAt(ship.id, a.x) !== deck) return 'two'; }
   // (v0.0.19: the live men as the team perceives them: down or with his hands up and not covered, or seen and now unaccounted for)
   return H.live ? liveGateOf(state, H, k, ms) : null;
 }
@@ -2566,8 +2989,8 @@ function endLeg(state, bus, H, L, how, now) {
     // hall); and never once the casualty has opened (FL22-3: no lane word of his over a marine down)
     if (H.twoPid && !twoCalledIn(H, L) && !H.live?.casualty) { sayOn(state, bus, { who: H.twoPid, text: 'Clear!', kind: 'speech' }); L.calls.push({ say: 'clear', atMs: now, by: 'two', how: 'echo' }); }
     // (on the Wreck the last compartment of a deck cleared, your "Deck five clear!" (a bubble at you, as every call))
-    const W0 = H.ship === 'wreck' ? WRECK_LEGS[k] : null;
-    if (W0 && WRECK_LEGS[k + 1]?.deck !== W0.deck) sayOn(state, bus, { who: playerId(state), text: fill(hashPick(WRECK_CHIEF.deck, 'house-chief', state.meta.seed, 'deck', W0.deck), { n: DECK_WORDS[W0.deck] ?? W0.deck }), kind: 'speech' });
+    const ship = shipOf(H), W0 = ship ? ship.legs?.[k] : null;
+    if (W0 && ship.legs[k + 1]?.deck !== W0.deck) sayOn(state, bus, { who: playerId(state), text: fill(hashPick(ship.words.deck, 'house-chief', state.meta.seed, 'deck', W0.deck), { n: DECK_WORDS[W0.deck] ?? W0.deck }), kind: 'speech' });
   }
   H.stallAtMs = now;
   // ("Bang, then go" ends at room 1 (its build sheet §1 item 1): the legs past it left 'ahead' and never opened, the lane's cur
@@ -2575,16 +2998,22 @@ function endLeg(state, bus, H, L, how, now) {
   if (H.bangGo && k === 0) { H.cur = legsOf(H).length; breachLaneEnd(state, bus, H, how, now); return; }
   H.cur = k + 1;
   const next = legsOf(H)[H.cur];
+  // (the boarding's last compartment: the deck secured once every armed man is accounted for (collarTick waits on the rest,
+  // the holders' fight in the passage or a man still up), never ended by your call alone; a compartment passed ends it 'passed')
+  // (and never while the fall back is called: that ends it in the lock (fallbackTick))
+  if (!next && H.boarding) { if (H.boarding.fallback) noteMind(state, 'clearing', null); else if (how !== 'clear') collarEnd(state, bus, H, 'passed', now); else if (securedNow(state, R, H)) collarEnd(state, bus, H, 'clear', now); else noteMind(state, 'clearing', null); return; }
   if (!next) { laneEnd(state, bus, how === 'clear' ? 'clear' : 'passed'); return; }
   // (the Wreck: a leg on a deck you are not on, that no hatch of its own takes you to (the store, with the hold passed and you
   // still on deck 5): no way there but the trunk the lane has left behind, so it is passed with it; a walk planned there went straight
   // through the hull, 60 m across the gap between the decks (the fuzz on 48213))
-  const meNow = playerActor(state), W1 = H.ship === 'wreck' ? WRECK_LEGS[H.cur] : null;
-  if (W1 && meNow && W1.entry !== 'deck hatch' && wreckDeckAt(meNow.x) !== W1.deck) { endLeg(state, bus, H, next, 'passed', now); return; }
+  const shipNow = shipOf(H), meNow = playerActor(state), W1 = shipNow ? shipNow.legs?.[H.cur] : null;
+  if (W1 && meNow && W1.entry !== 'deck hatch' && shipDeckAt(shipNow.id, meNow.x) !== W1.deck) { endLeg(state, bus, H, next, 'passed', now); return; }
   next.fromMs = now;
   if (next.door === 'hall') next.state = 'open';
   noteMind(state, 'clearing', { room: next.room, fromMs: now });
   R.cueAtMs = now;
+  // (aboard the boarding the leader sends your pair to the next compartment, "Three, Four: the bunk room. Go.")
+  if (H.boarding) leaderSays(state, bus, 'send', { room: legSaid(H, H.cur) }, 'send', H.cur);
 }
 
 // (whether your number two called his own "Clear!" in leg L (FL22-4): his Dominate on its door swept to its end (bundle.js
@@ -2615,7 +3044,7 @@ function laneEnd(state, bus, why) {
   noteMind(state, 'clearing', null);
   // (a bundle running hands back at the lane's end: COMBAT §25.8.2's 'lane-end')
   if (state.stop?.doing?.beats || state.stop?.flow) handBack(state, bus, 'lane-end');
-  if (why === 'time') houseFault(state, bus, 'time', HOUSE_CHIEF.laneTime, curLeg(H));
+  if (why === 'time') houseFault(state, bus, 'time', chiefLines(H, 'laneTime'), curLeg(H));
   if (why === 'dry') chiefSays(state, bus, HOUSE_CHIEF.dry, 'dry');
   // (v0.0.19, D2: why 'burst', the stack in a practice grenade's read, is a cease fire with its card: the words said by the read, house-kit.js)
   chargesLeft(state, bus, H);
@@ -2740,10 +3169,14 @@ export function houseShot(state, bus, shot) {
   const R = rangeOf(state), H = R?.house;
   if (!R || !H) return;
   const pid = playerId(state), mine = (shot.who ?? pid) === pid, T = shot.target ? R.turners.find(x => x.key === shot.target) ?? null : null, now = state.clock.ms;
+  // (C: a holder's round (the boarding team's #1 or #2, combat/holders.js): counted on his own record there, never on your #2's,
+  // its hit on a man named by the holder's pid with the flag `holder` (so the real strike has its shooter: would.js shooterPid, the card,
+  // the hot wash; the review of v0.0.27); through the rest of the path as your #2's)
+  const holder = !mine && (H.holders?.men ?? []).some(m => m.pid === shot.who);
   // (the Wreck: the anchor each round was fired from (its build sheet §1 items 4 and 13; F126): the row the recoil was read on
   // (shot.js's own, kept on the shot by recoilFloat), else the footing's now (planted or braced keep nothing, so no recoil field), the
   // #2's grip named apart ('buddy'); absent on every house lane, whose shots and pins stay as they were)
-  const anchor = H.ship === 'wreck' && shot.fired ? roundAnchor(state, shot.who ?? pid, shot) : null;
+  const anchor = shipOf(H) && shot.fired ? roundAnchor(state, shot.who ?? pid, shot) : null;
   if (shot.fired) {
     if (mine) {
       const issue = state.armoury.ammoIssues.find(a => a.id === R.issueId);
@@ -2753,7 +3186,7 @@ export function houseShot(state, bus, shot) {
         ...(anchor === 'floating' && shot.recoil ? { kick: { dvMs: shot.recoil.dvMs, keptMs: shot.recoil.keptMs, spinRads: shot.recoil.spinRads, keptRads: shot.recoil.keptRads, moved: !!shot.recoil.moved } } : {}) });
       if (R.shots.length > 100) R.shots.splice(0, R.shots.length - 100);
       if (!R.hot && !R.end) houseFault(state, bus, 'cold', null);
-    } else {
+    } else if (!holder) {
       // (his rounds kept on his record, the last TWO_SHOTS_KEPT: the turners' hits name them)
       H.two.fired += 1;
       (H.two.shots ??= []).push({ id: shot.id, atMs: shot.atMs, key: shot.target ?? null });
@@ -2775,15 +3208,25 @@ export function houseShot(state, bus, shot) {
   if (anchor) {
     if (mine) {
       if (L && L.firstAnchor === undefined) L.firstAnchor = anchor;
-      if (anchor === 'floating') { H.floatRounds = (H.floatRounds ?? 0) + 1; if (L) L.floatRounds = (L.floatRounds ?? 0) + 1; if (!hasFault(L, 'float')) houseFault(state, bus, 'float', WRECK_CHIEF.float, L); }
-    } else if (anchor === 'floating') H.two.floatRounds = (H.two.floatRounds ?? 0) + 1;
+      if (anchor === 'floating') { H.floatRounds = (H.floatRounds ?? 0) + 1; if (L) L.floatRounds = (L.floatRounds ?? 0) + 1; if (!hasFault(L, 'float')) houseFault(state, bus, 'float', shipOf(H).words.float, L); }
+    } else if (!holder && anchor === 'floating') H.two.floatRounds = (H.two.floatRounds ?? 0) + 1;
   }
   const zone = shot.zone ?? null, part = shot.part ?? 'torso', hit = !!T && zone !== null;
-  const tally = (z) => { if (!L) return; const Z = mine ? L.zones : L.twoZones; Z[z] = (Z[z] ?? 0) + 1; };
+  const tally = (z) => { if (!L || holder) return; const Z = mine ? L.zones : L.twoZones; Z[z] = (Z[z] ?? 0) + 1; };
   if (L && mine) L.rounds += 1;
-  if (!hit) { tally('miss'); return; }
-  T.hits.push({ shotId: shot.id, part, zone, ring: !!shot.ring, through: !!shot.through, at: shot.hole?.at ?? null, atMs: shot.atMs, by: mine ? 'me' : 'two' });
-  if (mine) H.lastHitMs = shot.atMs; else H.two.hits += 1;
+  // (the boarding (its build sheet item 10, §0 item 19; COMBAT §7.10): a round of yours at a man down, with his hands up or
+  // unarmed (opfor.js protectedOf: his own record, as every marine sees it, a crewman from his first tick (FT§4: no-shoot from the start),
+  // a man down or giving up PROTECTED_AFTER_MS after it, so a man who drops his rifle as you fire is not your fault), hit or miss, is the
+  // fault 'protected', its card words by why; your number two's and the holders' never fire one (F155 counts them))
+  if (H.boarding && mine && isLive(T)) {
+    const why = protectedOf(state, T, shot.atMs ?? now, { by: pid });
+    if (why) { (H.boarding.protected ??= []).push({ shotId: shot.id, key: T.key, why, atMs: shot.atMs ?? now }); houseFault(state, bus, 'protected', null, L); if (L) (L.kit ??= []).push(PROTECTED_CARD[why] ?? PROTECTED_CARD.down); }
+  }
+  // (aboard the boarding a round that strikes no body meets the first face on its line and ends there, dust or a hole
+  // (holes.js missFace, B's: the boarding's record and counts, the puff); nothing behind it is struck)
+  if (!hit) { tally('miss'); if (H.boarding) missFace(state, shot, bus); return; }
+  T.hits.push({ shotId: shot.id, part, zone, ring: !!shot.ring, through: !!shot.through, at: shot.hole?.at ?? null, atMs: shot.atMs, by: mine ? 'me' : holder ? shot.who : 'two', ...(holder ? { holder: true } : {}) });
+  if (mine) H.lastHitMs = shot.atMs; else if (!holder) H.two.hits += 1;
   // (v0.0.19: a role-player, never a stand's sensor nor its turn away (see liveShot))
   if (isLive(T)) { liveShot(state, bus, H, L, T, shot, mine, tally); return; }
   if (T.face === 'noshoot') { tally('noshoot'); houseFault(state, bus, 'noshoot', HOUSE_CHIEF.noshoot, L); return; }
@@ -2845,6 +3288,8 @@ export function houseSecond(state, bus, ctx) {
   const id = R.cmd?.id;
   if (id === 'standby' && H.goAtMs === null) return true;
   if (id === 'go' && !H.end) return true;
+  // (the override is the scene's clock, behind its splash (collarTick): no nudge, no move-on until the lock has cycled)
+  if (id === 'override' && H.boarding?.collar?.alertAtMs === null) return true;
   // (FL22-1: at Stop the tower waits for the instructor to stand over you (he walks there from the lane's end), so its
   // UNLOAD, SHOW CLEAR finds him where he can see your port; as long as he is walking to you, no longer)
   const me = playerId(state);
@@ -2992,12 +3437,12 @@ export function standBookOf(state, T, { pid = playerId(state), gunId = null } = 
   // (the Wreck: the anchor's time (its build sheet §8 F134): the pair's recovery on the footing the lane is fired from, the
   // boots' (shot.js ANCHORS magBoots, recover 1.2) against the planted feet's: the boots' 444 ms against 386, the part of it the anchor
   // adds (recoverMs × (1 − 1 / recover)); none where the footing is planted, so no house stand's book moves)
-  if (houseOf(state)?.ship === 'wreck' && THREAT_FACES.includes(T.face)) { const a = anchorOf(state, pid, { gunId: g }).recover, r = pullMsOf(state, pid, g, 2).recoverMs; if (a > 1) parts.push({ why: 'anchor', ms: whole(r * (1 - 1 / a)) }); }
+  if (shipOf(houseOf(state)) && THREAT_FACES.includes(T.face)) { const a = anchorOf(state, pid, { gunId: g }).recover, r = pullMsOf(state, pid, g, 2).recoverMs; if (a > 1) parts.push({ why: 'anchor', ms: whole(r * (1 - 1 / a)) }); }
   // (and through a deck hatch (the hold): the men are in sight from the trunk, but no round is anchored before the plant on the far face
   // (drills/void.js faceMsOf from floating, the tuck and the lock, 1.2 s; bundle.js's plant beat, and its two ticks: the beat's own end
   // and the pause before the next row), so a hold's man is booked the plant as a far man is booked his (the T sheets' 3b missed by 1.0 to
   // 1.3 s on every seed, all of it the plant's: the raider's on 48213 from the trunk's sight to his first round 2.26 s, the plant 1.25)
-  if (houseOf(state)?.ship === 'wreck' && THREAT_FACES.includes(T.face) && P?.hatch) parts.push({ why: 'plant', ms: faceMsOf(false) + PLANT_TICKS * TICK_MS });
+  if (shipOf(houseOf(state)) && THREAT_FACES.includes(T.face) && P?.hatch) parts.push({ why: 'plant', ms: faceMsOf(false) + PLANT_TICKS * TICK_MS });
   return { takeInMs: takeInOf({ wf: sheetOf(state, pid)?.os ?? 0, expect: 'area' }).ms, rowMs: row(rowOfFace(T.face)), gapMs: T.trigger?.kind === 'door' || T.trigger?.kind === 'zone' ? T.trigger.gapMs ?? 0 : 0, parts, dM };
 }
 const bookOf = (state, H, T) => H?.books?.[T.stand] ?? (T.$book ??= standBookOf(state, T));
@@ -3122,7 +3567,8 @@ const setUpStand = (H, T) => !!legsOf(H)[legOf(T)]?.setup;
 export function sheetStandard(state) { return houseOf(state)?.par ?? null; }
 export function houseVerdict(state, { standard = sheetStandard(state) } = {}) {
   const R = rangeOf(state), H = R?.house;
-  if (!H || !H.end) return { go: null, why: [] };
+  // (no instructor's verdict aboard the boarding: a real op has its end, never a GO or a NO-GO (the card's head says it))
+  if (!H || !H.end || H.boarding) return { go: null, why: [] };
   const std = standard && standard !== H.par && Number.isFinite(PAR_MS[standard]) ? standard : null;
   const legs = legsOf(H), n = (kind) => sum(legs.map(L => L.faults.filter(f => f.kind === kind).length)), why = [];
   if (legs.some(L => L.setup)) why.push('setup');
@@ -3228,16 +3674,19 @@ function legView(state, H, L, k, now) {
     takeIns, firsts, par: threats.length ? (threats.every(c => c.parMet === true) ? 'met' : threats.some(c => c.parMet === false) ? 'missed' : 'open') : null,
     parMissed: threats.filter(c => c.parMet === false).length, parMissedMine: threats.filter(c => c.parMet === false && ownerOf(state, turnerAt(state, c.stand)) === 1).length,
     // (the card: the room's par (legParOf), the pars met within the instructor's click (its longest, ms), and your missed pars by cause)
-    parMs: legParOf(state, H, L), clickMs: Math.max(0, ...threats.filter(c => c.parMet === true && c.click > 0).map(c => c.click)) || null,
+    parMs: H.boarding ? null : legParOf(state, H, L), clickMs: Math.max(0, ...threats.filter(c => c.parMet === true && c.click > 0).map(c => c.click)) || null,
     causes: threats.filter(c => c.parMet === false && ownerOf(state, turnerAt(state, c.stand)) === 1).reduce((o, c) => { const k = c.cause ?? 'par'; o[k] = (o[k] ?? 0) + 1; return o; }, {}),
-    zones: { ...L.zones }, twoZones: { ...L.twoZones }, rounds: L.rounds, corners: { covered, of: hot.length, by: { ...Object.fromEntries(Object.entries(L.covered).map(([h, c]) => [h, c.by])) } },
+    // (aboard no paper zone is read off a man (the timer's "2 A" on the boarding, the review of D): the leg's own record keeps them)
+    zones: H.boarding ? {} : { ...L.zones }, twoZones: H.boarding ? {} : { ...L.twoZones }, rounds: L.rounds, corners: { covered, of: hot.length, by: { ...Object.fromEntries(Object.entries(L.covered).map(([h, c]) => [h, c.by])) } },
     doorwayMs: L.funnelMs, faults: L.faults.map(f => ({ ...f })), presses: L.presses, pressAbout: { ...L.pressAbout }, how: { ...L.how }, seen: new Set(L.contacts.map(c => c.key)).size,
-    contacts: L.contacts.map(c => ({ ...c, ...(THREAT_FACES.includes(c.face) ? { parMs: parOf(state, rangeOf(state).turners.find(T => T.key === c.key), H).ms, ...parLeftOf(state, H, L, c, now) } : {}) })), inner: L.inner, kit: [...(L.kit ?? []), ...teamMarks(state, H, L)], bangMs: L.bangMs ?? null,
+    contacts: L.contacts.map(c => ({ ...c, ...(THREAT_FACES.includes(c.face) && !H.boarding ? { parMs: parOf(state, rangeOf(state).turners.find(T => T.key === c.key), H).ms, ...parLeftOf(state, H, L, c, now) } : {}) })), inner: L.inner, kit: [...(L.kit ?? []), ...teamMarks(state, H, L)], bangMs: L.bangMs ?? null,
     ...(H.live ? { live: liveLegOf(state, H, k) } : {}),
     // (carried FH-2: why a passed leg was passed, 'stack' | 'door' | 'room'; absent on a leg not passed, or the hall)
     ...(L.passWhy ? { passWhy: L.passWhy } : {}),
+    // (the boarding's passage, held by the team (holdLeg); absent on every other leg)
+    ...(L.held ? { held: true } : {}),
     // (the Wreck's row: its entry ("bulkhead hatch", "deck hatch") and the anchor of your first round in it (null: none fired))
-    ...(H.ship === 'wreck' ? { entry: WRECK_LEGS[k]?.entry ?? null, deck: WRECK_LEGS[k]?.deck ?? null, firstAnchor: L.firstAnchor ?? null } : {}),
+    ...(shipOf(H) ? { entry: shipOf(H).legs?.[k]?.entry ?? null, deck: shipOf(H).legs?.[k]?.deck ?? null, firstAnchor: L.firstAnchor ?? null } : {}),
   };
 }
 /** The card's word for the anchor a round was fired from (v0.0.25; roundAnchor's rows): "BRACED (#2)" for your number two's grip. */
@@ -3292,7 +3741,9 @@ function worstOf(state, xs) {
 }
 // (a leg's live words: "LIVE: 1 DOWN · PAINT ON YOU 1 (WOUNDED) · HIS FIRST ROUND 0.40 S BEFORE YOURS"; his round and yours on the one
 // tick "FIRST ROUNDS TOGETHER", never "YOURS 0.00 S BEFORE HIS" (the hunt of v0.0.20, gap-zero: the sergeant's room 3 by T on 48213))
-const liveWords = (V) => (V ? [`LIVE: ${V.down} DOWN${V.hurt ? `, ${V.hurt} WOUNDED` : ''}${V.gave ? `, ${V.gave} GAVE UP` : ''}`, `PAINT ON YOU ${V.paint}${V.paint && V.paintWould ? ` (${V.paintWould})` : ''}`, V.paintTwo ? `PAINT ON YOUR #2 ${V.paintTwo}${V.paintTwoWould ? ` (${V.paintTwoWould})` : ''}` : null,
+// (`real` aboard the boarding: the men's count alone, "1 DOWN, 1 GAVE UP": no paint on a real deck and no first-round race (the
+// user's rule of 2026-11-16, no paint aboard; the review of D read "PAINT ON YOU 8 (WOUNDED)" on its card))
+const liveWords = (V, real = false) => (V && real ? [`${V.down} DOWN${V.hurt ? `, ${V.hurt} WOUNDED` : ''}${V.gave ? `, ${V.gave} GAVE UP` : ''}`] : V ? [`LIVE: ${V.down} DOWN${V.hurt ? `, ${V.hurt} WOUNDED` : ''}${V.gave ? `, ${V.gave} GAVE UP` : ''}`, `PAINT ON YOU ${V.paint}${V.paint && V.paintWould ? ` (${V.paintWould})` : ''}`, V.paintTwo ? `PAINT ON YOUR #2 ${V.paintTwo}${V.paintTwoWould ? ` (${V.paintTwoWould})` : ''}` : null,
   V.gapMs === null ? null : V.gapMs > 0 ? `HIS FIRST ROUND ${s2(V.gapMs)} S BEFORE YOURS` : V.gapMs < 0 ? `YOURS ${s2(-V.gapMs)} S BEFORE HIS` : 'FIRST ROUNDS TOGETHER'].filter(Boolean) : []);
 const turnerFirst = (state, key) => rangeOf(state)?.turners?.find(T => T.key === key)?.firstAtMs ?? null;
 
@@ -3304,13 +3755,14 @@ export function legWords(V, H, dummy = null) {
   const span = (xs) => (xs.length ? (Math.min(...xs) === Math.max(...xs) ? s2(xs[0]) : `${s2(Math.min(...xs))} TO ${s2(Math.max(...xs))}`) : null);
   const kinds = [...new Set(V.faults.map(f => f.kind))].filter(k => k !== 'funnel' && FAULT_PAPER[k]).map(k => FAULT_PAPER[k]);
   // (the card: the room's time against its par, "6.70 S / 7.5", and a par met within the instructor's click "OPERATOR MET (CLICK 0.67)")
-  const par = Number.isFinite(V.parMs) ? ` / ${(V.parMs / 1000).toFixed(1)}` : '';
+  // (aboard the boarding no par is called (no par tones on a real deck) and no paper zone is read off a man: the times kept)
+  const real = !!H?.boarding, par = Number.isFinite(V.parMs) && !real ? ` / ${(V.parMs / 1000).toFixed(1)}` : '';
   // (the Wreck's: the entry and the first round's anchor after the time, "DECK HATCH · FIRST ROUND BRACED (#2)")
   const wreck = V.entry !== undefined ? [V.entry ? V.entry.toUpperCase() : null, V.firstAnchor ? `FIRST ROUND ${ANCHOR_CARD[V.firstAnchor] ?? String(V.firstAnchor).toUpperCase()}` : null] : [];
-  return [V.word, V.setup ? 'SET UP' : V.ms !== null ? `${s2(V.ms)} S${par}` : null, ...wreck, V.state === 'passed' ? 'PASSED' : null, V.takeIns.length ? `TAKE-IN ${span(V.takeIns)}` : null,
-    V.firsts.length ? `FIRST ${span(V.firsts)}` : null, V.par ? `${H.par.toUpperCase()} ${V.par === 'met' ? `MET${V.clickMs ? ` (CLICK ${s2(V.clickMs)})` : ''}` : V.par === 'missed' ? 'MISSED' : 'OPEN'}` : null,
-    zonesText(V.zones) || null, zonesText(V.twoZones) ? `#2 ${zonesText(V.twoZones)}` : null, V.corners.of ? `CORNERS ${V.corners.covered} OF ${V.corners.of}` : null,
-    V.doorwayMs ? `DOORWAY ${s2(V.doorwayMs)} S` : null, ...liveWords(V.live), ...kinds, ...(V.kit ?? []), dummy].filter(Boolean).join(' · ');
+  return [V.word, V.setup ? 'SET UP' : V.ms !== null ? `${s2(V.ms)} S${par}` : null, ...wreck, V.held ? 'HELD BY THE TEAM' : V.state === 'passed' ? 'PASSED' : null, V.takeIns.length ? `TAKE-IN ${span(V.takeIns)}` : null,
+    V.firsts.length ? `FIRST ${span(V.firsts)}` : null, V.par && !real ? `${H.par.toUpperCase()} ${V.par === 'met' ? `MET${V.clickMs ? ` (CLICK ${s2(V.clickMs)})` : ''}` : V.par === 'missed' ? 'MISSED' : 'OPEN'}` : null,
+    real ? null : zonesText(V.zones) || null, !real && zonesText(V.twoZones) ? `#2 ${zonesText(V.twoZones)}` : null, V.corners.of ? `CORNERS ${V.corners.covered} OF ${V.corners.of}` : null,
+    V.doorwayMs ? `DOORWAY ${s2(V.doorwayMs)} S` : null, ...liveWords(V.live, real), ...kinds, ...(V.kit ?? []), dummy].filter(Boolean).join(' · ');
 }
 
 /** The run sheet (see the header): { rows: [{ room, words }], card, one, spinLine, practised }. The one helper of the paper, the card and the instructor's words. */
@@ -3329,7 +3781,7 @@ export function runSheetOf(state, ms = state.clock.ms) {
   const W = H.bangGo ? bangWindowOf(state) : null;
   if (W && W.bangAtMs !== null && W.doorAtMs !== null && W.bangAtMs - W.doorAtMs > DOOR_OPEN_SAID_MS && views[0]) views[0].kit.push(`DOOR OPEN ${s2(W.bangAtMs - W.doorAtMs)} S BEFORE THE BANG`);
   const rows = views.filter(V => (H.bangGo ? V.state !== 'ahead' : V.state !== 'ahead' || V.k <= H.cur)).map(V => ({ room: V.room, words: legWords(V, H, V.k === dumLeg ? dummyWord : null) }));
-  const card = cardOf(state, R, H, views, ms), one = oneThing(state, H, views);
+  const card = H.boarding ? collarCardOf(state, R, H, views, ms) : cardOf(state, R, H, views, ms), one = oneThing(state, H, views);
   // (the card: the TEAM row (teamRowOf) and the verdict (houseVerdict) as their own spreads; house-kit.js weighs its keys
   // against the one thing's own score, so a cause's key is passed to it as v0.0.19's 'par' (its ownScore knows that one))
   const team = teamRowOf(state, H), verdict = houseVerdict(state);
@@ -3338,9 +3790,12 @@ export function runSheetOf(state, ms = state.clock.ms) {
   // card shows them under the plan view, where the hot wash stands down: the page said only "WOULD HAVE BEEN: WOUNDED, CHEST")
   // (the Wheel's spin line on the house only: the Wreck is a hulk in free fall, no spin to drop a round (the review of C and D))
   return { rows, card, one, spinLine: H.ship ? null : hashPick(HOUSE_CHIEF.spin, 'house-chief', state.meta.seed, 'spin'), practised: practisedOf(state, H, views), ...(team ? { team } : {}), verdict: { ...verdict, words: verdictWords(state, verdict) },
-    ...(H.live ? { would: wouldLines(state, H) } : {}),
+    // (aboard the rounds were real, their wounds the card's OURS and THE CORPSMAN: no "what those rounds would have done")
+    ...(H.live && !H.boarding ? { would: wouldLines(state, H) } : {}),
     // ("Bang, then go"'s rows: the head, THE WINDOW (or THE DOOR), a line a man, THEIR CHOICES (breachCardOf over bangWindowOf))
     ...(H.bangGo ? { breach: breachCardOf(state, H) } : {}),
+    // (the boarding's rows: OURS, THEIRS, THE CREW, the rounds and holes, THEIR CHOICES, the corpsman's (collarRowsOf), and the paper's place)
+    ...(H.boarding ? { boarding: collarRowsOf(state, R, H, ms), place: collarPlaceOf(H) } : {}),
     ...kit2Marks(state, H, views, { card, one: one.key.startsWith('par:') ? { ...one, key: 'par' } : one }) };
 }
 
@@ -3375,17 +3830,79 @@ function cardOf(state, R, H, views, ms) {
   const setUp = views.some(V => V.setup), ranWords = setUp && !rooms ? 'THE HALL' : `${rooms} ROOM${rooms === 1 ? '' : 'S'}`;
   // (the Wreck's line (its build sheet §1 item 13): "THE WRECK · SERGEANT · 2 DECKS · 4 COMPARTMENTS · …", and after the
   // no-shoots "FIRED FLOATING: NONE" and the tug's "FEET AFT IN 3.1 S" (wreckCardWords))
-  const wreck = H.ship === 'wreck';
+  const ship = shipOf(H), wreck = !!ship, nDecks = ship ? Object.keys(ship.decks).length : 0;
   // (a burst's cease fire is its head too, house-kit.js kitMarks' "CEASE FIRE: …" before the line: the NO-GO said once)
   // ("Bang, then go" says its own name and the room, and no stands (it has none: its two men are the live words))
   const bg = !!H.bangGo;
-  return [head || H.end?.why === 'burst' ? null : verdict, head, ...(H.live ? casualtyWords(state, R, H) : []), bg ? 'BANG, THEN GO' : laneCardOf(H), label, wreck ? '2 DECKS' : `AT ${gWords(state)}`, wreck ? `${rooms} COMPARTMENT${rooms === 1 ? '' : 'S'}` : bg ? 'ROOM 1' : ranWords, laneMs !== null ? `${(laneMs / 1000).toFixed(1)} S` : null,
+  return [head || H.end?.why === 'burst' ? null : verdict, head, ...(H.live ? casualtyWords(state, R, H) : []), bg ? 'BANG, THEN GO' : laneCardOf(H), label, wreck ? `${nDecks} DECK${nDecks === 1 ? '' : 'S'}` : `AT ${gWords(state)}`, wreck ? `${rooms} COMPARTMENT${rooms === 1 ? '' : 'S'}` : bg ? 'ROOM 1' : ranWords, laneMs !== null ? `${(laneMs / 1000).toFixed(1)} S` : null,
     Number.isFinite(laneMs) && Number.isFinite(v.laneParMs ?? laneParOf(state, H)) ? `PAR ${((v.laneParMs ?? laneParOf(state, H)) / 1000).toFixed(1)} S` : null,
     bg ? null : `${down} OF ${threats.length} THREATS`, bg ? null : nsHit ? `${nsHit} OF ${nsAll.length} NO-SHOOTS HIT` : nsAll.length || !setUp ? `${nsAll.length} NO-SHOOT${nsAll.length === 1 ? '' : 'S'} UNTOUCHED` : null, ...(H.live ? liveCard(state, R, H) : []),
     ...(wreck ? wreckCardWords(state, H) : []),
     firstOn.length ? `FIRED FIRST ON YOU: ${firstOn.join(', ')}` : null,
     takeIns.length ? `TAKE-IN ${s2(Math.min(...takeIns))}${Math.max(...takeIns) !== Math.min(...takeIns) ? ` TO ${s2(Math.max(...takeIns))}` : ''} S` : null,
     pars.length ? `${H.par.toUpperCase()}: ${met ? 'MET' : `MISSED ${sum(pars.map(V => V.parMissed))}`}` : null].filter(Boolean).join(' · ');
+}
+
+// ---- v0.0.27, the boarding's card (its build sheet §1 D, item 1, items 12, 15, 18) ----
+//
+// The card's line (collarCardOf): the ship's name, its kind and deck, the end and its time from GO ("THE PATIENT MULE · BELT ICE HAULER ·
+// DECK 2 · SECURED 3:12"; "YOU WERE DOWN 1:55: A GUNSHOT WOUND IN THE CHEST"), the sheet, the compartments ended, FIRED FLOATING (the
+// Wreck's words). Its rows (collarRowsOf, the run sheet's `boarding`: each "HEAD: a · b"): OURS (the fire team's four by their labels,
+// their wounds and care), THEIRS (the armed men: down, gave up, fled, still up), THE CREW, the rounds and holes (the boarding's counts,
+// holes.js's), THEIR CHOICES (the track: a line a man), the corpsman's (aid.js boardingCare where it is merged). No par, no verdict.
+const mss = (ms) => { const t = Math.max(0, Math.round(ms / 1000)); return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`; };
+// (a body's wound in the card's words: "A GUNSHOT WOUND IN THE LEFT ARM", the tourniquet with it, or null unhurt)
+function woundCard(state, pid) {
+  const rec = state.people?.[pid]?.body, where = rec ? hitWhere(rec) : null;
+  if (!where) return null;
+  const n = (rec.injuries ?? []).filter(i => i.gunshot && !i.internal).length, tq = (rec.injuries ?? []).find(i => i.cared === 'tourniquet');
+  const H = houseOf(state), at = tq && Number.isFinite(tq.caredAtMs) && Number.isFinite(H?.goAtMs) ? ` AT ${mss(tq.caredAtMs - H.goAtMs)}` : '';
+  return `${n > 1 ? `${n} GUNSHOT WOUNDS, THE FIRST IN` : 'A GUNSHOT WOUND IN'} ${where.toUpperCase()}${tq ? `, TOURNIQUET${at}` : ''}${rec.dead ? ', DEAD' : ''}`;
+}
+// (a man of theirs by the card's state word (courses.js COLLAR_CARD.states): his live state, else his board's)
+function theirState(state, T) {
+  if (!isLive(T)) return T.stoppedAtMs !== null ? 'down' : 'up';
+  const st = T.live.st;
+  if (st === 'down' || st === 'out') return T.live.gaveAtMs !== undefined && T.live.gaveAtMs !== null && st === 'out' ? 'hands' : 'down';
+  if (st === 'hands' || Number.isFinite(T.live.gaveAtMs)) return 'hands';
+  if (st === 'flee' || st === 'fled') return 'fled';
+  return 'up';
+}
+/** The boarding's run sheet's place (the paper's title): the ship and its deck. */
+const collarPlaceOf = (H) => shipOf(H)?.cardWords?.place ?? shipOf(H)?.card ?? null;
+/** The boarding's card line (see the section's head). */
+function collarCardOf(state, R, H, views, ms) {
+  const SH = shipOf(H), W = SH.cardWords, B = H.boarding, label = (TEST_SHEETS[H.tier]?.label ?? H.tier).toUpperCase();
+  const why = B.end?.why ?? H.end?.why ?? null, at = H.goAtMs === null ? null : laneStopMs(H, ms) - H.goAtMs;
+  const end = why ? `${W.ends[why] ?? String(why).toUpperCase()}${at !== null ? ` ${mss(at)}` : ''}` : at !== null ? mss(at) : null;
+  const wound = why === 'down' ? woundCard(state, playerId(state)) : null;
+  const rooms = views.filter(V => !V.setup && !V.held && (V.state === 'clear' || V.state === 'passed')).length;
+  return [SH.card, W.ship, W.deck, end ? `${end}${wound ? `: ${wound}` : ''}` : null, label, `${rooms} COMPARTMENT${rooms === 1 ? '' : 'S'}`, ...wreckCardWords(state, H)].filter(Boolean).join(' · ');
+}
+/** The boarding's rows (see the section's head): { rows: [words] }, each "HEAD: a · b". */
+function collarRowsOf(state, R, H, ms) {
+  const SH = shipOf(H), W = SH.cardWords, B = H.boarding, rows = [], t0 = H.goAtMs ?? 0;
+  const team = [...fireTeamOf(state)].sort((a, b) => (a.n === 3 ? -1 : b.n === 3 ? 1 : a.n - b.n));
+  rows.push(`OURS: ${team.map(m => `${W.team[m.n] ?? `#${m.n}`}${woundCard(state, m.pid) ? ` ${woundCard(state, m.pid)}` : ' UNHURT'}`).join(' · ')}`);
+  const armed = armedOf(state, R), crew = R.turners.filter(T => !armed.includes(T));
+  const count = (xs) => { const c = {}; for (const T of xs) { const k = theirState(state, T); c[k] = (c[k] ?? 0) + 1; } return c; };
+  const ca = count(armed);
+  rows.push(`THEIRS: ${armed.length} ARMED${['down', 'hands', 'fled', 'up'].filter(k => ca[k]).map(k => ` · ${ca[k]} ${W.states[k] ?? k.toUpperCase()}`).join('')}`);
+  if (crew.length) { const hit = crew.filter(T => T.hits?.length || woundCard(state, T.live?.who)).length; rows.push(`THE CREW: ${crew.length}${hit ? ` · ${hit} HIT` : ' · UNHURT'}`); }
+  // (the rounds that met a face, holes.js holesOf: yours as dust or through a soft wall, never a bulkhead or the hull (F160), theirs holing)
+  const { ours, theirs } = holesOf(state);
+  if (ours.rounds || theirs.rounds) rows.push(`MISSES: YOURS ${ours.rounds}, THROUGH A BULKHEAD ${ours.bulkhead} · THEIRS ${theirs.rounds}, HOLES ${theirs.holes}${theirs.hull ? `, THE HULL HOLED ${theirs.hull}` : ''}`);
+  const name = (T) => String(T.stand).toUpperCase();
+  // (a ruling at a compartment's "Clear!" ('out') is no choice of his: it follows his DOWN or GAVE UP, and read "DOWN" it named a man who
+  // gave up unhurt down, and every man down twice (the v0.0.27 play review, finding 5); the track keeps it for the gauges)
+  const choices = R.turners.filter(isLive).flatMap(T => (B.track?.[T.stand] ?? []).filter(e => e.what || e.st !== 'out').map(e => `${name(T)} ${String(e.what ?? W.states[e.st] ?? e.st ?? '').toUpperCase()} AT ${mss(e.atMs - t0)}`));
+  if (R.turners.some(isLive)) rows.push(choices.length ? `THEIR CHOICES: ${choices.join(' · ')}` : 'THEIR CHOICES: NONE SEEN');
+  // (the corpsman's card after the fight (aid.js boardingCare, B's): ours first, then theirs, each his care and his outcome, at any end)
+  if (H.end) {
+    const care = boardingCare(state, H.end.atMs), label = (x) => (x.side === 'ours' ? W.team[team.find(m => m.pid === x.pid)?.n] ?? 'A MARINE' : String(R.turners.find(T => T.live?.who === x.pid)?.stand ?? 'A MAN').toUpperCase());
+    if (care.length) rows.push(`THE CORPSMAN: ${care.map(x => `${label(x)} ${(W.care[x.outcome] ?? String(x.outcome).toUpperCase())}${x.care.length ? ` (${x.care.join(', ').toUpperCase()})` : ''}`).join(' · ')}`);
+  }
+  return { rows };
 }
 
 // (the Wreck's card words: your rounds fired floating ("FIRED FLOATING: NONE"), and the tug: from its warning to your boots on
@@ -3467,7 +3984,10 @@ function oneThing(state, H, views) {
     masked: n('masked') * 65, heels: legsOf(H).filter(L => L.heelsMs > HEELS_LATE_MS).length * 20,
     // (the Wreck's four: a round floating weighs as the muzzle does (it is the scene's lesson), the tug's onset on the deckhead as
     // a man left standing, the open middle and the hatch as the doorway (my calls); none can occur on the house)
-    ...(H.ship === 'wreck' ? { float: n('float') * 75, aft: n('aft') * 60, open: n('open') * 35, hatch: n('hatch') * 30 } : {}),
+    ...(shipOf(H) ? { float: n('float') * 75, aft: n('aft') * 60, open: n('open') * 35, hatch: n('hatch') * 30 } : {}),
+    // (the boarding's own faults: a round at a man who could not fight over every other (the card's worst line), the entry late on
+    // the bang as a corner (my calls; the play review, finding 6: "Clean." over three bang faults, and over a 'protected' one)
+    ...(H.boarding ? { protected: n('protected') * 110, bang: n('bang') * 25 } : {}),
     funnel: n('funnel') * 30 + Math.round(doorway / 100), corner: n('corner') * 25, door: n('door') * 20,
     // (the dummy: not cleared, or cleared slower than HANDS_K × the sheet's immediate action (the click is the instructor's, and a
     // tier one's 0.50 s at his own pace no lesson: the card's C1, 6 of 20 tier one lanes told it))
@@ -3479,7 +3999,8 @@ function oneThing(state, H, views) {
     ...(H.live ? { [casualtyKey(state, H)]: n('casualty') * 120, surrendered: n('surrendered') * 95, reopened: n('reopened') * 55, uncovered: n('uncovered') * 45,
       // (the play review: paint on you or your number two short of the casualty, now that a wound no longer ends the
       // lane (the user's answer of 2026-11-16), weighs as a strike; a casualty's own paint is the casualty's line; my call on 80)
-      paint: n('casualty') ? 0 : paintOf(views) * 80 } : {}),
+      // (none aboard the boarding, where no round is paint)
+      paint: n('casualty') || H.boarding ? 0 : paintOf(views) * 80 } : {}),
   };
   const worst = Object.entries(score).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
   // (the play review: a lane ended before a room was cleared or passed is not "Clean lane": nothing was run; the hunt of v0.0.20, P3: on a
@@ -3487,11 +4008,14 @@ function oneThing(state, H, views) {
   // lane it left out ('setup'), never "Clean lane. Again, faster." beside its NO-GO)
   const setUp = views.some(V => V.setup);
   const ran = views.some(V => !V.setup && (setUp || V.door !== 'hall') && (V.state === 'clear' || V.state === 'passed'));
-  const key = whoseOne(state, H, views, worst && worst[1] > 0 ? worst[0] : ran ? (setUp ? 'setup' : 'clean') : 'unplayed');
+  // (aboard, with nothing to fault, the end is the lesson where it went wrong: fallen back or you down, never "Clean." (the play review,
+  // finding 6: "Clean. Now do it again, and quicker." with the AR dead in the lock)
+  const endKey = H.boarding && ['fellBack', 'down'].includes(H.boarding.end?.why) ? H.boarding.end.why : null;
+  const key = whoseOne(state, H, views, worst && worst[1] > 0 ? worst[0] : endKey ?? (ran ? (setUp ? 'setup' : 'clean') : 'unplayed'));
   // (the doorway's advice below rung 2 names the Watch, the one decision that keeps the feet going through the door)
   const keys = rungOf(state, playerId(state), 'room') < 2;
   const lines = key === 'funnel' && keys && HOUSE_CHIEF.one.funnelKeys ? HOUSE_CHIEF.one.funnelKeys : key === 'par:unready' && keys ? HOUSE_CHIEF.one['par:unreadyKeys']
-    : key === 'passed:door' && keys ? HOUSE_CHIEF.one['passed:doorKeys'] : (H.ship === 'wreck' ? WRECK_CHIEF.one[key] : null) ?? HOUSE_CHIEF.one[key] ?? HOUSE_CHIEF.one.par;
+    : key === 'passed:door' && keys ? HOUSE_CHIEF.one['passed:doorKeys'] : (shipOf(H)?.words?.one?.[key] ?? null) ?? HOUSE_CHIEF.one[key] ?? HOUSE_CHIEF.one.par;
   return { key, text: hashPick(lines, 'house-chief', state.meta.seed, 'one', key), score: worst?.[1] ?? 0 };
 }
 // (the one thing's key for a casualty, in the merge's order (the v0.0.22 integration): your late one 'casualty:bled' (the hunt of
@@ -3566,9 +4090,12 @@ export function cleanRoomOf(state, leg) {
 }
 // (what a career would count: the clean rooms (cleanRoomOf), toward practised at REPS_PRACTISED; a test sheet's never moves)
 function practisedOf(state, H, views) {
+  // (none aboard the boarding: a real deck is no rep toward practised (the v0.0.27 play review, finding 6: "0 clean compartments: a
+  // career would count them toward practised." on the card of a fall back)
+  if (H.boarding) return null;
   const clean = legsOf(H).filter(L => cleanRoomOf(state, L)).length;
   // (the Wreck's legs are compartments (v0.0.25's fixer, the play review's "4 clean rooms" there)
-  const unit = H.ship === 'wreck' ? 'compartment' : 'room';
+  const unit = shipOf(H) ? 'compartment' : 'room';
   return { clean, rooms: views.filter(V => V.door !== 'hall').length, words: `${clean} clean ${unit}${clean === 1 ? '' : 's'}: a career would count ${clean === 1 ? 'it' : 'them'} toward practised. A test sheet's never move.` };
 }
 
@@ -3608,13 +4135,15 @@ function wouldLines(state, H) {
 /** The aspects the score card asks about, in numbers: the pause (the take-ins), the drill (times, presses, how), the shots (rounds, zones, rows). */
 function aspectsOf(state, H, views) {
   const takeIns = views.flatMap(V => V.takeIns), firsts = views.flatMap(V => V.firsts);
-  const shots = { rounds: sum(views.map(V => V.rounds)), zones: {} };
+  // (aboard the boarding no paper is read off a man (legView's zones are empty there): `paper` false, so no "no hits" is said of rounds
+  // that put men down (the v0.0.27 play review, finding 6))
+  const shots = { rounds: sum(views.map(V => V.rounds)), zones: {}, ...(H.boarding ? { paper: false } : {}) };
   for (const V of views) for (const [z, n] of Object.entries(V.zones)) shots.zones[z] = (shots.zones[z] ?? 0) + n;
   return {
     pause: { n: takeIns.length, minMs: takeIns.length ? Math.min(...takeIns) : null, maxMs: takeIns.length ? Math.max(...takeIns) : null, firstMinMs: firsts.length ? Math.min(...firsts) : null },
-    drill: { legs: views.map(V => ({ room: V.room, ms: V.ms, presses: V.presses, how: V.how, doorwayMs: V.doorwayMs, ...(H.ship === 'wreck' ? { word: V.word } : {}) })), presses: sum(views.map(V => V.presses)) },
+    drill: { legs: views.map(V => ({ room: V.room, ms: V.ms, presses: V.presses, how: V.how, doorwayMs: V.doorwayMs, ...(shipOf(H) ? { word: V.word } : {}) })), presses: sum(views.map(V => V.presses)) },
     // (the Wreck's first aspect: your rounds fired floating, and each compartment's first round's anchor, by row)
-    ...(H.ship === 'wreck' ? { anchor: { floating: H.floatRounds ?? 0, first: views.reduce((o, V) => { if (V.firstAnchor) o[V.firstAnchor] = (o[V.firstAnchor] ?? 0) + 1; return o; }, {}) } } : {}),
+    ...(shipOf(H) ? { anchor: { floating: H.floatRounds ?? 0, first: views.reduce((o, V) => { if (V.firstAnchor) o[V.firstAnchor] = (o[V.firstAnchor] ?? 0) + 1; return o; }, {}) } } : {}),
     shots: { ...shots, two: { fired: H.two.fired, hits: H.two.hits }, dummy: { ...H.dummy } },
     // (the card (the build sheet v0.0.20 §1 item 10): six aspects, the team (your #2: in on his cue, his calls, his admin:
     // the TEAM row's numbers), the panel (the keys: presses, by hand or by a row, and the step panel's layout) and the feel (the walk,
@@ -3652,14 +4181,14 @@ export function houseNow(state, ms = state.clock.ms) {
   return {
     // (a named house says its letter, B or C, as the card and the paper do (its record's layout, else its code's: a pasted
     // code of B's rooms is B); another drawn house none, and `drawn` says it is one (the timer's head "NEW LAYOUT"))
-    tier: H.tier, label: TEST_SHEETS[H.tier]?.label ?? H.tier, lane: H.draw ? namedLaneOfDraw(H.draw) : H.lane, drawn: !!H.draw, cmd: R.cmd?.id ?? null, cmdAtMs: R.cmd?.atMs ?? null, hot: R.hot, goAtMs: H.goAtMs,
-    timerMs: H.goAtMs === null ? null : laneStopMs(H, ms) - H.goAtMs, par: H.par, parMs: parOf(state, null, H).ms, cur: H.cur, curRoom: curLeg(H)?.room ?? null,
+    tier: H.tier, label: TEST_SHEETS[H.tier]?.label ?? H.tier, lane: H.draw ? namedLaneOfDraw(H.draw) : H.lane, drawn: !!H.draw, ...(H.boarding ? { boarding: true } : {}), cmd: R.cmd?.id ?? null, cmdAtMs: R.cmd?.atMs ?? null, hot: R.hot, goAtMs: H.goAtMs,
+    timerMs: H.goAtMs === null ? null : laneStopMs(H, ms) - H.goAtMs, par: H.par, parMs: H.boarding ? null : parOf(state, null, H).ms, cur: H.cur, curRoom: curLeg(H)?.room ?? null,
     get rooms() { return rooms(); }, get hall() { return views()[3]; }, get legs() { return views(); },
     two: { pid: H.twoPid, name: two ? `${two.service?.rank ?? ''} ${two.name?.family ?? ''}`.trim() : null, rank: two?.service?.rank ?? null, rung: H.two.rung, fired: H.two.fired, hits: H.two.hits },
     dummy: { ...H.dummy }, get contacts() { return contacts(); }, get faults() { return faults(); }, get presses() { return presses(); },
     get aspects() { return aspects(); }, get summary() { return sheetOnce().card; }, get sheet() { return sheetOnce(); }, end: H.end, rangeEnd: R.end, standby: H.standby ? { ...H.standby } : null, wash: H.wash,
     // (the card: the verdict and the lane's par)
-    get verdict() { return sheetOnce().verdict; }, laneParMs: legsOf(H).some(L => L.setup) ? laneParOf(state, H) : H.laneParMs ?? null,
+    get verdict() { return sheetOnce().verdict; }, laneParMs: H.boarding ? null : legsOf(H).some(L => L.setup) ? laneParOf(state, H) : H.laneParMs ?? null,
     turners: R.turners.map(T => ({ key: T.key, stand: T.stand, room: T.room, slot: T.slot, owner: ownerOf(state, T), face: T.face, x: T.x, z: T.z, facingK: q(facingOf(T, ms), 0.001), down: T.stoppedAtMs !== null, turned: T.turnAtMs !== null && T.turnAtMs <= ms,
       // (v0.0.19: a role-player's: live, the instructor's ruling (out) and whether he is covered, as the stack sees it)
       ...(isLive(T) ? { live: true, out: accountedOf(state, T, ms) === 'out', covered: ['down', 'hands'].includes(accountedOf(state, T, ms)) } : {}) })),
@@ -3681,17 +4210,17 @@ export function houseRangeNow(state, R, ms = state.clock.ms) {
 
 /** What "Again as …" starts: the same seed, another sheet, the par the picker set (else the sheet's own). */
 // (the game's own scenario, so "Again as …" on the Wreck replays the Wreck (test-zerocqb), never the house)
-export const againAsHouse = (state, tier) => ({ scenario: state.meta?.scenario ?? 'test-shoothouse', seed: state.meta.seed, tier: tierOf(tier), par: houseOf(state)?.parSet ?? null, ...(houseOf(state)?.loadout ? { loadout: houseOf(state).loadout } : {}), ...(houseOf(state)?.opfor ? { opfor: houseOf(state).opfor } : {}), ...(houseOf(state)?.bangGo ? { breach: houseOf(state).bangGo.code } : {}) });
+export const againAsHouse = (state, tier) => ({ scenario: state.meta?.scenario ?? 'test-shoothouse', seed: state.meta.seed, tier: tierOf(tier), par: houseOf(state)?.parSet ?? null, ...(houseOf(state)?.loadout ? { loadout: houseOf(state).loadout } : {}), ...(houseOf(state)?.opfor ? { opfor: houseOf(state).opfor } : {}), ...(houseOf(state)?.bangGo ? { breach: houseOf(state).bangGo.code } : {}), ...(houseOf(state)?.boarding ? { holdouts: houseOf(state).boarding.code } : {}) });
 
 /**
  * The lane in words (the review of A: the goal box said "Lane A" over a drawn house): 'Lane A' on the house as set (its
  * record's lane), 'Lane B' or 'Lane C' on a named house, 'A new layout' on another drawn house, whose lane record stays 'A' as room.js's cache key; the run sheet's card says it
  * in capitals.
  */
-export const laneNameOf = (state) => { const H = houseOf(state); if (H?.ship === 'wreck') return 'The Wreck'; const named = H?.draw ? namedLaneOfDraw(H.draw) : null; return named ? `Lane ${named}` : H?.draw ? 'A new layout' : `Lane ${H?.lane ?? 'A'}`; };
+export const laneNameOf = (state) => { const H = houseOf(state); if (shipOf(H)) return shipOf(H).name; const named = H?.draw ? namedLaneOfDraw(H.draw) : null; return named ? `Lane ${named}` : H?.draw ? 'A new layout' : `Lane ${H?.lane ?? 'A'}`; };
 // (the card's lane: "LANE B" on a named house as the paper, the timer and the end card's header say it (the play review of v0.0.22,
 // 2026-11-17: the glass card said "NEW LAYOUT" over lane B), "NEW LAYOUT" on another drawn house, the set's letter as set)
-const laneCardOf = (H) => { if (H?.ship === 'wreck') return 'THE WRECK'; const named = H?.draw ? namedLaneOfDraw(H.draw) : null; return named ? `LANE ${named}` : H?.draw ? 'NEW LAYOUT' : `LANE ${H.lane}`; };
+const laneCardOf = (H) => { if (shipOf(H)) return shipOf(H).card; const named = H?.draw ? namedLaneOfDraw(H.draw) : null; return named ? `LANE ${named}` : H?.draw ? 'NEW LAYOUT' : `LANE ${H.lane}`; };
 
 /** The goal line with your number two named: COMBAT §25.10.4's. */
 export function houseGoal(state) {
@@ -3705,8 +4234,8 @@ export function houseGoal(state) {
   // house: 163 and 168 characters, three lines at 1280 × 720 and 1600 × 900 (ui-goal-clamp); the carried lens's live words, 234 with
   // its corner, were four)
   const live = rangeOf(state)?.load === 'marking';
-  // (the Wreck's own, its boots and its decks named (three lines at most, as the house's))
-  if (H?.ship === 'wreck') return `The Wreck at Phobos, in free fall on mag boots, ${who} your number two. On GO: the brig, the trunk, the hold. Anchor before you fire.`;
+  // (a ship's own (the Wreck's: its boots and its decks named, three lines at most, as the house's): its row's goal, {who} your #2)
+  if (shipOf(H)) return shipOf(H).goal.replace('{who}', who);
   // ("Bang, then go"'s own, the kit named and never the door (its build sheet §9 item 1))
   if (H?.bangGo) return `Room 1 at 1 G, live, ${who} your number two. Two role-players inside who fire back. ${H.bangGo.bang === 'bang' ? 'The bang, then go.' : 'No bang: speed is your bang.'} Put them down or take their surrender.`;
   return live
@@ -3737,7 +4266,7 @@ export function houseLook(state, ms = state.clock.ms) {
   });
   return {
     instructor: c ? { x: c.x, z: c.z, y: c.y ?? 0, face: c.face ?? 'down', say: said, name: staffName(state, H.chiefPid) } : null, corners, stands,
-    timer: { runMs: H.goAtMs === null ? null : laneStopMs(H, ms) - H.goAtMs, parMs: H.parMs, par: H.par }, leaves: leavesLook(state, H, L, P, ms),
+    timer: { runMs: H.goAtMs === null ? null : laneStopMs(H, ms) - H.goAtMs, parMs: H.boarding ? null : H.parMs, par: H.par }, leaves: leavesLook(state, H, L, P, ms),
     aid: cornerAidLook(state, H, ms), marks: marksLook(state, H, ms),
     // (the house's spec for the stage's build, render/range.js buildHouse: HOUSE1 as set, through scenes/assemble.js)
     spec: houseSpecOf(state),

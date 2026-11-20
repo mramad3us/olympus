@@ -51,6 +51,11 @@
 // contact.js's 20 s row after the room's "Clear!": T.live.searched) is shown in truth before the lane's end, every mark where it struck
 // (marks.js hitMarks in contact.js cardPhaseOf's phase, A's one reader: belief until his search's end or the lane's), his words "SEARCHED" and the would-have's verdict from the ledger (searchedWords: the first fatal
 // strike's "WOULD HAVE BEEN FATAL: THE CHEST", else a wound's "A WOUND: <where>", else "HIS SOFT PANEL STOPPED ONE"; never a number).
+// v0.0.27 (its build sheet item 16, §3.5; "Away the boarding party"): a man aboard firing blind or down in free fall is drawn so
+// (seen.js's pose 'blind' or 'downFree'), his words FIRING BLIND or DOWN. The boarding's warm set is its own (WARM_BOARD): the holds a
+// man aboard can take, the seat left out (at 0 G a man down hangs from his boots: 'downFree'), blind fire and the 0 G down in; an
+// unarmed crewman's empty-handed and hands-up holds only (WARM_CREW); at the near band only (the deck is 12 × 10 m: a man past 10 m
+// paints his doll on a frame of its own, as any card does), so the scene's dolls stay inside DOLL_LRU (art/doll/dress.js).
 // paintOn(state, who) is the role-players' paint on a marine (R.house.live.struck) as card marks in blue, for a card of you or
 // your #2 (the casualty's).
 // Nothing pops: the card repaints only when its signature changes, and a man's dressed doll not yet painted is painted on a
@@ -129,7 +134,14 @@ export const lastSeenMemory = () => ({ state: null, men: new Map() });
  * v0.0.26, "Bang, then go": cowering with the hands empty, the rifle on its sling (C-a's card), and dazed standing and kneeling, the
  * rifle low (D-a's), so no doll is painted when a man first dazes or cowers).
  */
-export const WARM_HOLDS = Object.freeze([['rifle-low', 'stand'], ['rifle-aim', 'stand'], ['rifle-high', 'stand'], ['up', 'stand'], ['rifle-low', 'kneel'], ['rifle-aim', 'kneel'], ['up', 'kneel'], ['rifle-low', 'sit'], ['empty', 'cower'], ['rifle-low', 'daze'], ['rifle-low', 'dazeKneel']]);
+export const WARM_HOLDS = Object.freeze([['rifle-low', 'stand'], ['rifle-aim', 'stand'], ['rifle-high', 'stand'], ['up', 'stand'], ['rifle-low', 'kneel'], ['rifle-aim', 'kneel'], ['up', 'kneel'], ['rifle-low', 'sit'], ['empty', 'cower'], ['rifle-low', 'daze'], ['rifle-low', 'dazeKneel'],
+  // (blind fire, the rifle high over his cover, and a man down in free fall, the hands empty (see the header))
+  ['rifle-high', 'blind'], ['empty', 'downFree']]);
+/** The boarding's (v0.0.27, see the header): an armed man's holds aboard (WARM_HOLDS' but the seat: at 0 G a man down is the 0 G down), and an unarmed crewman's. */
+export const WARM_BOARD = Object.freeze(WARM_HOLDS.filter(([, pose]) => pose !== 'sit'));
+export const WARM_CREW = Object.freeze([['empty', 'stand'], ['up', 'stand'], ['up', 'kneel'], ['empty', 'cower'], ['empty', 'downFree']]);
+/** A rifle's hold as the P-12's, for a man whose only gun it is (seen.js holdOfSeen's sidearm). */
+export const PISTOL_HOW = Object.freeze({ 'rifle-low': 'pistol-ready', 'rifle-high': 'pistol-high', 'rifle-aim': 'pistol-aim' });
 /** And aimed away (across the chest, A1's other side), standing and kneeling, at the near band only (the house's rooms; 54 dolls with the rest, inside DOLL_LRU 56: breach-look holds it). */
 export const WARM_NEAR = Object.freeze([['rifle-aim', 'stand', 'away'], ['rifle-aim', 'kneel', 'away']]);
 /** Your #2's carries as his card may show them (warm()'s). */
@@ -352,6 +364,17 @@ export function createTargetView({ card, readers: given = {} } = {}) {
       const front = (who, how, pose = 'stand', aimAt = 'you') => { const r = seenOf(s, who, { by: s.player?.id }); return r ? { ...r, hold: { ...r.hold, how, act: null }, aimAt: how.endsWith('aim') ? aimAt : null, pose, facing: 'front' } : null; };
       const two = R.house?.two?.pid;
       if (two) { const P = personOf(s, two); for (const how of WARM_TWO) { const rec = front(two, how); if (rec) for (const ppm of bands) paintPortrait(rec, { look: P.look, sex: P.sex }, { pxPerM: ppm, picks }); } }
+      // (the boarding's men at the near band, each by what he carries (see the header))
+      if (R.house?.boarding) {
+        for (const T of (R.turners ?? []).filter(t => t.live?.who)) {
+          const P = personOf(s, T.live.who), g0 = seenOf(s, T.live.who, { by: s.player?.id })?.gear, armed = !!(g0?.rifle || g0?.pistol);
+          // (a man whose only gun is the P-12 holds it where a rifleman holds his rifle: seen.js holdOfSeen's sidearm)
+          const how1 = (how) => (!g0?.rifle && g0?.pistol ? PISTOL_HOW[how] ?? how : how);
+          for (const [how, pose] of armed ? WARM_BOARD : WARM_CREW) { const rec = front(T.live.who, how1(how), pose); if (rec) paintPortrait(rec, { look: P.look, sex: P.sex }, { pxPerM: bands[0], picks }); }
+          if (armed) for (const [how, pose, aimAt] of WARM_NEAR) { const rec = front(T.live.who, how1(how), pose, aimAt); if (rec) paintPortrait(rec, { look: P.look, sex: P.sex }, { pxPerM: bands[0], picks }); }
+        }
+        return n;
+      }
       for (const T of (R.turners ?? []).filter(t => t.live?.who)) {
         const P = personOf(s, T.live.who);
         for (const [how, pose] of WARM_HOLDS) { const rec = front(T.live.who, how, pose); if (rec) for (const ppm of bands) paintPortrait(rec, { look: P.look, sex: P.sex }, { pxPerM: ppm, picks }); }

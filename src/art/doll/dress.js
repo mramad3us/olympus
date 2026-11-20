@@ -18,10 +18,13 @@
 // painted man holds his gun where the stage paints it (W1: gear.js standGear's 'ready'), the 'hand' place kept for "Bang"'s boards.
 // The LRU holds 48 (P§4: the warm set's poses and the I and C cards; about 64 KB a doll at the near band, 3 MB at most); v0.0.26, 56:
 // the live lane's warm set (46 dolls) and the daze's standing and kneeling holds, two a man at two bands ("Bang, then go"), 54.
+// v0.0.27, 96: the house's warm set gains blind fire and the 0 G down (62 dolls), and "Away the boarding party" warms its men at the
+// near band only, four armed men's twelve holds and two aimed away, two crewmen's five and your #2's six (72, the pirates' draw; the
+// smugglers' 63), with room for the I and C cards; about 6 MB at the near band at most.
 import { doll, DOLL_SCALE } from './doll.js';
 
 /** The dressed dolls kept (my call: the house's faces, the #2, you and a few changes of gear; v0.0.23: 48, the poses' warm set). */
-export const DOLL_LRU = 56;
+export const DOLL_LRU = 96;
 /** The record's fields the doll draws (the rest of seenOf's record is the card's words or the band): a record with none of them set is the plain doll. */
 const posed = (rec) => !!rec && ((rec.pose && rec.pose !== 'stand') || (rec.facing && rec.facing !== 'front') || !!rec.hold?.how);
 const CUES = Object.freeze(['wetK', 'grimeK', 'sweatK', 'stubbleK', 'tiredK', 'bladderK', 'hungerK', 'handsK']);

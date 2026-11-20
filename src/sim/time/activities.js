@@ -632,6 +632,8 @@ export function causeOf(by, stopKind = null) {
   return STOP_CAUSE[stopKind] ?? (stopKind ? 'alert' : 'natural');           // (another interrupt woke you: as an alarm does)
 }
 
+// (a duration in whole minutes and seconds: "2 min 30 s", "2 min", "45 s")
+const minSecText = (ms) => { const t = Math.round(ms / 1000), m = Math.floor(t / 60), sec = t % 60; return m ? (sec ? `${m} min ${sec} s` : `${m} min`) : `${sec} s`; };
 // (TIME §8.8's line, its placeholders filled)
 function lineOf(state, d, endMs, fraction) {
   const rec = activityOf(d.activity), pid = playerId(state), lon = siteDayOf(state);
@@ -639,7 +641,9 @@ function lineOf(state, d, endMs, fraction) {
   if (fraction < 1 && !['sleep', 'nap', 'wait', 'standfast', 'idle'].includes(d.activity)) return `${cap(rec.noun ?? rec.offer)}, cut short after ${durationText(durMs)}.`;
   const tmpl = hashPick(rec.log, d.activity, pid, Math.floor(endMs / 12_000));
   // (beside the clock times it prints, the duration is theirs: "Down at 21:55, up at 23:00: 1 h 5 min", never rounded past them)
-  const durText = /\{(from|to)\}/.test(tmpl) ? durationText(shownMinuteMs(endMs, lon) - shownMinuteMs(d.fromMs, lon)) : durationText(durMs);
+  // (an activity with `durSeconds` says its minutes and seconds, never rounded to the minute: the boarding's override of 150 s read "3 min"
+  // while the clock moved 2:30 (the v0.0.27 play review, finding 10))
+  const durText = /\{(from|to)\}/.test(tmpl) ? durationText(shownMinuteMs(endMs, lon) - shownMinuteMs(d.fromMs, lon)) : rec.durSeconds ? minSecText(durMs) : durationText(durMs);
   const slip = (() => { for (let t = d.fromMs; t < endMs; t += 60_000) if (dayClock(t, lon).timeslip) return true; return dayClock(endMs, lon).timeslip; })();
   const outfit = { utilities: 'Utilities', pt: 'PT kit', towel: 'A towel' }[outfitOf(playerActor(state))] ?? 'Utilities';
   return cap(tmpl.replace('{dur}', durText).replace('{from}', hhmm(d.fromMs, lon)).replace('{to}', hhmm(endMs, lon)).replace('{slip}', slip ? ', through the slip' : '').replace('{outfit}', outfit));

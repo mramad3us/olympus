@@ -39,6 +39,9 @@ export const RANKS = Object.freeze({
   HLH: r('HLH', 'Hospital Leading Hand', 'E4', 'navy', [20, 27], [12, null], 'nco'),
   HPO2: r('HPO2', 'Hospital Petty Officer Second Class', 'E5', 'navy', [22, 31], [24, null], 'nco'),
   HPO1: r('HPO1', 'Hospital Petty Officer First Class', 'E6', 'navy', [25, 35], [48, null], 'snco'),
+  // (the boarding round's stage 0, its build sheet §0 item 32: a civilian, the Belt hauler's holdouts and crew; no grade and never shown in a word
+  // (the card and the plaque name none for them); kind 'junior' for the personality draw. My call: the smallest true thing)
+  Civ: r('Civ', 'Civilian', null, 'civilian', [18, 60], [0, null], 'junior'),
 });
 
 /** The triangle's mode as a fraction of a rank's age range (PEOPLE §3.3). */
